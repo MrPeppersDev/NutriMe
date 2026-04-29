@@ -133,4 +133,54 @@ User direction (2026-04-29, Stage 2 Tension #3 dialogue):
 
 ---
 
+## Tension 4 — Consumer-friendly clinical instrument vs. validity preservation
+
+(Originally queued as Tension #5 in Stage 2 dialogue; takes synthesis-doc slot #4 because the queued Tension #4 — pantry "observed not asked" — was preemptively resolved by Tension #1.)
+
+### What surfaced
+
+**Sweep #3** (clinical nutrition assessment) found that consumer-friendly translations of clinical instruments routinely lose psychometric validity. A 5-question consumer adaptation of PHQ-9 typically doesn't preserve the depression-screening sensitivity/specificity of the validated 9-item version; SCOFF reworded for plainer language often shifts the cut-points; CCSS recast as conversational prompts loses normed reference points.
+
+The tension: NutriMe needs intake to be **clinical-grade in fidelity** (to inform personalization downstream) AND **consumer-friendly in delivery** (so busy working adults complete it without friction). The literature says simplification often pulls these apart.
+
+### Resolution
+
+**1. Hybrid administration (c) as primary path.** Validated instruments delivered through the conversational LLM intake **with items preserved verbatim**. The conversational layer provides:
+
+- Plain-language framing prefaces (*"I'm going to ask you nine questions about your mood over the past couple weeks. These are the same questions a doctor would use..."*) — but the items themselves stay exact
+- Transitions between instrument blocks
+- Item-level clarification on request (*"What does 'little interest or pleasure' mean here?"* — clarification, not item rewording)
+- Pacing and friction-reduction (allow breaks, save state, return)
+
+This is the "consumer-friendly *experience* without changing the *measurement instrument*" pattern.
+
+**2. Conversational elicitation for non-validated-instrument domains (b)** — for things validated instruments don't cover (food relationship beyond TFEQ/IES-2, cuisine preferences, want-to-try, household-level dynamics, cooking literacy beyond CCSS), the conversational elicitation IS the measurement.
+
+**3. Methodology principle — "borrow methodology even when you can't borrow items."** Where validated instruments don't exist for a domain, design the conversational elicitation **by analogy to validated-instrument design principles**, not freestyled:
+
+- Item anchoring (specific time-bounded questions, not abstract "how do you feel about X")
+- Frequency vs. severity scales (consistent response option families)
+- Behavioral indicators (ask about specific behaviors, not self-perception of trait)
+- Response option design (Likert vs. frequency vs. behavioral examples — pick consistently)
+- Framing techniques (specificity, time-bounding, context-setting)
+
+The system gets *rigor in how it asks* even when it can't get *validated measurement*.
+
+**4. Provenance tracking in the knowledge model.** Per Rule 8 (epistemic trail), signals are tagged with their source: `validated-instrument` vs. `conversational-elicitation`. Downstream inferences weight differently (validated signals carry sensitivity/specificity profile and confidence intervals; conversational signals carry an honest "this is elicited, not measured" framing). See [knowledge-model.md](knowledge-model.md).
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #5 in dialogue / synthesis #4):
+> "Yeah, C plus B, and where there isn't a validated instrument, then we're leaning on the validated instruments for suggestions and guidance on how to build that workflow and questionnaire."
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #4)
+- **sweep #3 (clinical nutrition assessment)** — note hybrid administration approach for validated instruments + borrow-methodology principle for non-validated domains
+- **sweep #4 (adaptive intake agent)** — adaptive intake architecture must support hybrid administration (verbatim items + conversational framing) AND methodology-borrowing design for non-validated elicitation
+- **knowledge-model.md** — signals tagged with provenance (`validated-instrument` vs. `conversational-elicitation`) per Rule 8
+- **roadmap.md** — Tension #5 (consumer-friendly clinical instrument) marked resolved
+
+---
+
 *Future tensions will be added as resolved.*

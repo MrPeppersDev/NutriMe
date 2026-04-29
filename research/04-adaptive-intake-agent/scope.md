@@ -60,6 +60,15 @@ Each mode has different elicitation requirements; the sweep should map relevant 
 
 Per user direction: **hybrid conversational LLM + structured smart-branching + CAT (for validated screeners)** is the architectural direction. Sweep validates this against the literature and identifies pitfalls.
 
+### Consumer-friendly hybrid administration *(per [synthesis.md Tension #4](../00-meta/synthesis.md#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation))*
+
+The agent must support two parallel administration patterns:
+
+- **Validated-instrument hybrid administration** — for PHQ-9, GAD-7, SCOFF, EAT-26, PSQI, CCSS, and other validated instruments: items preserved verbatim; conversational layer provides plain-language framing prefaces, transitions between instrument blocks, item-level clarification on request, pacing/break/resume. Consumer-friendly experience, validated measurement preserved.
+- **Methodology-borrowed conversational elicitation** — for domains without validated instruments (food relationship beyond TFEQ/IES-2, cuisine preferences, want-to-try, household-level dynamics, cooking literacy beyond CCSS): conversational elicitation **designed by analogy to validated-instrument design principles**. Item anchoring, frequency vs. severity scales, behavioral indicators, consistent response option families, time-bounded specificity. Not freestyled — disciplined design even where validated instruments don't exist.
+
+Both patterns feed signals into the [knowledge model](../00-meta/knowledge-model.md) tagged with provenance (`validated-instrument` vs. `conversational-elicitation`) per Rule 8 — downstream inferences weight by source.
+
 ## Out of scope (with reasons)
 
 - Implementation of the agent — this sweep maps research; building comes later

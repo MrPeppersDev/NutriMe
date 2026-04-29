@@ -97,6 +97,14 @@ For households with children as eaters (intake parent-mediated per [sweep #9](..
 - Principles for asking about food, body, weight, family eating history without re-traumatizing
 - Disordered-eating-aware language in assessment
 
+### Consumer-friendly delivery — hybrid administration *(per [synthesis.md Tension #4](../00-meta/synthesis.md#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation))*
+
+For validated instruments (PHQ-9, GAD-7, SCOFF, EAT-26, PSQI, CCSS, etc.): **hybrid administration** — items preserved verbatim, conversational LLM intake provides plain-language framing prefaces, transitions, item-level clarification, pacing. Consumer-friendly *experience* without changing the *measurement instrument*; psychometric validity preserved.
+
+For domains without validated instruments (food relationship beyond TFEQ/IES-2, cuisine preferences, want-to-try, household-level dynamics, cooking literacy beyond CCSS): conversational elicitation **designed by analogy to validated-instrument methodology** — item anchoring, frequency vs. severity scales, behavioral indicators, consistent response option families, time-bounded specificity. The system gets rigor in how it asks even when it can't get validated measurement.
+
+Signals downstream tagged with provenance (`validated-instrument` vs. `conversational-elicitation`) in the [knowledge model](../00-meta/knowledge-model.md) per Rule 8.
+
 ## Out of scope (with reasons)
 
 - Building the actual intake agent — that's [sweep #4](../04-adaptive-intake-agent/scope.md)

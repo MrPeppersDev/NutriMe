@@ -17,6 +17,14 @@ Tracks each user's individual state:
 - **Stretch readiness** — current cooking confidence + skill state per [sweep #12](../12-skills-by-cuisine/scope.md), and per-cuisine progression position
 - **Personal context** — health screeners, dietary preferences, allergies, life-stage state — pulled from the [intake pattern](intake-pattern.md)
 
+Every signal in the per-user model is tagged with **provenance** (per [synthesis.md Tension #4](synthesis.md#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation)):
+
+- `validated-instrument` — signal originated from a validated psychometric instrument (PHQ-9, GAD-7, SCOFF, PSQI, CCSS, etc.). Carries sensitivity/specificity profile + confidence intervals from the instrument's validation literature.
+- `conversational-elicitation` — signal elicited via the methodology-borrowed conversational pattern in domains without validated instruments. Carries an honest "this is elicited, not measured" framing.
+- `passive-observation` — signal inferred from order data, cook confirmations, app interactions. Carries inference-quality framing.
+
+Downstream inferences (via [Rule 8 epistemic trail](epistemic-trail.md)) weight differently by provenance — the trail surfaces source so the user can understand what kind of evidence drove a recommendation.
+
 ### Per-household knowledge model
 
 Tracks the household's collective state:
