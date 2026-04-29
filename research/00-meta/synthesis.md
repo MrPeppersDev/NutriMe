@@ -325,4 +325,47 @@ Confirming: 3-level certainty display, three-layer visual + textual + numerical 
 
 ---
 
+## Tension 9 — Pediatric obesity AAP 2023 + needs-second-pass conditions
+
+(Originally queued as Tension #10 in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #10** (clinical condition gating) flagged eight conditions where refuse / gate / proceed-with-disclaimer assignment isn't obvious because the **literature itself is contested**:
+
+1. Pediatric obesity (AAP 2023 guideline contested)
+2. Depression / anxiety boundary (when does screener-positive become "system shouldn't plan")
+3. SIBO (small intestinal bacterial overgrowth — diagnostic + treatment contested)
+4. NCGS (non-celiac gluten sensitivity — contested entity)
+5. Histamine intolerance (limited rigorous evidence)
+6. Orthorexia (not in DSM-5; contested as distinct disorder)
+7. Long COVID (evolving literature, no nutritional consensus)
+8. ASD-without-ARFID (autism-related dietary patterns without ARFID overlap)
+
+These aren't research gaps in NutriMe's work — they're contested in the *underlying clinical literature*. The system can't resolve clinical controversies; it has to decide how to handle them.
+
+### Resolution
+
+**The bounded-role principle applies** — NutriMe is a meal-planning + mental-load-reduction + health-and-wellness-information-surfacing product. **It does not practice medicine, does not commit to per-condition clinical-management positions, does not adjudicate contested clinical literature.** All contested conditions resolve to the same default precisely because the system operates at a level *above* the clinical contestations:
+
+- **Default behavior: proceed-with-disclaimer**
+- **Heavy consult-professional surfacing** per [Rule 1](constitutional-rules.md#rule-1--consult-a-professional)
+- **Audit-as-education content** that honestly surfaces the contested nature (per [audit-as-education pattern](evidence-tiers.md#audit-as-education-pattern)) — *"the clinical literature on X is genuinely contested — here's why; please work with your care team"*
+- **No per-condition special handling** for contested conditions; the meta-default is the resolution
+
+**Specific note for pediatric obesity:** the AAP 2023 guideline involves meds + surgery recommendations for severe pediatric obesity. NutriMe doesn't comment on meds or surgery — it plans meals. For pediatric obesity, the default is: plan family-appropriate meals respecting the child's needs as eater, surface that pediatric obesity care is contested + complex + must involve pediatrician + RD, do not weight system recommendations toward weight outcomes (no calorie cuts, no portion shaming, no aesthetic framing — per [Rule 3](constitutional-rules.md#rule-3--no-food--macro--calorie-logging) and the no-aesthetic-product framing in [product-framing.md](product-framing.md)).
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #10 in dialogue / synthesis #9):
+> "I think option A is the default way to solve these things holistically, as we're just meal planning and helping with mental load around food. We're not doctors. We're not really there to pass medical advice. We're just surfacing information related to health and wellness and food."
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #9) capturing the bounded-role framing + the proceed-with-disclaimer + audit-as-education default for contested conditions
+- **sweep #10 (clinical condition gating)** — "needs second pass" condition list updated: all eight resolved to the default per this resolution; per-condition special handling removed
+- **roadmap.md** — Tension #9 marked resolved; "needs second pass" item under sweep #10 verification removed (resolved by meta-default, not by per-condition assignment)
+
+---
+
 *Future tensions will be added as resolved.*
