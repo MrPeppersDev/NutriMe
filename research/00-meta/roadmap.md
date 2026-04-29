@@ -37,10 +37,22 @@ Wave 1 research (sweeps #1, #2, #6, #11) was executed in an environment where We
 - **Sweep #2 (food composition databases)** — verify item counts (especially Open Food Facts product count, USDA FDC sub-dataset sizes), API rate limits / pricing, and license-text currency. Re-confirm whether BLS Germany remains paid-license.
 - **Sweep #6 (wearable & biometric data)** — verify vendor API current state (especially Fitbit Web API sunset trajectory, Garmin pricing tiers, Whoop v2 scope changes, Apple SpO2 patent-litigation status), re-confirm doctor-portal patient-API rollouts (ONC Cures Act §170.315(g)(10) compliance, Korean My HealthWay, Israeli Eitan, EHDS implementation timelines).
 - **Sweep #11 (recipe sourcing)** — re-verify all commercial API pricing + ToS at adoption time (Spoonacular, Edamam, ckbk, Eat Your Books, NYT Cooking subscription tiers).
+- **Sweep #3 (clinical nutrition assessment)** — re-verify sensitivity/specificity figures against original validation studies (agent flagged with inline `[verify]` tags); audit instrument copyright/licensing before any item-text embedding; map cross-cultural validation gaps per instrument for Rule 9 surfacing.
+- **Sweep #4 (adaptive intake agent)** — re-verify open-source repo states (Rasa / OpenDialog / Concerto status), Wysa / Limbic post-2024 publication updates, AMIE follow-up papers, any new PROMIS banks added in 2024–2026 window.
+- **Sweep #8 (nutrition education + why delivery)** — re-verify HLS-19 most recent country reports, 2024–2026 AI-credibility literature (post-ChatGPT publishing pace), latest Cochrane PLS template revisions, 2025–2026 ICMJE / WAME AI-disclosure guidance updates.
 
-This verification pass becomes a research-pipeline task before corpus-build phase begins. It is not a re-do of the sweeps — the framework, source identification, and analytical structure stand. It's a freshness check on time-sensitive details that the wave-1 environment couldn't capture.
+This verification pass becomes a research-pipeline task before corpus-build phase begins. It is not a re-do of the sweeps — the framework, source identification, and analytical structure stand. It's a freshness check on time-sensitive details that the wave environment couldn't capture.
 
-When wave 2 / wave 3 sweeps complete, this section should be extended with their analogous verification needs.
+When wave 3 sweeps complete, this section should be extended with their analogous verification needs.
+
+## Synthesis-phase tensions to resolve
+
+Surfaced during research, these are real product-design tensions that synthesis (post-Stage 1) needs to resolve. They do not block research but should not be lost.
+
+- **Spaced-repetition cadence vs. no-daily-check-in rule.** Sweep #8 (education delivery) found that spaced-repetition delivery is one of the strongest evidence-based patterns for nutrition concept retention. The intake-pattern.md "no daily check-in" rule rules out the streak-design / daily-engagement model that most spaced-repetition systems use. Synthesis needs to figure out how to deliver spaced repetition through the passive-confirmation surface (per-meal feedback) or via opt-in microlearning that doesn't become streak-driven. Flagged in sweep #8; touches sweep #4 (adaptive intake agent) too.
+- **Consumer-friendly clinical instrument adaptation vs. validity preservation.** Sweep #3 found that consumer-friendly translations of clinical instruments routinely lose psychometric validity. Synthesis needs to decide whether to stay closer to clinical-grade administration (more friction, validated) or accept validity loss with explicit framing (less friction, weaker measurement). Touches the consumer-vs-clinical-fidelity question in sweep #4 too.
+- **GRADE 4-level certainty vs. consumer comprehension.** Sweep #8 found consumer comprehension of full GRADE is unfavourable; recommends a 2- or 3-level user-facing display with full GRADE preserved in the audit trail. Touches the audit-as-education pattern in evidence-tiers.md.
+- **No-dominant food-relationship instrument** is a Sweep #3 finding that *positively* validates NutriMe's iterative-dialog elicitation approach (vs. trying to adopt a single canonical scale).
 
 ## Deferred to architecture phase
 
