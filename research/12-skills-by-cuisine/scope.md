@@ -57,6 +57,10 @@ For each cuisine in [primary research scope](../00-meta/geographic-scope.md):
 
 Methodology is **hybrid top-down + bottom-up**: top-down ("what does the literature say Cuisine X requires") + bottom-up ("iterate over major Cuisine X dishes, extract required skills, validate against top-down").
 
+### Stretch recipe ≤1-new-skill default *(per [synthesis.md Tension #7](../00-meta/synthesis.md#tension-7--stretch-recipe-1-new-skill-rule))*
+
+When the system suggests a horizon-broadening recipe, the default is **≤1 new skill** within a base of mastered skills. Multi-new-skill stretches are reserved for explicit user opt-in per [Rule 10 (user decides with full context)](../00-meta/constitutional-rules.md#rule-10--user-decides-with-full-context). The "stretch" determination considers both **novelty count** (how many new skills) and **failure cost** (deep-frying, fermentation, laminated doughs — high-cost-of-failure techniques get explicit framing even at ≤1 novelty count). See [intake-pattern.md stretch-recipe section](../00-meta/intake-pattern.md#stretch-recipe-1-new-skill-default-per-synthesismd-tension-7).
+
 ### Skill progression paths
 
 Build dependency graph:

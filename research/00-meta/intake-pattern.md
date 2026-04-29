@@ -88,6 +88,16 @@ This layer materially reduces mental load (per [product-framing.md](product-fram
 - Passive confirmation removes the cognitive cost of remembering, weighing, and entering food.
 - Semantic feedback respects the user's lived experience as evidence — which is appropriate where Tier 1 evidence is silent on the personal-response question.
 
+## Stretch recipe ≤1-new-skill default *(per [synthesis.md Tension #7](synthesis.md#tension-7--stretch-recipe-1-new-skill-rule))*
+
+When the system suggests a recipe intended to broaden the user's horizon (introducing a new cuisine, technique, or skill), the recipe should introduce **at most one new skill** within a base of skills the user has mastered. Recipes introducing multiple new skills at once are reserved for explicit user opt-in.
+
+This is a **system default, not a hard constraint** — per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context), the user can always override. When the user explicitly wants a multi-new-skill stretch (*"I want to try making fresh pasta from scratch this weekend"*), the system surfaces what the multiple new skills are + the elevated failure risk + offers a less-stretch alternative, then proceeds as the user directs.
+
+The "stretch" determination considers both **novelty count** (how many new skills the recipe introduces) and **failure cost** (high-failure-cost techniques like deep-frying, fermentation, laminated doughs get surfaced with explicit framing even when they're "≤1 new skill" by count). Recipe metadata in [sweep #11](../11-recipe-sourcing/scope.md) captures both dimensions.
+
+The user's [knowledge model](knowledge-model.md) tracks which skills are mastered so the system can identify what counts as a stretch for *this* user.
+
 ## Iterative horizon-broadening
 
 The intake model is also a **discovery and growth** model. A user starting on chicken nuggets shouldn't be left there. The system progressively introduces:

@@ -226,4 +226,59 @@ Confirming: abstracted constraint layer (Q5.1), all three sharing levels (Q5.2 (
 
 ---
 
+## Tension 6 — Food-relationship instrument fragmentation validates iterative-dialog elicitation
+
+(Originally queued as Tension #7 positive finding in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #3** (clinical nutrition assessment) found that the food-relationship measurement space is genuinely fragmented — TFEQ-R18, IES-2, DEBQ, YFAS, others — with no single dominant validated scale. The field itself hasn't converged.
+
+### Resolution
+
+This is a **positive finding** rather than a tension to resolve. The lack of a canonical instrument **validates** the iterative-dialog elicitation approach NutriMe already uses (per [Tension #4 (b) methodology-borrowed conversational elicitation](#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation)). We don't apologize for not picking one canonical instrument — the field hasn't picked one either, and the conversational elicitation designed by analogy to validated-instrument methodology is the appropriate response when no canonical instrument exists.
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #6)
+- **roadmap.md** — Tension marked resolved in synthesis-phase tensions section
+- (No new doc updates needed — Tension #4's hybrid + methodology-borrowed framing already covers the design implication; this entry just makes it explicit that the design choice is validated by sweep #3's finding)
+
+---
+
+## Tension 7 — Stretch recipe ≤1-new-skill rule
+
+(Originally queued as Tension #8 positive finding in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #12** (skills-by-cuisine) surfaced a concrete pacing constraint: recipes introducing multiple new skills at once risk failure; recipes introducing **exactly one new skill within a base of mastered skills** is the optimal horizon-broadening unit. Useful operational rule for the iterative-broadening pacing.
+
+### Resolution
+
+**1. Codify as a system default** in [intake-pattern.md](intake-pattern.md) alongside iterative horizon-broadening notes. The rule:
+
+> **Stretch recipe ≤1-new-skill default.** When the system suggests a recipe intended to broaden the user's horizon (introducing a new cuisine, technique, or skill), the recipe should introduce **at most one new skill** within a base of skills the user has mastered. Recipes introducing multiple new skills at once are reserved for explicit user opt-in.
+
+**2. System default, not hard constraint** — per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context), the user can override. If the user explicitly wants a multi-new-skill stretch (*"I want to try making fresh pasta from scratch this weekend"*), the system surfaces what the multiple new skills are + the elevated failure risk + offers a less-stretch alternative, then proceeds as the user directs.
+
+**3. Failure-cost dimension in stretch metadata.** Beyond skill-novelty count, recipe metadata also captures **failure cost** (deep-frying, fermentation that ruins if wrong, complex laminated doughs). High-failure-cost stretches get surfaced with explicit framing even when they're "≤1 new skill" by count. The "stretch" decision considers both *novelty count* and *failure cost*. Sweep #11's recipe metadata schema includes both.
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tensions #6 + #7 in dialogue):
+> "Accepted."
+
+Confirming: codify in intake-pattern.md (Q7.1 (a)), system-default-not-hard-constraint per Rule 10 (Q7.2 first point), failure-cost dimension in metadata alongside novelty count (Q7.2 second point).
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #7)
+- **intake-pattern.md** — new "Stretch recipe ≤1-new-skill default" section under iterative horizon-broadening
+- **sweep #11 (recipe sourcing)** — recipe metadata adds failure-cost dimension alongside the existing stretch-skill marker
+- **sweep #12 (skills-by-cuisine)** — note the rule as a system default with user-override + failure-cost framing
+- **roadmap.md** — Tension marked resolved in synthesis-phase tensions section
+
+---
+
 *Future tensions will be added as resolved.*
