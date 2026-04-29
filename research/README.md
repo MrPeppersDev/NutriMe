@@ -6,13 +6,15 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 
 ## Read these first
 
-- [Product framing](00-meta/product-framing.md) — what NutriMe is and explicitly is not
-- [Constitutional rules](00-meta/constitutional-rules.md) — non-negotiable safety + disclosure rules
+- [Product framing](00-meta/product-framing.md) — what NutriMe is and explicitly is not, including distribution intent
+- [Constitutional rules](00-meta/constitutional-rules.md) — 10 non-negotiable safety + disclosure rules
 - [Evidence tiers](00-meta/evidence-tiers.md) — how nutrition evidence is graded and surfaced
 - [Intake pattern](00-meta/intake-pattern.md) — iterative onboarding + passive confirmation + semantic feedback model
 - [Epistemic trail](00-meta/epistemic-trail.md) — how the system shows its work for AI-correlated inferences
 - [Dynamic research expansion](00-meta/dynamic-research-expansion.md) — system capability for fetching + verifying public information when corpus has gaps
+- [User decision framework](00-meta/user-decision-framework.md) — how the system handles conflicts between user requests and its knowledge (surface + let user decide)
 - [Geographic scope](00-meta/geographic-scope.md) — primary audience vs. broader research scope, with geographic-neutrality principle
+- [Roadmap](00-meta/roadmap.md) — living tracker of stretch goals, deferred items, and broader-scope futures
 - [Citation style](00-meta/citation-style.md) — citation format and cross-reference conventions
 - [Sources index](00-meta/sources.md) — master aggregator of every URL / DOI / publication cited across sweeps
 
@@ -32,6 +34,7 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 | 10 | Clinical condition gating + safety surface | Scoped | [10-clinical-condition-gating/](10-clinical-condition-gating/) |
 | 11 | Recipe sourcing, licensing, attribution, distribution | Scoped | [11-recipe-sourcing/](11-recipe-sourcing/) |
 | 12 | Skills-by-cuisine mapping | Scoped | [12-skills-by-cuisine/](12-skills-by-cuisine/) |
+| 13 | Grocery sourcing, ordering, and delivery infrastructure | Scoped | [13-grocery-infrastructure/](13-grocery-infrastructure/) |
 
 ## Cross-reference map
 

@@ -101,6 +101,8 @@ Surface as: "Conditions like yours are typically managed by [specialty]. We're n
 
 ## Regulatory framing — global, B + C levels per Rule 9
 
+**Distribution context:** Per [product-framing.md](../00-meta/product-framing.md), current distribution intent is **personal use** (user + family + possibly a few friends). This means regulatory analysis is **informational** — we map the landscape so we know where lines are, not so we can certify compliance at scale. If distribution intent broadens later (tracked in [roadmap.md](../00-meta/roadmap.md)), this analysis becomes the substrate for actual compliance work.
+
 For each primary research scope country:
 
 - **Wellness-app classification** — what makes an app a "wellness" tool vs. a regulated device in this jurisdiction

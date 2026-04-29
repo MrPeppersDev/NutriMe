@@ -38,6 +38,17 @@ Concretely, NutriMe spans:
 
 US, Canada, Western Europe (UK, France, Germany, Netherlands, Belgium, Nordics, Iberia, Ireland, Switzerland, Austria) — households sharing general Western dietary conventions. Research draws from a much broader international scope (see [geographic-scope.md](geographic-scope.md)) so the system can offer Western users horizon-broadening suggestions from global culinary and nutrition traditions — especially relevant to younger generations more open to international cuisines.
 
+**Distribution intent (current):**
+
+**Personal use** — built for the user, their family, and possibly a few friends. Not commercial, not SaaS, not open-source distribution at present. This shapes:
+
+- Regulatory analysis is informational rather than compliance-driven (we know where lines are, we're not crossing them at scale)
+- Recipe + data licensing leans on personal-use / non-commercial pathways where they exist
+- Privacy posture treats data with the rigor expected of regulated systems even though personal use does not legally require it
+- Distribution scope can change later — broader-scope implications tracked in [roadmap.md](roadmap.md)
+
+**Recipes / meals are not always for the requesting user.** A user may plan a meal for a household member, a guest, or someone else; the system applies clinical contraindications + allergen gating to the *eater*, not always the *requester* (per [Constitutional Rule 10](constitutional-rules.md#rule-10--user-decides-with-full-context)).
+
 **Cooking ability — design center:**
 
 - *Default user is pretty good at cooking and can follow a recipe precisely.*

@@ -40,6 +40,14 @@ Per user direction in sweep #9 turn:
 - For children: parent does intake on child's behalf
 - After intake, all members carry equal weight in conflict resolution, subject to age-appropriate adjustments
 
+### Account model — household top-level, users per household
+- **Household** is the top-level entity in the system
+- **Users** belong to households; each user has their own data (preferences, semantic feedback, health context, intake history)
+- Per-user data tracking enables individual personalization within a shared household plan
+- Privacy defaults (above) operate at the per-user level within the household
+- A user can belong to one household at a time (relationship arrangements that span households out of scope)
+- For per-recipe assignment, the system supports tagging recipes / meals with which household member(s) they're for, enabling the [Rule 10 (user decides with full context)](../00-meta/constitutional-rules.md#rule-10--user-decides-with-full-context) "for whom" gating pattern
+
 ### Privacy defaults
 - **Preferences / cuisine / want-to-try lists:** shared by default
 - **Health context (conditions, medications, lab results):** not shared by default

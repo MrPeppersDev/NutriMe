@@ -45,6 +45,24 @@ Tier 4 *may* appear as informational / cultural / historical context where no he
 
 See [evidence-tiers.md](evidence-tiers.md) for tier definitions and surfacing rules.
 
+## Rule 10 — User decides with full context
+
+When NutriMe encounters a conflict between a user request and the system's knowledge (clinical contraindications, allergens, life-stage cautions, evidence-weak choices, etc.), the system **surfaces the conflict, provides full context, and lets the user decide.** It does not refuse outright. It does not silently modify. It trusts adult users to make informed decisions about their own lives.
+
+A critical nuance: **recipes / meals are not always for the requesting user.** The user may be cooking for a household member, a guest, a friend who eats differently. When a request touches a contraindication on file, the system asks "for whom" and applies gating to the eater, not always the requester.
+
+The framework:
+
+1. **Detect** the conflict
+2. **Surface** it explicitly in plain language
+3. **Provide full context** — relevant evidence per [evidence-tiers.md](evidence-tiers.md), relevant constitutional considerations (consult-professional, audit-as-education), relevant alternatives
+4. **Defer** the decision to the user
+5. **Honor** the user's decision and preserve the trail per [epistemic-trail.md](epistemic-trail.md)
+
+This rule is meta over Rules 1, 7, 8, 9: those govern what guidance the system itself produces; Rule 10 governs how disagreement between system guidance and user choice is resolved — by transparency + user agency.
+
+See [user-decision-framework.md](user-decision-framework.md) for operational details.
+
 ## Rule 9 — Geographic neutrality in evidence surfacing
 
 The user's geographic location is a **logistics / utility data point, not a content filter**. All valid, peer-reviewed, well-sourced recommendations are equal-weighted in what the system surfaces to the user, regardless of which country's authority published them.
@@ -91,3 +109,4 @@ See [epistemic-trail.md](epistemic-trail.md) for the operational definition.
 - User instruction (2026-04-28, sweep #4 scoping) on peer-reviewed floor: "Because it's based in health sciences and directly related to the user's health, we want to make sure we have a way to ground every decision made here and everything we surface in the future in some sort of scientific understanding, at least peer reviewed at minimum."
 - User direction (2026-04-28, sweep #6 scoping) on epistemic trail: "we need to surface the fact that we are trying to correlate data as best as possible with an AI system, and that that's not always gonna be perfect. We really want to try to build an epistemic trail of honesty as to how the data was cross-referenced and in what way, and then run verification pipelines over that before we present it to the user with that trail of honesty."
 - User direction (2026-04-28, sweep #10 scoping) on geographic neutrality: "I don't want to take the users' geographic scope and weight it to what we recommend. I just want that to be a data point. I want to make sure we weight the recommendations from all of the places and data sources we have that are valid and peer-reviewed, well-sourced. I want to be able to surface all of that to the user so that they can make a far more informed decision than just USDA or just CDC or just the UK health administration."
+- User direction (2026-04-28, post-scoping consistency pass) on user decides with full context: "I think we address and explain at the start, and then at the end of the day we just make sure we've surfaced the conflict and let the user decide with full context. They may just be looking to make a recipe not for themselves but for somebody that is going to be with them. They may not end up eating it, but it might need to be on the meal plan."

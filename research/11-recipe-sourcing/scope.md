@@ -154,13 +154,15 @@ The same recipe concept must be presentable in multiple modalities to match user
 
 ### Legal + licensing landscape (global, equal-weighted per Rule 9)
 
+**Distribution context:** Per [product-framing.md](../00-meta/product-framing.md), current distribution intent is **personal use**. This lowers commercial-licensing pressure but does not lower ToS-respect or attribution-ethics requirements — we use legitimate paid pathways and respect ToS regardless of distribution scope.
+
 - US: recipes themselves not copyrightable per *Publications International v. Meredith Corp.* (1996); creative expression copyrighted
 - EU: similar copyright regime + database-rights overlay (Directive 96/9/EC sui generis database right)
 - UK: post-Brexit similar to EU
 - Each primary research scope country: equal-weighted analysis of recipe IP and licensing rules
 - ToS-respect across jurisdictions
 - Attribution ethics — even when not strictly legally required, attribution to original source is a quality + trust signal
-- Affiliate / cookbook-purchase linking (drives revenue back to recipe authors — ethical good citizenship)
+- Affiliate / cookbook-purchase linking — less directly relevant for personal-use distribution, but still ethical good citizenship to drive recognition / revenue back to recipe authors when feasible (broader-scope economics tracked in [roadmap.md](../00-meta/roadmap.md))
 
 ### Recipe interchange formats
 
