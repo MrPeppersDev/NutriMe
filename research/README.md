@@ -12,11 +12,13 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 - [Intake pattern](00-meta/intake-pattern.md) — iterative onboarding + passive confirmation + semantic feedback model
 - [Epistemic trail](00-meta/epistemic-trail.md) — how the system shows its work for AI-correlated inferences
 - [Dynamic research expansion](00-meta/dynamic-research-expansion.md) — system capability for fetching + verifying public information when corpus has gaps
+- [Knowledge model](00-meta/knowledge-model.md) — first-class system data layer (per-user + per-household) holding what's been delivered, experienced, preferred
 - [User decision framework](00-meta/user-decision-framework.md) — how the system handles conflicts between user requests and its knowledge (surface + let user decide)
 - [Geographic scope](00-meta/geographic-scope.md) — primary audience vs. broader research scope, with geographic-neutrality principle
-- [Roadmap](00-meta/roadmap.md) — living tracker of stretch goals, deferred items, and broader-scope futures
+- [Synthesis](00-meta/synthesis.md) — Stage 2 cross-cutting decisions resolving research-surfaced tensions
+- [Roadmap](00-meta/roadmap.md) — living tracker of open tensions, stretch goals, deferred items, and broader-scope futures
 - [Citation style](00-meta/citation-style.md) — citation format and cross-reference conventions
-- [Sources index](00-meta/sources.md) — master aggregator of every URL / DOI / publication cited across sweeps
+- [Sources index](00-meta/sources.md) — navigational index of source coverage across sweeps
 
 ## Research sweeps
 

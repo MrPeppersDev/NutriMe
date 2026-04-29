@@ -6,7 +6,21 @@
 
 NutriMe gathers data about the user through three modes. None of them require the user to open a daily entry form.
 
-### Mode 1 — Initial intake (in-depth)
+### Daily interaction is the natural cadence — and that's NOT a "check-in"
+
+A clarification per [synthesis.md Tension #3](synthesis.md#tension-3--spaced-repetition-cadence-vs-no-daily-check-in-rule):
+
+The "no daily check-in" framing in this project means **no daily prompted tracker-style data entry** ("did you log today," streak punishments, daily badges, fitness-tracker engagement loops). It does NOT mean the user shouldn't open the app daily. **The user IS expected to interact with the app on a roughly-daily cadence** — that's the natural touchpoint for:
+
+- Meal planning ("what am I cooking tonight," "here's tomorrow")
+- Cook confirmations + per-meal semantic feedback ([Mode 3](#mode-3--passive-confirmation--semantic-feedback) below)
+- Inventory state updates (per [inventory awareness layer](#inventory-awareness--a-parallel-data-layer))
+- Education chunks delivered through Option D blended education (per [sweep #8](../08-nutrition-education-delivery/scope.md))
+- Knowledge model updates (per [knowledge-model.md](knowledge-model.md))
+
+Recipes *flow into* the user through the application surface; that daily interaction is the carrier for everything else. What's banned is the prompt-the-user-to-log-stuff pattern, not daily app use itself.
+
+## Mode 1 — Initial intake (in-depth)
 
 Comprehensive, clinical-assessment-grade intake at onboarding. Designed against [sweep #3 (clinical nutrition assessment methodology)](../03-clinical-nutrition-assessment/scope.md) standards but delivered consumer-friendly via the [adaptive intake agent](../04-adaptive-intake-agent/scope.md).
 

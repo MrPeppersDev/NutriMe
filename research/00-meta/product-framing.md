@@ -58,7 +58,7 @@ US, Canada, Western Europe (UK, France, Germany, Netherlands, Belgium, Nordics, 
 
 - A food / macro / calorie **logging app** ([Constitutional Rule 3](constitutional-rules.md#rule-3--no-food--macro--calorie-logging))
 - A "did I hit my targets today" tracker
-- A daily user-initiated check-in product
+- A daily **prompted** check-in product (streak punishments, badges, "did you log today" prompts) — note: **the user IS expected to interact with the app daily-ish for meal planning + cooking + feedback; that natural interaction is not what "no daily check-in" rules out.** See [synthesis.md Tension #3](synthesis.md#tension-3--spaced-repetition-cadence-vs-no-daily-check-in-rule) and [intake-pattern.md daily-interaction clarification](intake-pattern.md#daily-interaction-is-the-natural-cadence--and-thats-not-a-check-in).
 - A weight-loss or aesthetic-focused product
 - A clinical replacement for a doctor or licensed nutritionist ([Constitutional Rule 1](constitutional-rules.md#rule-1--consult-a-professional))
 - **A cooking class.** NutriMe provides *recipes paired with health guidance*. It does not teach knife skills, technique, or cooking fundamentals. A stretch goal is to surface *where to learn* a missing skill (link out, not deliver lessons).

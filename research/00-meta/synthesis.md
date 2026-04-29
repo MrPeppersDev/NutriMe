@@ -97,4 +97,40 @@ Confirming both:
 
 ---
 
+## Tension 3 — Spaced-repetition cadence vs. no-daily-check-in rule
+
+### What surfaced
+
+**Sweep #8** (nutrition education delivery) found that spaced repetition is one of the strongest evidence-based patterns for nutrition concept retention. Most spaced-repetition systems use **daily-engagement / streak design** (Duolingo, Anki, Quizlet). The intake-pattern.md "no daily check-in" rule plus broader product-framing rules against tracker-style behavior appeared to rule out streak-driven daily engagement — putting a strong evidence-based education pattern in tension with the product framing.
+
+### Resolution
+
+**1. Reframe: the "no daily check-in" rule was about prompted-tracker-data-entry, NOT about daily app use.** The user *does* open the app daily-ish — that's the natural cadence for meal planning, cook confirmations, semantic feedback, and inventory updates. What's banned is fitness-tracker-style "log what you ate today" prompts, streak punishments, daily badges. Daily app interaction is normal and expected. **This was a docs-precision issue, not an actual rule conflict.**
+
+**2. Option D — blended education delivery.** Three surfaces, each serving a different purpose:
+- **(a) Per-meal-attached microlearning** — chunks ride on cook confirmations / Mode 3 feedback events
+- **(b) Opt-in "tell me more" pull surface** — depth-seekers can ask; no streaks, no badges, no punishment for not pulling
+- **(c) Just-in-time in-context tooltips** — explain why this recipe was suggested, why a substitution was made, why a food made the user feel a certain way
+
+**3. Cadence comes from the meal-planning interaction, not time-based prompts.** Recipes flow *into* the user through the application surface. Education, semantic feedback, inventory updates, knowledge model updates all ride on that natural interaction. The cadence is daily-ish because meal planning is daily-ish — but the system doesn't *prompt for* engagement.
+
+**4. Knowledge model is a first-class system data layer.** Both per-user AND per-household. Tracks: concepts delivered + when, observed engagement, comprehension signals, curiosity preferences, household experience memory, collective decisions. Used for spaced education scheduling, topic-relevance triggers, horizon-broadening pacing, conflict resolution context. New meta doc: [knowledge-model.md](knowledge-model.md).
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #3 dialogue):
+> "Option D. Blended, please. I think the daily cadence is checking in to make recipes. I think the recipes have to flow in through the application surface. Yeah, the system absolutely maintains a knowledge model of the user and of the household."
+
+### Updates applied
+
+- **knowledge-model.md** — new meta doc capturing per-user + per-household knowledge state, how it's built, how it's used, what it isn't, bounds + privacy
+- **intake-pattern.md** — new "Daily interaction is the natural cadence — and that's NOT a 'check-in'" section clarifying the distinction
+- **product-framing.md** — "It is NOT" line for daily check-in product sharpened (prompted-tracker, not daily app use)
+- **sweep #4 (adaptive intake agent)** — note that the agent reads + writes knowledge model state; intake feeds it
+- **sweep #8 (nutrition education delivery)** — Option D blended education delivery as the chosen architecture; knowledge model drives scheduling
+- **sweep #9 (multi-user household)** — knowledge model is per-user AND per-household with collective experience memory
+- **roadmap.md** — Tension #3 marked resolved in synthesis-phase tensions section
+
+---
+
 *Future tensions will be added as resolved.*
