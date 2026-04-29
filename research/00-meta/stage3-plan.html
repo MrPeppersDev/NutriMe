@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriMe — Stage 3+ Comprehensive Plan</title>
+<style>
+:root {
+  --bg: #f8f6f1;
+  --paper: #fdfcf9;
+  --ink: #18181b;
+  --ink-muted: #56565c;
+  --rule: #d8d4ca;
+  --rule-soft: #ebe7dd;
+  --accent: #7a3922;
+  --accent-soft: #f4e9e3;
+  --high-impact-bg: #fcf3e7;
+  --high-impact-rule: #c69465;
+  --serif: "Iowan Old Style", "Charter", "Source Serif Pro", "Georgia", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+/* TOC sidebar */
+nav.toc {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 48px 24px 48px 32px;
+  border-right: 1px solid var(--rule-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+nav.toc .label {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+nav.toc ol {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px 0;
+}
+nav.toc li { margin: 0 0 6px 0; }
+nav.toc li.sub { padding-left: 12px; font-size: 12.5px; }
+nav.toc a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms;
+}
+nav.toc a:hover { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* Main content */
+main {
+  padding: 56px 64px 96px 64px;
+  max-width: 820px;
+  background: var(--paper);
+  border-left: 1px solid transparent;
+}
+
+/* Header */
+header.doc {
+  margin: 0 0 48px 0;
+  padding: 0 0 32px 0;
+  border-bottom: 1px solid var(--rule);
+}
+header.doc .eyebrow {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+header.doc h1 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 38px;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 16px 0;
+  color: var(--ink);
+}
+header.doc .lede {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+/* Section structure */
+section { margin: 0 0 64px 0; }
+section h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 26px;
+  line-height: 1.2;
+  margin: 0 0 12px 0;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+section h2 .num {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-right: 14px;
+  letter-spacing: 0;
+}
+section h3 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.3;
+  margin: 36px 0 10px 0;
+  color: var(--ink);
+}
+section h3 .block-id {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+p { margin: 0 0 14px 0; }
+p.intro {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  margin-bottom: 24px;
+}
+
+/* Status bar */
+.status {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 18px;
+  padding: 18px 22px;
+  background: var(--bg);
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  margin: 0 0 24px 0;
+  font-size: 14.5px;
+}
+.status .k {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 600;
+  align-self: start;
+  padding-top: 3px;
+}
+.status .v { color: var(--ink); }
+.status .v code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--rule-soft);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--ink);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0 26px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+thead th {
+  text-align: left;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding: 10px 14px 10px 0;
+  border-bottom: 1.5px solid var(--ink);
+  vertical-align: bottom;
+}
+thead th:first-child { width: 56px; }
+tbody td {
+  padding: 14px 14px 14px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+tbody td:first-child {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent);
+  font-weight: 500;
+}
+tbody td.decision {
+  font-weight: 600;
+  width: 200px;
+}
+tbody tr:last-child td { border-bottom: none; }
+
+/* High-impact decision callout */
+tbody tr.high-impact td {
+  background: var(--high-impact-bg);
+  border-bottom: 1px solid var(--high-impact-rule);
+}
+tbody tr.high-impact td:first-child {
+  position: relative;
+}
+tbody tr.high-impact td:first-child::before {
+  content: "★";
+  position: absolute;
+  left: -18px;
+  top: 14px;
+  color: var(--high-impact-rule);
+  font-size: 11px;
+}
+
+/* Stage table — slightly different shape */
+table.stages thead th:nth-child(1) { width: 70px; }
+table.stages thead th:nth-child(3) { width: 200px; }
+table.stages thead th:nth-child(4) { width: 160px; }
+
+/* Lists */
+ul, ol { padding-left: 22px; margin: 0 0 18px 0; }
+li { margin: 0 0 6px 0; }
+ul.tight li, ol.tight li { margin-bottom: 3px; }
+
+/* Inline + emphasis */
+strong { font-weight: 600; color: var(--ink); }
+em { font-style: italic; color: var(--ink); }
+code {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--rule-soft);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--ink);
+}
+
+/* Pull quote */
+.pull {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.55;
+  font-style: italic;
+  color: var(--ink-muted);
+  border-left: 2px solid var(--accent);
+  padding: 4px 0 4px 22px;
+  margin: 22px 0 22px 4px;
+}
+
+/* Decision-impact callout block */
+.impact-callout {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding: 18px 22px;
+  margin: 24px 0;
+  font-size: 14.5px;
+}
+.impact-callout strong { color: var(--accent); }
+.impact-callout ul { margin: 8px 0 0 0; }
+
+/* Block intro */
+.block-intro {
+  font-style: italic;
+  color: var(--ink-muted);
+  font-size: 14.5px;
+  margin: 0 0 8px 0;
+}
+
+/* Footer */
+footer.doc {
+  margin: 80px 0 0 0;
+  padding: 28px 0 0 0;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+}
+footer.doc a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+footer.doc a:hover { border-bottom-color: var(--accent); }
+
+/* Mobile */
+@media (max-width: 820px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc {
+    position: static;
+    height: auto;
+    padding: 24px 24px 8px 24px;
+    border-right: none;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  main { padding: 32px 24px 64px 24px; }
+  header.doc h1 { font-size: 30px; }
+}
+
+/* Print */
+@media print {
+  body { background: white; }
+  nav.toc { display: none; }
+  .layout { display: block; }
+  main { padding: 0; max-width: none; background: white; }
+  header.doc { page-break-after: avoid; }
+  section { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<nav class="toc">
+  <p class="label">Contents</p>
+  <ol>
+    <li><a href="#where">Where we are</a></li>
+    <li><a href="#sequence">Stage sequence</a></li>
+    <li><a href="#stage3">Stage 3 — Architecture dialogue</a></li>
+    <li class="sub"><a href="#block-a">Block A — Foundation</a></li>
+    <li class="sub"><a href="#block-b">Block B — Knowledge + retrieval</a></li>
+    <li class="sub"><a href="#block-c">Block C — Intake + interaction</a></li>
+    <li class="sub"><a href="#block-d">Block D — External integrations</a></li>
+    <li class="sub"><a href="#block-e">Block E — Reproducibility + publication</a></li>
+    <li><a href="#stage4">Stage 4 — MVP scoping</a></li>
+    <li><a href="#stage5">Stage 5 — Verification pass</a></li>
+    <li><a href="#stage6">Stage 6 — Build phase 1</a></li>
+    <li><a href="#stage7">Stage 7 — Use + iterate</a></li>
+    <li><a href="#parallel">Parallel tracks</a></li>
+    <li><a href="#impact">Most impactful decisions</a></li>
+    <li><a href="#cadence">Cadence + start point</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<header class="doc">
+  <p class="eyebrow">NutriMe · Stage 3+</p>
+  <h1>Comprehensive plan from research to build</h1>
+  <p class="lede">A living plan covering the path from current state — Stage 1 (research) and Stage 2 (synthesis) complete — through architecture, MVP, build, iteration, and parallel publication and corpus-build tracks. Updates as decisions land and scope changes.</p>
+</header>
+
+<section id="where">
+  <h2><span class="num">§ 1</span>Where we are</h2>
+  <div class="status">
+    <div class="k">Date</div><div class="v">2026-04-29</div>
+    <div class="k">Stage 1</div><div class="v">Complete. 13 sweeps with populated Findings + References. Sources index consolidated.</div>
+    <div class="k">Stage 2</div><div class="v">Complete. All 13 cross-cutting tensions resolved in <code>synthesis.md</code> (one positively reversed mid-stream).</div>
+    <div class="k">Repo</div><div class="v"><code>MrPeppersDev/NutriMe</code> · 16+ commits on <code>origin/main</code> · documentation operates at publication standard from the start.</div>
+    <div class="k">Distribution</div><div class="v">Personal use primary + active open-source contribution to the field (per <code>publication-ambitions.md</code>).</div>
+    <div class="k">Architecture</div><div class="v">Not started. This plan defines the path.</div>
+  </div>
+</section>
+
+<section id="sequence">
+  <h2><span class="num">§ 2</span>Stage sequence</h2>
+  <p class="intro">Five stages forward, with two parallel tracks (publication target development and corpus build phases) that begin as soon as their dependent blocks land.</p>
+  <table class="stages">
+    <thead>
+      <tr><th>Stage</th><th>What</th><th>Cadence</th><th>Depends on</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>3</td><td><strong>Architecture / system design dialogue</strong> — topic-by-topic with clarifying questions, captured in a new <code>architecture.md</code></td><td>Stage 2 cadence; 1–2 blocks per session</td><td>Stage 2</td></tr>
+      <tr><td>4</td><td><strong>MVP scoping</strong> — single dialogue once Stage 3 settles, captured in <code>mvp.md</code></td><td>Single focused dialogue</td><td>Blocks A + B + C</td></tr>
+      <tr><td>5</td><td><strong>Pre-corpus-build verification pass</strong> — re-run wave 1/2/3 sweeps with live web tools to refresh time-sensitive details</td><td>Opportunistic, when web tools are available</td><td>Web-tool availability</td></tr>
+      <tr><td>6</td><td><strong>Build phase 1 — MVP implementation</strong></td><td>Iterative; commit-per-feature</td><td>Stages 3 + 4 + 5</td></tr>
+      <tr><td>7</td><td><strong>Use + iterate</strong> — real use surfaces real findings; roadmap stays alive</td><td>Living</td><td>Stage 6</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="stage3">
+  <h2><span class="num">§ 3</span>Stage 3 — Architecture / system design dialogue</h2>
+  <p class="intro">Mirrors the Stage 2 cadence: topic-by-topic, proposals with tradeoffs, decisions land in <code>architecture.md</code>. Five blocks below, ordered so each block's decisions are unblocked by the previous block's resolutions. Decisions marked <span style="color: var(--high-impact-rule);">★</span> are flagged in <a href="#impact">§ 9</a> as cascading furthest downstream.</p>
+
+  <h3 id="block-a"><span class="block-id">Block A</span>Foundation</h3>
+  <p class="block-intro">Most cross-cutting decisions. Constrains everything. Must be first.</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Decision</th><th>Notes &amp; downstream impact</th></tr>
+    </thead>
+    <tbody>
+      <tr class="high-impact">
+        <td>A1</td>
+        <td class="decision">Deployment model</td>
+        <td>Local-first / cloud / hybrid. Original direction was "locally hosted app on a MacBook with a web interface." Local-first for data per Rule 6; cloud for LLM inference acceptable. Spectrum question: how local? <em>Cascades to A2, A3, A4, all of Block D, the entire data-flow design.</em></td>
+      </tr>
+      <tr>
+        <td>A2</td>
+        <td class="decision">Application shell</td>
+        <td>Web / desktop / mobile. Web interface was original direction. Single-machine-hosted web app vs. multi-device sync vs. PWA vs. native. <em>Affects auth model, cross-device sync, offline capability, install friction.</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>A3</td>
+        <td class="decision">LLM provider + multi-agent orchestration</td>
+        <td>Claude API / Claude Agent SDK / single-agent vs. multi-agent / local LLM fallback (Ollama, llama.cpp). Sweep #4 mapped this; user direction earliest in Stage 1 mentioned multi-agent SDK. Cost vs. latency vs. capability tradeoffs. <em>Constrains C1, C2, Block B retrieval orchestration, all educational content surfaces.</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>A4</td>
+        <td class="decision">Data persistence + knowledge model storage</td>
+        <td>Postgres + pgvector / SQLite / DuckDB / SurrealDB / graph DB / hybrid. Knowledge model has both relational (per-user + household + relationships) and vector-search needs. Single-store vs. multi-store. <em>Constrains B1, B2, B4 + every data-write path. Wrong choice expensive to undo.</em></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="block-b"><span class="block-id">Block B</span>Knowledge + retrieval</h3>
+  <p class="block-intro">Depends on Block A. Defines how the system actually thinks.</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Decision</th><th>Notes &amp; downstream impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>B1</td>
+        <td class="decision">Semantic RAG vs. structured query strategy</td>
+        <td>What gets embedded, what stays structured-query, hybrid query patterns. RAG for educational content, recipes, cuisine knowledge; structured for clinical screeners, nutrition standards, household state. Where's the line? <em>Affects retrieval quality + cost; constrains education delivery (Block C) and dynamic-research-expansion (B3).</em></td>
+      </tr>
+      <tr>
+        <td>B2</td>
+        <td class="decision">Rule 8 epistemic trail implementation</td>
+        <td>Provenance tracking schema, reasoning-chain capture, verification pipeline. Every inference must be auditable. How is the trail stored, surfaced, queried? <em>Constrains every user-facing inference surface; affects publication-target #4 reproducibility.</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>B3</td>
+        <td class="decision">Dynamic research expansion infrastructure</td>
+        <td>Gap-detection → fetch → verify → integrate pipeline (per <code>dynamic-research-expansion.md</code>). Web fetch + caching layer; verification harness; integration to working corpus. <em>Likely impacts downstream understanding most of any architecture decision — dictates what gaps get filled how, when. Touches every domain (drugs, conditions, cuisines, ingredients, regulatory).</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>B4</td>
+        <td class="decision">Knowledge model schema</td>
+        <td>Per-user + per-household + abstracted-constraint-layer + provenance tags + concept-delivery state. Most complex schema in the system (per <code>knowledge-model.md</code>). <em>Constrains C1, C3, C5, all Block D integrations writing to it.</em></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="block-c"><span class="block-id">Block C</span>Intake + interaction</h3>
+  <p class="block-intro">Depends on A + B. Defines the user experience.</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Decision</th><th>Notes &amp; downstream impact</th></tr>
+    </thead>
+    <tbody>
+      <tr class="high-impact">
+        <td>C1</td>
+        <td class="decision">Conversational intake agent architecture</td>
+        <td>Single agent vs. specialized agents (intake / planner / educator / grocer / nutritionist). Per sweep #4 + synthesis Tension #4. Multi-agent SDK vs. single agent with tool use. State management between agents. <em>Affects every dialog surface, agent-to-agent handoff complexity, latency, cost.</em></td>
+      </tr>
+      <tr>
+        <td>C2</td>
+        <td class="decision">CAT / IRT integration</td>
+        <td>Using PROMIS public banks where available; falling back to classical psychometric for non-validated nutrition domains. Open-source CAT engines (Concerto, mirtCAT) vs. roll-your-own. PROMIS API integration. <em>Affects intake quality + measurement validity; feeds B4 with <code>validated-instrument</code> provenance.</em></td>
+      </tr>
+      <tr>
+        <td>C3</td>
+        <td class="decision">Hybrid administration UX</td>
+        <td>Validated items rendered verbatim with conversational framing per synthesis Tension #4. How does the LLM "wrap" verbatim items without modifying them? Item-text-as-data + LLM-as-presenter pattern. <em>Affects intake completion rates, validity preservation, user friction.</em></td>
+      </tr>
+      <tr>
+        <td>C4</td>
+        <td class="decision">Multi-modal recipe presentation rendering</td>
+        <td>Video / structured text / cookbook prose / illustrations + real-time terminology lookup. Per sweep #11 expanded scope + sweep #7 (cooking-confidence-tiered presentation). Render-time vs. pre-rendered; embed vs. link-out for video. <em>Affects sweep #11 implementation, glossary infrastructure, cooking-confidence personalization fidelity.</em></td>
+      </tr>
+      <tr>
+        <td>C5</td>
+        <td class="decision">Daily-cadence interaction model</td>
+        <td>What the user sees on app open, how meal planning + cook confirmations + semantic feedback + education ride on the natural daily interaction per synthesis Tension #3. The home screen of the product. Meal-planning surface as the carrier for everything else. <em>Affects user retention, education delivery cadence, knowledge model update timing.</em></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="block-d"><span class="block-id">Block D</span>External integrations</h3>
+  <p class="block-intro">Largely parallel-doable within itself once Block A lands. Each constrains specific features.</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Decision</th><th>Notes &amp; downstream impact</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>D1</td>
+        <td class="decision">Wearable + biometric aggregation</td>
+        <td>HealthKit primary + Health Auto Export bridge + direct integrations (Whoop, Oura, Garmin) for non-HealthKit-mirroring sources. Per sweep #6. Apple-centric assumption simplifies; broader hardware support adds work. <em>Constrains personalization sophistication; constrains Tension #5 abstracted-constraint-layer inputs.</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>D2</td>
+        <td class="decision">Doctor-portal patient API integration</td>
+        <td>Apple Health Records (FHIR US Core) + Epic MyChart / Oracle Health / Athena patient APIs where available. Per sweep #6. Most patient-friendly FHIR access in US per ONC Cures Act. <em>Likely impacts downstream understanding — clinical-grade data unlocks meaningful condition gating + lab-driven personalization. Could surface new clinical-data possibilities not yet in research.</em></td>
+      </tr>
+      <tr>
+        <td>D3</td>
+        <td class="decision">Grocery cart-aggregation integration</td>
+        <td>Instacart IDP primary + Kroger Cart API backup + six-tier graceful-degradation fallback (per sweep #13). Personal-use distribution + Instacart's indie-friendly tier make this tractable. Outside US/CA: list-export fallback. <em>Constrains the "boom shows up at my door" promise; affects user satisfaction with the convenience layer.</em></td>
+      </tr>
+      <tr>
+        <td>D4</td>
+        <td class="decision">Recipe source integration</td>
+        <td>Paid commercial APIs (Spoonacular, Edamam) + curated publishers via legitimate paid access + open datasets + public-domain historical + institutional video. Per sweep #11 expanded scope. Source-qualification framework gates additions. <em>Constrains recipe corpus breadth + multi-modal availability; affects horizon-broadening fidelity.</em></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 id="block-e"><span class="block-id">Block E</span>Reproducibility + publication infrastructure</h3>
+  <p class="block-intro">Largely parallel after Block A. Informs design choices throughout.</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Decision</th><th>Notes &amp; downstream impact</th></tr>
+    </thead>
+    <tbody>
+      <tr class="high-impact">
+        <td>E1</td>
+        <td class="decision">Data collection schema for reproducibility</td>
+        <td>Versioning of instruments, drift detection, provenance tagging, optional anonymization-ready fields. Per <code>publication-ambitions.md</code> methodology principles. Designed-from-start cheaper than retrofitted. <em>Constrains B4 + every data-capture surface; foundational for publication target #4 (recipe time-feedback).</em></td>
+      </tr>
+      <tr>
+        <td>E2</td>
+        <td class="decision">Anonymization + consent infrastructure</td>
+        <td>IRB-equivalent consent design + anonymization protocol for any aggregate data publishing. Required before publication target #4 ships any data. <em>Affects every publication-eligible data path; enables vs. blocks open-science contributions.</em></td>
+      </tr>
+      <tr>
+        <td>E3</td>
+        <td class="decision">License decisions per publication target</td>
+        <td>Code license (likely MIT or Apache 2.0), documentation license (likely CC-BY), data license (case-by-case), AGPL consideration for derivative-protection. Per <code>publication-ambitions.md</code>. Decide early so attribution + repo structure are clean. <em>Affects open-source distribution clarity; constrains future commercial paths if scope ever broadens.</em></td>
+      </tr>
+      <tr class="high-impact">
+        <td>E4</td>
+        <td class="decision">Update cadence + corpus refresh design</td>
+        <td>DRIs revise every 5–10 years; food composition periodically; recipes constantly; regulatory ad-hoc. Touches B3 (dynamic-expansion) closely. <em>Likely impacts downstream research understanding — defines how the corpus stays current vs. drifts; affects Stage 5 verification cadence going forward.</em></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="stage4">
+  <h2><span class="num">§ 4</span>Stage 4 — MVP scoping</h2>
+  <p class="intro">Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. Current proposal (subject to revision after Stage 3):</p>
+
+  <h3>MVP includes</h3>
+  <ul>
+    <li>Intake (validated-screener hybrid administration for 5–10 highest-leverage instruments: PHQ-2, GAD-2, PSQI short, AUDIT-C, Hunger Vital Sign, CCSS, plus demographics + life-stage + dietary preferences + allergens)</li>
+    <li>Inventory awareness (initial intake + ongoing observation)</li>
+    <li>Meal-plan generation (Tier 1/2 nutrition guidance + recipe sourcing from open datasets + 1–2 commercial APIs)</li>
+    <li>Grocery list (Instacart cart-aggregation when US-located, list-export fallback otherwise)</li>
+    <li>Per-meal feedback (semantic + time-accuracy)</li>
+    <li>Honest disclosure surfaces (consult-professional, evidence-tier, audit-as-education)</li>
+  </ul>
+
+  <h3>MVP defers</h3>
+  <ul>
+    <li>Full knowledge model evolution (start with simple per-user + household; iterate)</li>
+    <li>Multi-modal recipe presentation infrastructure (text + linked YouTube video; defer in-app video rendering, illustrated rendering, real-time terminology lookup glossary)</li>
+    <li>Audit-as-education depth (start with consult-professional + evidence-tier surfacing; defer comprehensive educational corpus)</li>
+    <li>All four publication targets in active push mode (start designing for them; defer active publication push)</li>
+    <li>Multi-user household with full conflict-resolution UX (start single-user with stub for household)</li>
+    <li>Wearable signal interpretation (start with intake-only; add wearable in v0.2)</li>
+  </ul>
+
+  <p class="pull">Ships a thing you'd actually use, validates the core meal-planning loop + inventory awareness + grocery integration, and captures real data for the publication-#4 target without committing to the full-publication apparatus yet.</p>
+</section>
+
+<section id="stage5">
+  <h2><span class="num">§ 5</span>Stage 5 — Pre-corpus-build verification pass</h2>
+  <p>Run the wave 1/2/3 verification work tracked in <code>roadmap.md</code> once live web tools are available. Re-fetches:</p>
+  <ul class="tight">
+    <li><strong>Wave 1:</strong> DRI publication versions, food composition database current state, vendor APIs current state, recipe IP law currency</li>
+    <li><strong>Wave 2:</strong> validated-instrument sensitivity/specificity figures, OSS repo states, post-2024 AI-credibility literature, latest Cochrane PLS templates</li>
+    <li><strong>Wave 3:</strong> NIH NPH program updates, meal-kit behavior-shift literature, regulatory guidance updates, Instacart IDP indie-tier status, all <code>VERIFY-AT-ADOPTION</code> items</li>
+  </ul>
+  <p><strong>Not a re-do of the sweeps</strong> — the framework, source identification, and analytical structure stand. Just a freshness check on time-sensitive details before corpus build kicks off.</p>
+</section>
+
+<section id="stage6">
+  <h2><span class="num">§ 6</span>Stage 6 — Build phase 1 (MVP implementation)</h2>
+  <p>Iterative build following Stage 3 architecture decisions + Stage 4 MVP scope. Per <code>publication-ambitions.md</code>: documentation-grade discipline, reproducibility-aware data collection, license-clear from the start. Test coverage at publication standard for components flagged for publication.</p>
+
+  <p><strong>Sequencing within Stage 6</strong> (proposed; revisit during Stage 4):</p>
+  <ol>
+    <li>Foundation — repo scaffolding, deployment shell, persistence layer</li>
+    <li>Intake (initial) — hybrid administration of MVP screener set; basic inventory intake</li>
+    <li>Knowledge model (initial) — per-user state with provenance tags; abstracted-constraint-layer stub</li>
+    <li>Meal-plan generation (initial) — single recipe → single plan, then weekly aggregation</li>
+    <li>Recipe sourcing — initial source integration (1–2 commercial APIs + 1 open dataset)</li>
+    <li>Grocery list — Instacart IDP integration + list-export fallback</li>
+    <li>Per-meal feedback — Mode 3 semantic feedback loop wired to knowledge model</li>
+    <li>Honest-disclosure surfaces — consult-professional callouts, 3-level certainty display, evidence-tier surfacing</li>
+    <li>Daily-cadence interaction model — home screen, meal-on-tonight surface</li>
+    <li>v0.1 ship to user (you) — iterate based on real use</li>
+  </ol>
+</section>
+
+<section id="stage7">
+  <h2><span class="num">§ 7</span>Stage 7 — Use + iterate</h2>
+  <p>Real use surfaces real findings. Roadmap stays alive. Synthesis-phase tensions section grows again as new tensions emerge from real-world use. Publication targets advance as data accumulates.</p>
+</section>
+
+<section id="parallel">
+  <h2><span class="num">§ 8</span>Parallel tracks</h2>
+
+  <h3>Publication target development</h3>
+  <ul>
+    <li><strong>First target — consumer-facing GLIM screener</strong> (sweep #3 design opportunity; narrowest standalone). Can begin as soon as Block C decisions on hybrid administration UX (C3) land — doesn't need full MVP shipped.</li>
+    <li><strong>Second target — hybrid LLM + CAT + structured-instrument open agent</strong> (sweep #4; strongest "novel" claim). Starts after Block C decisions on intake agent architecture (C1, C2) land — matures with the MVP intake implementation.</li>
+    <li><strong>Third target — open-source nutrition-specific intake chatbot</strong> (sweep #4). Subset of the second target's deliverable; ships as part of the open-source release strategy.</li>
+    <li><strong>Fourth target — recipe time-feedback aggregate data</strong> (sweep #7). Depends on user base size for statistical meaningfulness — long-horizon, accumulates during Stage 7.</li>
+  </ul>
+
+  <h3>Corpus build phases</h3>
+  <ul>
+    <li>Begins after Block B (knowledge + retrieval) decisions land</li>
+    <li>Phased per domain: nutrition standards → food composition → recipes → conditions → drug-nutrient interactions → cuisines/skills</li>
+    <li>Includes the verification pass from Stage 5 as a prerequisite step for each domain</li>
+    <li>Dynamic-research-expansion (B3) supplements the base corpus at runtime per <code>dynamic-research-expansion.md</code></li>
+  </ul>
+</section>
+
+<section id="impact">
+  <h2><span class="num">§ 9</span>Decisions most impactful downstream</h2>
+  <div class="impact-callout">
+    <strong>Per the user's specific ask.</strong> These nine decisions deserve extra deliberation because they cascade most broadly. Each is marked with ★ in the Block tables above.
+    <ul>
+      <li><strong>A1 — deployment model</strong> · cascades to every other architecture decision</li>
+      <li><strong>A3 — LLM provider + multi-agent orchestration</strong> · cost, latency, capability all flow from this; constrains agent design</li>
+      <li><strong>A4 — data persistence</strong> · wrong choice here is expensive to undo; affects every data path</li>
+      <li><strong>B3 — dynamic research expansion infrastructure</strong> · defines how the system closes its own gaps; touches every domain over time</li>
+      <li><strong>B4 — knowledge model schema</strong> · most complex schema in the system; the central data structure</li>
+      <li><strong>C1 — conversational intake agent architecture</strong> · single vs. multi-agent shapes every dialog surface</li>
+      <li><strong>D2 — doctor-portal patient API integration</strong> · clinical-grade data unlocks meaningful personalization; could surface new research-relevant possibilities</li>
+      <li><strong>E1 — data collection schema for reproducibility</strong> · getting this wrong forecloses publication target #4</li>
+      <li><strong>E4 — update cadence + corpus refresh design</strong> · defines whether the system stays current or drifts</li>
+    </ul>
+  </div>
+</section>
+
+<section id="cadence">
+  <h2><span class="num">§ 10</span>Suggested cadence + where to start</h2>
+
+  <h3>Cadence</h3>
+  <ul>
+    <li><strong>Stage 3 architecture dialogue:</strong> topic-by-topic per Stage 2 cadence. Aim for 1–2 blocks per session if pace allows; deeper deliberation on the high-impact decisions above.</li>
+    <li><strong>Stage 4 MVP scoping:</strong> one focused dialogue once Block C lands.</li>
+    <li><strong>Stage 5 verification pass:</strong> opportunistic — run when live web tools are available.</li>
+    <li><strong>Stage 6 build:</strong> iterative; commit-per-feature; pause at v0.1 for real-use evaluation.</li>
+    <li><strong>Stage 7+:</strong> living roadmap.</li>
+  </ul>
+
+  <h3>Where to start</h3>
+  <p>When ready: <strong>Block A, decision A1 (deployment model).</strong> It cascades furthest, and the original user direction <em>"locally hosted app on a MacBook with a web interface"</em> gives a strong starting point — Stage 3 dialogue can confirm or refine that direction with full Stage 1 + 2 context now in hand.</p>
+</section>
+
+<footer class="doc">
+  <p>Source markdown · <code>research/00-meta/stage3-plan.md</code> · committed to <code>origin/main</code></p>
+  <p>Related docs · <a href="product-framing.md">product-framing</a> · <a href="constitutional-rules.md">constitutional-rules</a> · <a href="synthesis.md">synthesis</a> · <a href="publication-ambitions.md">publication-ambitions</a> · <a href="roadmap.md">roadmap</a></p>
+</footer>
+
+</main>
+</div>
+
+</body>
+</html>
