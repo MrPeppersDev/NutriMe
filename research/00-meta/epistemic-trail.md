@@ -55,6 +55,16 @@ Failed verifications are either suppressed or surfaced with explicit "low-confid
 
 The causal-explanation step is itself a deliverable — the same explanation that verifies the inference becomes the user-facing "why" content (per [sweep #8](../08-nutrition-education-delivery/scope.md)). Verification and education are produced by the same artifact, which prevents drift between what the system *did* internally and what it *tells the user* externally.
 
+### 3a. PHI crossings are part of the trail
+
+Per [Constitutional Rule 6](constitutional-rules.md#rule-6--health-data-stays-local-cloud-llm-crossings-are-decomposed-and-minimal) and [phi-handling.md](phi-handling.md), the system uses cloud LLMs (Anthropic, Google) but decomposes queries so no single crossing carries a full health profile. The epistemic trail captures, for any inference that involved cloud LLM calls:
+
+- Which queries crossed to which provider in producing this inference
+- What PHI categories crossed in each query (categorically — "allergens + cuisine preferences," not raw values)
+- Which queries stayed local
+
+The user can see not just *what reasoning produced this recommendation* but also *what data crossed where to produce it*. This is part of the surface-the-trail commitment, not a separate audit log (audit logs exist too — they're a different surface).
+
 ### 4. Surface the trail to the user
 
 Provenance + reasoning + verification status are first-class user-visible content, not hidden in logs. The user can always:

@@ -32,12 +32,12 @@ Mirrors the Stage 2 cadence: topic-by-topic, my proposals with tradeoffs, your d
 
 Most cross-cutting decisions. Must be first.
 
-| # | Decision | Notes | Downstream impact |
-|---|---|---|---|
-| A1 | **Deployment model** — local-first / cloud / hybrid | User originally directed "locally hosted app on a MacBook with a web interface." Local-first for data per Rule 6; cloud for LLM inference acceptable. Spectrum: how local? | Cascades to A2, A3, A4, all of Block D, the entire data-flow design |
-| A2 | **Application shell** — web / desktop / mobile | Web interface was original direction. Single-machine-hosted web app vs. multi-device sync vs. PWA vs. native | Affects auth model, cross-device sync, offline capability, install friction |
-| A3 | **LLM provider + multi-agent orchestration** — Claude API / Claude Agent SDK / single-agent vs. multi-agent / local LLM fallback (Ollama, llama.cpp) | Sweep #4 mapped this; user direction earliest in Stage 1 mentioned multi-agent SDK. Cost vs. latency vs. capability tradeoffs. | Constrains C1 (intake agent), C2 (CAT integration), Block B retrieval orchestration, all educational content surfaces |
-| A4 | **Data persistence + knowledge model storage** — Postgres + pgvector / SQLite / DuckDB / SurrealDB / graph DB / hybrid | Knowledge model has both relational (per-user + household + relationships) and vector-search needs. Single-store vs. multi-store. | Constrains B1 (RAG architecture), B2 (provenance), B4 (schema), every data-write code path |
+| # | Decision | Notes | Downstream impact | Status |
+|---|---|---|---|---|
+| A1 | **Deployment model** — pure local-first, single-device | Resolved 2026-04-29: pure local-first, single MacBook, no LAN exposure, no cloud sync. HIPAA discipline rules out the LAN-multi-device or web-exposed paths originally proposed. | Cascades to A2, A3, A4, all of Block D, the entire data-flow design | ✅ Resolved |
+| A2 | **Application shell** — native macOS app primary; localhost web acceptable for build speed | Resolved 2026-04-29: native macOS app as primary shell to leverage Apple security primitives (Keychain, App Sandbox, Hardened Runtime, codesigning, native HealthKit access for D1). Localhost-served web acceptable as a build-speed-friendly alternative since it's never network-exposed. | Affects intake UX, recipe presentation rendering (C4), HealthKit integration path (D1) | ✅ Resolved |
+| A3 | **LLM provider + multi-agent orchestration** — Anthropic Claude + Google Gemini with query-level PHI decomposition | Resolved 2026-04-29 (provider choice + privacy posture). Cloud LLMs as primary inference substrate; query decomposition keeps full health profiles from crossing in a single call (per [phi-handling.md](phi-handling.md)). Why-both-providers open thread flagged for Block C. Multi-agent orchestration specifics deferred to C1. | Constrains C1, C2, Block B retrieval orchestration, all educational content surfaces | ✅ Resolved (provider + PHI posture); orchestration specifics deferred to C1 |
+| A4 | **Data persistence + knowledge model storage** — Postgres + pgvector / SQLite / DuckDB / SurrealDB / graph DB / hybrid | Knowledge model has both relational (per-user + household + relationships) and vector-search needs. Single-store vs. multi-store. Pure-local-single-device deployment posture from A1 narrows the options (no need for distributed-DB scenarios; embedded options become more attractive). | Constrains B1 (RAG architecture), B2 (provenance), B4 (schema), every data-write code path | ★ NEXT |
 
 ### Block B — Knowledge + retrieval (data flow)
 

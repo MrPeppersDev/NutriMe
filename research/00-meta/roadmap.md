@@ -51,6 +51,24 @@ This verification pass becomes a research-pipeline task before corpus-build phas
 
 All 13 sweeps now have populated Findings and References sections. Pre-corpus-build verification pass is complete in scope; execution awaits a session with live web tools.
 
+## Stage 3 architecture decisions in flight
+
+| # | Decision | Status |
+|---|---|---|
+| A1 | Deployment model | Resolved 2026-04-29 — pure local-first, single-device, no LAN, no cloud sync |
+| A2 | Application shell | Resolved 2026-04-29 — native macOS app primary; localhost web acceptable for build speed |
+| A3 | LLM provider + privacy posture | Resolved 2026-04-29 — Anthropic + Google with query-level PHI decomposition (per [phi-handling.md](phi-handling.md)). Multi-agent orchestration specifics deferred to C1. **Open thread:** why both providers (provider diversity / capability differentiation / cost optimization) — affects C1 orchestration |
+| A4 | Data persistence + knowledge model storage | NEXT |
+| B1–B4 | Knowledge + retrieval | Pending Block A close-out |
+| C1–C5 | Intake + interaction | Pending Blocks A + B |
+| D1–D4 | External integrations | Pending Block A |
+| E1–E4 | Reproducibility + publication infrastructure | Pending Block A |
+
+## Stage 3 deferred-to-design items
+
+- **Query-decomposition specifics** — the operational mechanism for splitting LLM calls so no single query carries a full health profile (per [phi-handling.md](phi-handling.md)). Deferred to Stage 3 Block C, since orchestration architecture and decomposition enforcement are tightly coupled.
+- **Why both Anthropic AND Google** — provider diversity / capability differentiation / cost optimization — to be resolved during C1 (intake agent architecture) since orchestration shape depends on it.
+
 ## Synthesis-phase tensions to resolve
 
 Surfaced during research, these are real product-design tensions that synthesis (post-Stage 1) needs to resolve. They do not block research but should not be lost. **Resolved tensions move to [synthesis.md](synthesis.md).**

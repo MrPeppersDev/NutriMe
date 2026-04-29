@@ -40,9 +40,18 @@ Recipes are sourced from existing curated collections, peer-reviewed APIs, open 
 
 NutriMe defaults to the user's home country (or current country if living abroad, with home country given priority). It always surfaces alternative dietary patterns and cultural frameworks so the user understands their home country is one option among many. See [sweep #1 scope](../01-international-nutrition-standards/scope.md).
 
-## Rule 6 — Health data stays local where possible
+## Rule 6 — Health data stays local; cloud LLM crossings are decomposed and minimal
 
-Wearable, biometric, and health data should be processed locally; only computed targets / derived signals should be sent to cloud LLMs. (Architectural rule, will be revisited when tech is on the table.)
+Wearable, biometric, and health data are processed locally and **stay local by default.** Full user health profiles never cross to cloud LLMs in a single query. Per [phi-handling.md](phi-handling.md):
+
+- The system uses cloud LLMs (Anthropic Claude, Google Gemini) as primary inference substrate
+- The privacy boundary is **at the query level** — queries are decomposed so each crossing carries only the minimum context required for that specific operation
+- The composite of all queries does not trivially reconstruct the user's health profile
+- HIPAA discipline is applied at the **data-handling level** (audit logs, careful-by-default culture, query-decomposition enforcement), not at the formal compliance level (no breach notification readiness, no formal key management beyond Keychain, no compliance-grade access control infrastructure)
+
+Architectural enforcement: typed LLM call boundaries with declared allowed-PHI-categories, pre-call boundary checks, fail-closed semantics. Specifics deferred to Stage 3 Block C; principle is set here.
+
+See [phi-handling.md](phi-handling.md) for the operational definition.
 
 ## Rule 7 — Peer-reviewed evidence floor
 
