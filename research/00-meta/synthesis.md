@@ -246,38 +246,38 @@ This is a **positive finding** rather than a tension to resolve. The lack of a c
 
 ---
 
-## Tension 7 — Stretch recipe ≤1-new-skill rule
+## Tension 7 — Stretch recipe metadata for honest disclosure (NOT a default filter)
 
-(Originally queued as Tension #8 positive finding in Stage 2 dialogue.)
+(Originally queued as Tension #8 positive finding in Stage 2 dialogue. **Initial resolution reversed 2026-04-29 — see "Reversal" below.**)
 
 ### What surfaced
 
-**Sweep #12** (skills-by-cuisine) surfaced a concrete pacing constraint: recipes introducing multiple new skills at once risk failure; recipes introducing **exactly one new skill within a base of mastered skills** is the optimal horizon-broadening unit. Useful operational rule for the iterative-broadening pacing.
+**Sweep #12** (skills-by-cuisine) surfaced a concrete pacing observation: recipes introducing multiple new skills at once risk failure; recipes introducing **exactly one new skill within a base of mastered skills** is the optimal horizon-broadening unit. Useful descriptive observation for the iterative-broadening pacing literature.
 
-### Resolution
+### Initial resolution (REVERSED)
 
-**1. Codify as a system default** in [intake-pattern.md](intake-pattern.md) alongside iterative horizon-broadening notes. The rule:
+The first Tension #7 resolution codified the ≤1-new-skill observation as a **system default filter** — recipes with multiple new skills would be reserved for explicit user opt-in. User pushback on this framing was clear: pre-filtering recipe surfaces based on system-judged complexity slips into paternalistic territory and contradicts [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context) plus the broader autonomy-supportive product framing.
 
-> **Stretch recipe ≤1-new-skill default.** When the system suggests a recipe intended to broaden the user's horizon (introducing a new cuisine, technique, or skill), the recipe should introduce **at most one new skill** within a base of skills the user has mastered. Recipes introducing multiple new skills at once are reserved for explicit user opt-in.
+User direction (2026-04-29, Tension #11+12+7 reversal):
+> "I really don't want to have too much of this kind of constraint and framework around what we're providing the user base and assumed skill set. Limiting in that fashion feels wrong to me."
 
-**2. System default, not hard constraint** — per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context), the user can override. If the user explicitly wants a multi-new-skill stretch (*"I want to try making fresh pasta from scratch this weekend"*), the system surfaces what the multiple new skills are + the elevated failure risk + offers a less-stretch alternative, then proceeds as the user directs.
+### Reversed resolution — honest disclosure, not default filter
 
-**3. Failure-cost dimension in stretch metadata.** Beyond skill-novelty count, recipe metadata also captures **failure cost** (deep-frying, fermentation that ruins if wrong, complex laminated doughs). High-failure-cost stretches get surfaced with explicit framing even when they're "≤1 new skill" by count. The "stretch" decision considers both *novelty count* and *failure cost*. Sweep #11's recipe metadata schema includes both.
+**1. Recipe metadata stays.** Novelty count + failure cost remain useful descriptors. Sweep #11's recipe metadata schema continues to capture both. They feed honest disclosure, not filtering.
 
-### Why (user direction)
+**2. No system-default filter on stretch level.** The system does **NOT** pre-limit recipe surfaces by novelty count or failure cost. Users see the full range of options.
 
-User direction (2026-04-29, Stage 2 Tensions #6 + #7 in dialogue):
-> "Accepted."
+**3. Honest disclosure when relevant.** When a recipe introduces multiple new skills or has high failure cost, the system *names* that fact ("this recipe introduces 3 new skills you haven't tried before: lamination, tempering chocolate, sugar work; lamination has a high failure cost if technique is off") so the user picks with full context. That's information, not limitation. Per [Rule 10](constitutional-rules.md#rule-10--user-decides-with-full-context).
 
-Confirming: codify in intake-pattern.md (Q7.1 (a)), system-default-not-hard-constraint per Rule 10 (Q7.2 first point), failure-cost dimension in metadata alongside novelty count (Q7.2 second point).
+**4. Knowledge model still tracks skill state.** Useful for the user's own understanding ("you've mastered X, Y, Z") and for surfacing recipes aligned with stated curiosity. NOT for filtering down options.
 
-### Updates applied
+### Updates applied (revised)
 
-- **synthesis.md** — this entry (Tension #7)
-- **intake-pattern.md** — new "Stretch recipe ≤1-new-skill default" section under iterative horizon-broadening
-- **sweep #11 (recipe sourcing)** — recipe metadata adds failure-cost dimension alongside the existing stretch-skill marker
-- **sweep #12 (skills-by-cuisine)** — note the rule as a system default with user-override + failure-cost framing
-- **roadmap.md** — Tension marked resolved in synthesis-phase tensions section
+- **synthesis.md** — this entry, with reversal noted
+- **intake-pattern.md** — "Stretch recipe ≤1-new-skill default" section reframed as "Stretch recipe metadata for honest disclosure" (no default filter; honest naming when relevant)
+- **sweep #11 (recipe sourcing)** — recipe metadata captures novelty count + failure cost for honest disclosure (not for default filtering)
+- **sweep #12 (skills-by-cuisine)** — stretch-recipe section reframed as honest-disclosure pattern, not system-default constraint
+- **roadmap.md** — Tension #7 entry updated to reflect reversal
 
 ---
 
@@ -417,6 +417,63 @@ User direction (2026-04-29, Stage 2 Tension #11 in dialogue / synthesis #10):
 - **product-framing.md** — distribution intent expanded from "personal use only" to "personal use primary + active open-source contribution to the field" with shaping implications listed
 - **synthesis.md** — this entry (Tension #10)
 - **roadmap.md** — Tension #10 marked resolved; publication targets moved from "Broader-scope future" defer-tracking to active reference under publication-ambitions.md
+
+---
+
+## Tension 11 — Recipe layer global, cart-aggregation layer regional
+
+(Originally queued as Tension #12 in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #13** (grocery infrastructure) surfaced that there is no indie-tier recipe-to-cart aggregator outside US/Canada — the global landscape is uniformly closed at indie tier. Initial roadmap framing deferred this as broader-scope-future. Stage 2 dialogue surfaced an important nuance: this is a *cart-layer* limitation, not a *recipe-layer* limitation.
+
+### Resolution
+
+**Two distinct layers — different geographic profiles:**
+
+- **Recipe layer** (per [sweep #11 (recipe sourcing)](../11-recipe-sourcing/scope.md)) — *global*. Recipes from qualified sources anywhere in the world, including non-Western traditions per the source qualification framework. The recipe layer works regardless of cart-aggregator availability.
+- **Cart-aggregation layer** (per [sweep #13 (grocery infrastructure)](../13-grocery-infrastructure/scope.md)) — *US/Canada primary*. Instacart IDP + Kroger Cart API are the indie-viable paths.
+
+**Outside US/Canada the recipe layer still works** (suggest, plan, surface recipes globally). The cart layer falls back through the six-tier graceful-degradation pattern from sweep #13: list export → native-grocery-app deep-link → printable list → email/SMS export.
+
+User direction (2026-04-29, Tension #11):
+> "Yeah, no aggregator, but we do want to track recipes, but not recipe to cart, just recipes."
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #11)
+- **roadmap.md** — Tension #11 marked resolved with the global-recipe / regional-cart distinction noted
+
+---
+
+## Tension 12 — Adolescent confidentiality wrinkle
+
+(Originally queued as Tension #13 in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #9** (multi-user household) surfaced that as kids age into adolescence, the parent-mediated-intake model needs nuance — adolescents have legitimate confidentiality interests around eating, body, mental health.
+
+### Resolution
+
+**Closed as deferred to broader-scope future.** Current resolution: adolescent + child intake mimics adult intake, parent-mediated. The [Tension #5 abstracted-constraint-layer](#tension-5--cross-sweep-wearable-data-household-sharing-gap) already handles per-member data isolation pattern. First-class adolescent-as-distinct-user is broader-scope-future per roadmap.
+
+User direction (2026-04-29, Tension #12):
+> "This one's very nuanced, and we're not going to want to spend a ton of time on it. We're going to have it mimic the adult version and just have the adults do it for the kids."
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #12)
+- **roadmap.md** — Tension #12 marked resolved (deferred-to-broader-scope) with mimic-adult-by-parent + abstracted-constraint-layer pointer
+
+---
+
+## Closing note — Stage 2 complete
+
+All 13 queued tensions resolved (one positively reversed mid-stream — Tension #7). The synthesis-phase tensions section in [roadmap.md](roadmap.md) is now empty in its `### Open` block. Stage 1 (research) and Stage 2 (synthesis dialogue) are both functionally complete.
+
+What follows would be Stage 3 — architecture, build sequencing, MVP scoping — wherever the user wants to go next.
 
 ---
 

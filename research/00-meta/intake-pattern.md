@@ -88,15 +88,13 @@ This layer materially reduces mental load (per [product-framing.md](product-fram
 - Passive confirmation removes the cognitive cost of remembering, weighing, and entering food.
 - Semantic feedback respects the user's lived experience as evidence — which is appropriate where Tier 1 evidence is silent on the personal-response question.
 
-## Stretch recipe ≤1-new-skill default *(per [synthesis.md Tension #7](synthesis.md#tension-7--stretch-recipe-1-new-skill-rule))*
+## Stretch recipe metadata for honest disclosure *(per [synthesis.md Tension #7](synthesis.md#tension-7--stretch-recipe-metadata-for-honest-disclosure-not-a-default-filter))*
 
-When the system suggests a recipe intended to broaden the user's horizon (introducing a new cuisine, technique, or skill), the recipe should introduce **at most one new skill** within a base of skills the user has mastered. Recipes introducing multiple new skills at once are reserved for explicit user opt-in.
+Recipes carry metadata for **novelty count** (how many new skills the recipe introduces relative to a given user's mastered set) and **failure cost** (deep-frying, fermentation, laminated doughs and other high-failure-cost techniques). This metadata is used for **honest disclosure, not as a system-default filter**.
 
-This is a **system default, not a hard constraint** — per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context), the user can always override. When the user explicitly wants a multi-new-skill stretch (*"I want to try making fresh pasta from scratch this weekend"*), the system surfaces what the multiple new skills are + the elevated failure risk + offers a less-stretch alternative, then proceeds as the user directs.
+The system does **NOT** pre-limit recipe surfaces by novelty count or failure cost. Users see the full range of options. When a recipe introduces multiple new skills or has high failure cost, the system *names* that fact in the recipe's surface ("this recipe introduces 3 new skills you haven't tried before: lamination, tempering chocolate, sugar work; lamination has a high failure cost if technique is off") so the user can pick with full context. That's information, not limitation. Per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context).
 
-The "stretch" determination considers both **novelty count** (how many new skills the recipe introduces) and **failure cost** (high-failure-cost techniques like deep-frying, fermentation, laminated doughs get surfaced with explicit framing even when they're "≤1 new skill" by count). Recipe metadata in [sweep #11](../11-recipe-sourcing/scope.md) captures both dimensions.
-
-The user's [knowledge model](knowledge-model.md) tracks which skills are mastered so the system can identify what counts as a stretch for *this* user.
+The user's [knowledge model](knowledge-model.md) tracks which skills are mastered — useful for the user's own understanding ("you've built up X, Y, Z") and for surfacing recipes aligned with stated curiosity, NOT for filtering down options.
 
 ## Iterative horizon-broadening
 
