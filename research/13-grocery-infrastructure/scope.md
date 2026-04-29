@@ -16,7 +16,7 @@ An annotated reference map containing:
 - **Instacart deep dive** — IDP (Instacart Developer Platform), recipe-link integration, partner program, indie / personal-use access tiers, ToS, approval timelines, coverage, fees, delivery vs. pickup workflows
 - **US landscape survey** — Amazon Fresh / Whole Foods, Walmart+ / Walmart APIs, Kroger Cart API, regional grocers (Wegmans, Publix, H-E-B), Shipt, FreshDirect — characterized for what's available to indie integrators
 - **International landscape survey** for the primary audience future-proofing — Tesco / Sainsbury's / Ocado (UK), Loblaws / Voila / Instacart Canada, Carrefour (FR), Rewe / Edeka (DE), Picnic / Albert Heijn (NL), Mercadona (ES)
-- **Recipe-to-cart translation patterns** — ingredient deduplication across a week's plan, quantity unit normalization, substitution logic, pantry deduction (don't reorder what user has), brand selection + budget-tier mapping
+- **Recipe-to-cart translation patterns** — ingredient deduplication across a week's plan, quantity unit normalization, substitution logic, **inventory awareness** (initial intake + observed + just-in-time precision when needed — see [intake-pattern.md inventory awareness layer](../00-meta/intake-pattern.md#inventory-awareness--a-parallel-data-layer)) so we don't reorder what user has and we prioritize using-up perishables, brand selection + budget-tier mapping
 - **Pickup vs. delivery workflows** — both supported, user picks
 - **Fallback strategies** — when primary path is unavailable (cart export to printable list, deep-link to native app, manual cart-build pattern)
 - **ToS landscape** — what indie / personal-use access actually permits across providers
@@ -65,7 +65,7 @@ This is where the cooking layer ([sweep #11](../11-recipe-sourcing/scope.md)) me
 - **Ingredient deduplication** — when a week's meal plan calls for onions across 4 recipes, aggregate into one cart entry with appropriate quantity
 - **Quantity normalization** — recipe units (cups, tbsp, "a handful") → grocery purchase units (lbs, oz, count, packages)
 - **Substitution logic** — what to do when a specific ingredient isn't available; substitution patterns from culinary literature + clinical-condition-aware substitution (per [sweep #10](../10-clinical-condition-gating/scope.md))
-- **Pantry deduction** — track what user has, don't reorder
+- **Inventory awareness + pantry deduction** — initial inventory intake at onboarding (loose, what staples + perishables you keep) + ongoing passive observation from orders + cook confirmations + just-in-time clarification when precision matters (per [intake-pattern.md inventory awareness layer](../00-meta/intake-pattern.md#inventory-awareness--a-parallel-data-layer)). Drives use-existing-ingredients prioritization in meal planning + don't-reorder-what-you-have in shopping lists
 - **Brand selection** — generic vs. organic vs. specialty; budget-tier mapping
 - **Bulk vs. precise** — when to buy a 5-lb bag vs. 1-lb portion (waste optimization)
 - **Multi-store cart split** — when no single retailer carries everything
@@ -105,14 +105,14 @@ Per [geographic-scope.md](../00-meta/geographic-scope.md). Primary US (Instacart
 - What's the state of Kroger Cart API — still the main indie path for server-side cart building?
 - For Western Europe: is there an "Instacart equivalent" that aggregates across retailers, or is everything direct-to-retailer?
 - What recipe-to-cart translation patterns are published / open-source? (Mealie has some patterns; what else?)
-- What pantry-tracking patterns work in practice without becoming a "logging app" (per [Constitutional Rule 3](../00-meta/constitutional-rules.md#rule-3--no-food--macro--calorie-logging))?
+- ~~What pantry-tracking patterns work in practice without becoming a "logging app"~~ — **resolved in [synthesis.md Tension #1](../00-meta/synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction)**: inventory tracking is formally distinguished from food/macro/calorie logging. Both observed (orders + cook confirmations) AND asked (initial intake + just-in-time clarification) inputs are in scope, with quantities loose by default.
 - For substitution logic: what published sources (CIA texts, culinary substitution databases) inform ingredient swaps?
 
 ## Cross-references
 
 - Bound by [product-framing.md](../00-meta/product-framing.md) — *"boom, shows up at my door"* is core promise
 - Bound by [Constitutional Rule 9 (geographic neutrality)](../00-meta/constitutional-rules.md#rule-9--geographic-neutrality-in-evidence-surfacing) — international landscape covered without home-country bias
-- Bound by [Constitutional Rule 3 (no logging)](../00-meta/constitutional-rules.md#rule-3--no-food--macro--calorie-logging) — pantry tracking must not become user-initiated logging
+- Bound by [Constitutional Rule 3 (no logging)](../00-meta/constitutional-rules.md#rule-3--no-food--macro--calorie-logging) — **inventory tracking is formally distinguished from food/macro/calorie logging per [synthesis.md Tension #1](../00-meta/synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction); inventory IS in scope**, with both observed and asked inputs and loose-by-default quantities
 - Depends on [sweep #11 (recipe sourcing)](../11-recipe-sourcing/scope.md) — recipes feed the cart-translation layer
 - Depends on [sweep #2 (food composition databases)](../02-food-composition-databases/scope.md) — ingredient identity + nutrition retained through cart
 - Cross-references [sweep #10 (clinical condition gating)](../10-clinical-condition-gating/scope.md) — substitutions must respect condition gating

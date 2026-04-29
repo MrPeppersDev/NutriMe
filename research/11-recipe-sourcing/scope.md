@@ -151,6 +151,7 @@ The same recipe concept must be presentable in multiple modalities to match user
 - Provenance + attribution chain (full source-to-presentation trail)
 - Modality availability (video / text / illustrated / etc.)
 - Kid-friendly tags (per [sweep #9](../09-multi-user-household/scope.md) — kids as eaters)
+- **Ingredient list normalized for inventory match** — per [Stage 2 Tension #1 resolution](../00-meta/synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction), recipe selection prioritizes recipes that consume ingredients already on hand (per [intake-pattern.md inventory awareness](../00-meta/intake-pattern.md#inventory-awareness--a-parallel-data-layer)). Recipe metadata must support ingredient identity matching + perishable-prioritization scoring (use-up-soonest)
 
 ### Legal + licensing landscape (global, equal-weighted per Rule 9)
 

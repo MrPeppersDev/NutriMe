@@ -38,6 +38,35 @@ When the system **suggests** a meal and the user confirms they cooked it and ate
 
 This is "passive" because the user never opens a logging form. They confirm a meal that was suggested to them. The data captured is **semantic**, not numeric — feelings and experiences, not grams and calories.
 
+## Inventory awareness — a parallel data layer
+
+Distinct from the three intake modes above, NutriMe maintains a **parallel data layer** for kitchen inventory — what's on hand in the pantry, fridge, and freezer. This is **not** food / macro / calorie logging (which remains out per [Constitutional Rule 3](constitutional-rules.md#rule-3--no-food--macro--calorie-logging)). It's awareness of available ingredients so the system can use what you have, avoid reordering what's there, and minimize waste.
+
+### How inventory data gets in
+
+- **Initial intake at onboarding** — general inventory (loose): what staples you keep, what perishables are in your fridge/freezer right now, what categories you typically stock
+- **Ongoing passive observation** — orders confirmed (system knows what you bought), per-meal cook confirmations (system infers what got used)
+- **Just-in-time clarification** — when building a specific recipe or shopping list, the system can ask: *"How much rice do you have?"* — only when precision matters for the immediate output
+
+### Quantity precision: loose by default
+
+The system **does not require exact quantities by default.** "I have rice" is enough until a specific recipe or shopping list needs to know "do you have enough rice for this dish." Asking for precision is just-in-time, not at-intake.
+
+### Use-existing-ingredients priority
+
+Inventory awareness drives the meal planner to **prefer recipes that consume what's on hand**. The shopping list is **aware of what's already there** so it doesn't reorder. The implicit goal is **waste reduction** — using up perishables before they spoil, depleting pantry overflow, not buying what's already in the cupboard.
+
+### Why this is not logging
+
+- *Logging (out)*: tracking what you ate, computing calories or macros consumed
+- *Inventory (in)*: knowing what's on hand to use in planning future meals
+
+The user never opens a "what did I eat today" form. Inventory tracking is about *forward-looking utility* (what's available for tomorrow's meal), not *backward-looking accounting* (what did I consume yesterday). See [Constitutional Rule 3](constitutional-rules.md#rule-3--no-food--macro--calorie-logging) for the formal distinction.
+
+### Mental-load reduction
+
+This layer materially reduces mental load (per [product-framing.md](product-framing.md#convenience-driven-framing--and-mental-load-reduction)). The user no longer has to remember what's in the fridge before grocery shopping, no longer has to mentally cross-reference recipes against pantry contents, and no longer has to worry about food waste. The system holds that state.
+
 ## Why this is more powerful than tracking
 
 - Nobody logs consistently long-term. Adherence to logging apps is famously low.
@@ -74,3 +103,4 @@ See [product-framing.md](product-framing.md) and [Rule 3 in constitutional-rules
 - User reframe (2026-04-28) on iterative intake: "the user doesn't describe themselves just once. I think this is a back-and-forth process to discover continuously what the user likes, broaden their horizons, and incorporate more nutritious, holistic foods over time"
 - User reframe (2026-04-28) on periodic check-ins: "I'd rather be more in-depth in the initial intakes on stuff, with periodic check-ins that are 5 to 15 minutes that revise the initial clinical data kind of gathered"
 - User reframe (2026-04-28) on passive confirmation + semantic feedback: "It's no logging in terms of user tracking, these things. When we suggest it and the user confirms that they cooked the thing and used the ingredients, we should be logging that and getting feedback on not just how the user liked the food but also how it made them feel"
+- User direction (2026-04-29, Stage 2 Tension #1) on inventory awareness layer: "What I do want to put an emphasis on... is making sure we are using what exists and we have some intake process for what exists in a person's pantry, fridge, freezer, etc... it is inventory tracking... We don't necessarily always need to know how much of something we have on hand. That's something we can always reach out and ask the user for clarification when building a recipe list and a shopping list. We should prioritize using existing ingredients and using those up as well."

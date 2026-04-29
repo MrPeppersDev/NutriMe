@@ -87,16 +87,23 @@ The user describes themselves continuously, not once:
 
 This shifts every system design downstream — see also [intake-pattern.md](intake-pattern.md).
 
-## Convenience-driven framing
+## Convenience-driven framing — and mental-load reduction
 
-The product premise is convenience first. The user signs up because they want food decisions removed from their daily life. The system delivers convenience by:
+The product premise is convenience first, with mental-load reduction as a co-equal frame underneath. The user signs up because they want food decisions removed from their daily life. Per sweep #7's behavioral-barriers research (Bowen et al., reinforced by Wolfson 2016 and Lavelle 2016), the cognitive overhead of cooking — not time itself — is the primary barrier for busy working adults. The constant deciding-remembering-monitoring is what exhausts people. Time-saving is real and stays in the surface frame ("boom, shows up at my door"); mental-load reduction is the deeper value prop.
 
-- Removing planning effort (the system plans)
-- Removing shopping effort (groceries arrive)
-- Removing decision fatigue (here's tonight's meal, here's how long it takes)
-- Removing skill-acquisition burden (recipes presented at the user's confidence level; what they don't know, they can look up)
+The system delivers convenience and mental-load reduction by:
 
-Underneath the convenience surface, the substantive value prop is grounded scientific understanding + body-data correlation + iterative discovery — but the convenience is what gets the user in the door and keeps them.
+- Removing **planning** effort (the system plans)
+- Removing **shopping** effort (groceries arrive)
+- Removing **deciding** (here's tonight's meal, here's how long it takes — sharpened from the prior "decision fatigue" framing per sweep #7)
+- Removing **remembering** (what's in the fridge, what's been tried, what household members liked or didn't, what staples need restocking)
+- Removing **monitoring / worrying** (am I covering nutrition, varying enough, staying within budget)
+- Removing **skill-acquisition burden** (recipes presented at the user's confidence level; what they don't know, they can look up)
+- **Using what you have** (the system maintains inventory awareness — see [intake-pattern.md inventory layer](intake-pattern.md#inventory-awareness--a-parallel-data-layer) — and prioritizes recipes that consume existing ingredients, reducing waste and the "what do I do with this before it goes bad" mental tax)
+
+Underneath the convenience surface, the substantive value prop is grounded scientific understanding + body-data correlation + iterative discovery — but the convenience and mental-load reduction are what get the user in the door and keep them.
+
+Time stays central in the user-facing surface — accurate time estimates and per-meal time-accuracy feedback *reduce* mental load (one less thing the user has to compute), they don't compete with mental-load framing.
 
 ## Source
 
@@ -107,6 +114,7 @@ Underneath the convenience surface, the substantive value prop is grounded scien
 - User reframe (2026-04-28) on cooking confidence (sweep #7): "I would consider initial users of this to be pretty darn good at cooking, able to follow recipes pretty precisely, but that's not going to be everybody, so that needs to be kind of met in the middle"
 - User reframe (2026-04-28) on not-a-cooking-class boundary (sweep #7): "This isn't a cooking class; this is providing recipes in relation to health guidance. We are not cooking teachers; we are not teaching them how to cook. We're not teaching them how to use a knife."
 - User reframe (2026-04-28) on convenience as core driver (sweep #7): "this is convenience driven. This is about bringing convenience to, you know, a mentally repetitive task where most people performing it actually lack a really basic understanding of what they're putting in their body, how it affects them and what their underlying needs might be"
+- User direction (2026-04-29, Stage 2 synthesis Tension #1) on inventory + use-existing-ingredients: "What I do want to put an emphasis on... is making sure we are using what exists and we have some intake process for what exists in a person's pantry, fridge, freezer, etc... it is inventory tracking. Like, what do we have on hand to use in these things? We don't necessarily always need to know how much of something we have on hand. That's something we can always reach out and ask the user for clarification when building a recipe list and a shopping list. We should prioritize using existing ingredients and using those up as well."
 
 ## Related docs
 
