@@ -34,8 +34,26 @@ Tracks the household's collective state:
 - **Collective decisions + their rationale** — "we agreed to lean Mediterranean for January," "we're avoiding nut-heavy recipes because of allergy in the household"
 - **Negotiation history** — when household members had conflicting preferences, how it was resolved, whether the resolution stuck
 - **Privacy boundaries** — which fields are shared across members, which are private (per [sweep #9 privacy defaults](../09-multi-user-household/scope.md))
+- **Abstracted constraints sourced from each member** — see below
 
 The household model is **not reducible to the union of per-user models.** A household has collective memory that no single member fully holds. *"We tried Korean last month and Sarah didn't love it"* is a household-level fact even though only Sarah's individual experience produced it.
+
+### Abstracted constraint layer *(per [synthesis.md Tension #5](synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap))*
+
+When wearable / biometric / clinical data exists at the per-user level (CGM streams, lab results, condition disclosures, life-stage state), the per-household model holds **abstracted constraints** computed from that data — not the data itself.
+
+- *Per-user model* holds raw data + derived constraints + back-reference to the source data
+- *Per-household model* holds the **constraints expressed in cooking terms** (`prefers lower-glycemic dinners`, `avoids X allergen`, `prefers cooked fish`, `priority on folate-rich foods`, `mercury weekly cap`)
+- Other household members see the **constraint**, not the source data or the reason
+- Back-references to source visible only to the source user (and explicit-consent recipients)
+
+**Three-level sharing model** (per Tension #5 resolution):
+
+- *Strict-per-user* — raw data ownership default
+- *Constraint-only* — automatic for meal-planning utility (constraint surfaces to household planner; raw data stays per-user)
+- *Mutual-consent* — opt-in for richer visibility between specific members (couple sharing pregnancy data; co-parents sharing kid's allergy panel)
+
+**Reasonable opacity, not information-theoretic.** At the personal-use scale (user + family + friends), the constraint-only abstraction provides reasonable opacity within a household that has high mutual trust. The system does not engineer against careful-observer inference of underlying data from constraint patterns.
 
 ## How the model is built
 

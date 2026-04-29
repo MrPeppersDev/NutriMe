@@ -183,4 +183,47 @@ User direction (2026-04-29, Stage 2 Tension #5 in dialogue / synthesis #4):
 
 ---
 
+## Tension 5 — Cross-sweep wearable-data household sharing gap
+
+(Originally queued as Tension #6 in Stage 2 dialogue.)
+
+### What surfaced
+
+Sweep #6 (wearable & biometric data) characterized data sources and access methods. Sweep #9 (multi-user household) characterized household privacy defaults for preferences, health context, semantic feedback, surface meal feedback. Neither sweep addressed the intersection: **what happens when wearable / biometric / clinical data exists at the household level rather than the per-user level?** Concrete cases: an adult member's CGM data must shape household meal planning without being exposed to other members; a pregnant member's lab work must drive pregnancy-safe planning without disclosing the pregnancy; a child eater's allergy panel must produce allergen-avoidance constraints without exposing the panel.
+
+### Resolution
+
+**1. Abstracted constraint layer.** The system computes user-level *constraints* (lower-glycemic dinners, lower-FODMAP options, allergen avoidance, mercury limits, folate priority, etc.) from each member's raw clinical/wearable/screener data. The household meal planner / shopping list / cook-tonight surfaces consume the **constraints**, not the underlying data. Other household members see the constraint expressed in cooking terms (*"prefers cooked fish"*), not the source data or the reason.
+
+**2. Sharing model — (d) all three:**
+- *Strict-per-user* as the data ownership default (each member sees their own raw data only)
+- *Constraint-only sharing* automatic for meal-planning utility (the abstracted constraints are shared so the planner works)
+- *Mutual-consent sharing* opt-in for richer visibility (couple sharing pregnancy data, parent sharing kid's allergy panel with co-parent, etc.)
+
+This honors the per-user privacy default from sweep #9 while still letting the household meal planner function.
+
+**3. Knowledge model split:**
+- *Per-user model* holds raw data + derived constraints + back-reference to source data
+- *Per-household model* holds **abstracted constraints sourced from each member** (no raw data; no source disclosure beyond constraint name)
+- Back-references to source user visible only to that user (and explicit-consent recipients per #2)
+
+**4. Pregnancy and other sensitive-disclosure edge cases:** the constraint-only abstraction is sufficient. We do NOT add information-theoretic guarantees against careful-observer inference — at the personal-use scale (user + family + friends) this is excessive engineering for a household with high mutual trust. Constraint-only abstraction provides reasonable opacity; that's the bar.
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #6 in dialogue / synthesis #5):
+> "Yeah, agreed. It's 5.1. All three is what I would do. Don't be very careful about any of that. That's fine."
+
+Confirming: abstracted constraint layer (Q5.1), all three sharing levels (Q5.2 (d)), knowledge model split (Q5.3), no over-engineering of pregnancy disclosure protection (Q5.4).
+
+### Updates applied
+
+- **synthesis.md** — this entry (Tension #5)
+- **knowledge-model.md** — household-level model section adds the abstracted constraint layer concept; per-user model section adds back-reference visibility note
+- **sweep #6 (wearable & biometric data)** — abstracted-constraint-layer pattern noted as the household sharing model for clinical/wearable data
+- **sweep #9 (multi-user household)** — explicit answer to the cross-sweep wearable/clinical sharing question added
+- **roadmap.md** — Tension #6 (wearable-data household sharing gap) marked resolved
+
+---
+
 *Future tensions will be added as resolved.*

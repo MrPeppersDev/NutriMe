@@ -116,6 +116,17 @@ Per [Constitutional Rule 7 (peer-reviewed floor)](../00-meta/constitutional-rule
 - Israeli Privacy Protection Law
 - Right-to-portability provisions per region
 
+### Household sharing of clinical/wearable data — abstracted constraint layer *(per [synthesis.md Tension #5](../00-meta/synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap))*
+
+When wearable / biometric / clinical data lives at the per-user level in a multi-user household, the system uses an **abstracted constraint layer** (defined in [knowledge-model.md](../00-meta/knowledge-model.md#abstracted-constraint-layer)):
+
+- Per-user level holds raw data + derived constraints
+- Per-household level holds the **constraints expressed in cooking terms** sourced from each member, but not the data or the reason
+- Three-level sharing: strict-per-user (default) + constraint-only (automatic for meal-planning) + mutual-consent (opt-in for richer visibility between specific members)
+- Reasonable opacity within high-trust household; no engineering against careful-observer inference
+
+This pattern handles CGM data, lab results, condition disclosures, life-stage states (pregnancy, lactation), and pediatric medical context without requiring household-wide data exposure.
+
 ## Out of scope (with reasons)
 
 - **"Should we act on signal X" evidence audit** — that's [sweep #5](../05-personalized-nutrition-evidence/scope.md). This sweep maps the data substrate; the evidence-to-act question is a sister sweep.
