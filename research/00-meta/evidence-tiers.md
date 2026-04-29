@@ -46,6 +46,41 @@ When the system surfaces an operationally-grounded pattern to the user, the fram
 
 This is a sister pattern to [audit-as-education](#audit-as-education-pattern): both handle situations where the standard Tier 1–4 framework needs supplementary surfacing rules to stay honest.
 
+## User-facing certainty display *(per [synthesis.md Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension))*
+
+The 4-tier evidence framework (above) classifies **sources**. Sweep #8 found that consumer comprehension of full GRADE-style 4-level certainty (High / Moderate / Low / Very Low) is poor. NutriMe surfaces certainty to users through a **simplified 3-level display** while preserving the full Tier + GRADE breakdown in the [Rule 8 epistemic trail](epistemic-trail.md) for users who drill in.
+
+### Three user-facing certainty levels
+
+| Level | Mapping | When to use |
+|-------|---------|-------------|
+| **Strong** | Tier 1 + GRADE high/moderate certainty | Authoritative-body recommendations with consistent evidence base |
+| **Moderate** | Tier 2 + GRADE moderate, OR Tier 1 + GRADE low | Solid systematic-review or meta-analytic support, OR authoritative recommendation with weaker underlying evidence |
+| **Suggestive** | Tier 3, OR Tier 2 + GRADE low/very low, OR Tier 4 used as cultural/historical content (with the [audit-as-education framing](#audit-as-education-pattern)) | Single-study or observational support, weak meta-analytic certainty, or evidence-weak content surfaced honestly |
+
+### Display patterns — three layers
+
+Per sweep #8 findings, the system uses three complementary visual / textual patterns simultaneously:
+
+1. **Traffic-light icons** — green (Strong) / amber (Moderate) / yellow (Suggestive). NICE-style indicators are precedent here.
+2. **Hedged language** — *"evidence shows"* (Strong) / *"evidence suggests"* (Moderate) / *"early findings hint"* (Suggestive). Tone matches the certainty level.
+3. **Numerical uncertainty disclosure** where meaningful — *"8 of 10 systematic reviews agree,"* *"studied in 4 RCTs, total n = 2,400,"* *"95% CI [X, Y]."* Per **van der Bles et al. 2020 (PNAS)**, numerical uncertainty disclosure preserves trust better than verbal hedging alone — both layers together are best.
+
+### Relation to the 4-tier source framework
+
+The **3-level certainty display** is a *surfacing translation* on top of the **4-tier source framework**. They are related but distinct concepts:
+
+- *Source tiers* (1–4) — what kind of source supports the claim
+- *Certainty levels* (Strong / Moderate / Suggestive) — how confident we are in the effect estimate, given source type + GRADE-style modifiers (risk of bias, inconsistency, indirectness, imprecision, publication bias)
+
+Both feed the [epistemic trail](epistemic-trail.md). The user sees the 3-level certainty + hedged language + numerical disclosure on primary surfaces; the full Tier + GRADE breakdown is one click away on demand.
+
+### Bound by other rules
+
+- [Rule 1 (consult-professional)](constitutional-rules.md#rule-1--consult-a-professional) — *Suggestive* level always carries the consult-professional callout
+- [Rule 7 (peer-reviewed floor)](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor) — Tier 4 still cannot drive system behavior; can only appear as audit-as-education content with explicit "the evidence is weak, here's why" framing
+- [Rule 8 (epistemic trail)](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) — full Tier + GRADE preserved in the trail behind the user-facing certainty display
+
 ## Audit-as-education pattern
 
 Evidence audits perform double duty in NutriMe:

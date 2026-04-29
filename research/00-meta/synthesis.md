@@ -281,4 +281,48 @@ Confirming: codify in intake-pattern.md (Q7.1 (a)), system-default-not-hard-cons
 
 ---
 
+## Tension 8 — GRADE 4-level certainty vs. consumer comprehension
+
+(Originally queued as Tension #9 in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #8** (nutrition education delivery) found that consumer comprehension of full GRADE 4-level certainty (High / Moderate / Low / Very Low) is poor. The literature recommends simplifying to 2- or 3-level user-facing display while preserving full GRADE in the audit trail. Plus **van der Bles et al. 2020 (PNAS)** found that numerical uncertainty disclosure preserves trust better than verbal hedging alone.
+
+The interaction with NutriMe's existing 4-tier source framework needed clarification: the source tiers classify *sources*; certainty levels classify *confidence in effect*. They're related but distinct. We need a user-facing simplification on top of the source-tier framework.
+
+### Resolution
+
+**1. Three user-facing certainty levels: Strong / Moderate / Suggestive.**
+
+| Level | Mapping |
+|-------|---------|
+| Strong | Tier 1 + GRADE high/moderate |
+| Moderate | Tier 2 + GRADE moderate, OR Tier 1 + GRADE low |
+| Suggestive | Tier 3, OR Tier 2 + GRADE low/very low, OR Tier 4 used as cultural/historical content with audit-as-education framing |
+
+**2. Three display layers used together:**
+- Traffic-light icons (green / amber / yellow — NICE-style precedent)
+- Hedged language matched to the level (*evidence shows / evidence suggests / early findings hint*)
+- Numerical uncertainty disclosure where meaningful (*"8 of 10 systematic reviews agree," "studied in 4 RCTs, n = 2,400," "95% CI [X, Y]"*) — per van der Bles 2020, numerical disclosure preserves trust better than verbal hedging alone; the layers together are best
+
+**3. Source tiers + GRADE preserved in the audit trail.** The user sees the 3-level certainty + hedged language + numerical disclosure on primary surfaces; the full Tier + GRADE breakdown is one click away on demand via the [Rule 8 epistemic trail](epistemic-trail.md). Surface clean, full transparency on demand.
+
+**4. Source tiers and certainty levels are distinct concepts** — the source tiers (1–4) classify *what kind of source supports the claim*; certainty levels (Strong / Moderate / Suggestive) classify *confidence in the effect estimate* given source type plus GRADE-style modifiers (risk of bias, inconsistency, indirectness, imprecision, publication bias). Both feed the trail; both are preserved.
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #9 in dialogue / synthesis #8):
+> "Yeah, this makes sense to me"
+
+Confirming: 3-level certainty display, three-layer visual + textual + numerical pattern, source tiers + GRADE preserved in the audit trail, user-facing certainty display added as a section in evidence-tiers.md.
+
+### Updates applied
+
+- **evidence-tiers.md** — new "User-facing certainty display" section added with three-level table, three-layer display pattern, relation to 4-tier source framework, bounds by other rules
+- **synthesis.md** — this entry (Tension #8)
+- **roadmap.md** — Tension marked resolved in synthesis-phase tensions section
+
+---
+
 *Future tensions will be added as resolved.*
