@@ -45,10 +45,11 @@ Wave 1 research (sweeps #1, #2, #6, #11) was executed in an environment where We
 - **Sweep #9 (multi-user household)** — Brisbane / Australian couple-intervention specific PI/trial citations need primary verification (`[verify]` tagged); Russian and Israeli household-meal patterns under-covered relative to primary scope; South Asian peer-reviewed slice is thinnest — adding NIN Hyderabad / AIIMS work would strengthen.
 - **Sweep #10 (clinical condition gating)** — `[VERIFY]`-tagged regulatory items need live re-fetch against FDA, MHRA, TGA, NMPA, MHLW, Roszdravnadzor pages; build dynamic-expansion fetch pipeline against DailyMed + openFDA + EMA SmPC + LactMed + NIH ODS as Tier 1 path.
 - **Sweep #13 (grocery infrastructure)** — all `VERIFY-AT-ADOPTION` items: Instacart IDP indie-tier status + pricing + ToS, Kroger Cart API current state, Subscribe & Save current pricing, international retailer API states.
+- **Sweep #12 (skills-by-cuisine)** — live URL verification on the ~40 citations (academy curricula, canonical texts, cuisine-specific works); bottom-up dish-set validation pass to confirm the skill matrix against actual recipe-skill extraction; English-language coverage uneven across regional cuisines (Sichuan/Punjabi well-covered, Hunan/Bengali/Yucateco less so) — broader source-language coverage may need translation budget.
 
 This verification pass becomes a research-pipeline task before corpus-build phase begins. It is not a re-do of the sweeps — the framework, source identification, and analytical structure stand. It's a freshness check on time-sensitive details that the wave environment couldn't capture.
 
-When sweep #12 returns from retry, this section should be extended with its analogous verification needs.
+All 13 sweeps now have populated Findings and References sections. Pre-corpus-build verification pass is complete in scope; execution awaits a session with live web tools.
 
 ## Synthesis-phase tensions to resolve
 
