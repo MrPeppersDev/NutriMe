@@ -30,6 +30,22 @@ Tier 4 *may* appear as informational / cultural / historical content where no he
 - **Tier 3:** Surface with explicit declaration that the evidence is single-study or observational. The [consult-a-professional rule](constitutional-rules.md#rule-1--consult-a-professional) applies. Never as the sole basis for a strong recommendation.
 - **Tier 4:** Surface only as cultural / historical / mechanistic context with no health claim attached, OR as educational "audit-as-education" content (see below). Visibly label evidence quality in both cases.
 
+## Operational tradition as supplementary basis
+
+Some domains where NutriMe operates have **thin peer-reviewed research support** but **strong institutional or professional operational tradition** behind a particular practice. Examples surfaced during research:
+
+- **"Common base + per-plate deltas" household meal pattern** — thin family-meal-intervention research support; strong professional-kitchen tradition (Escoffier mother sauces, CIA mise en place, institutional foodservice production cooking). See [synthesis.md Tension #2](synthesis.md#tension-2--common-base--per-plate-deltas-evidence-basis-honesty).
+- **Cooking skills + culinary technique** ([sweep #12](../12-skills-by-cuisine/scope.md)) — professional culinary curricula (CIA, Le Cordon Bleu, Tsuji, Ferrandi, ALMA, Hattori, IHM India, China Culinary Academy) provide structured, accountable, institutional skill enumeration; peer-reviewed culinary education research is sparser.
+
+For these domains, **operational tradition counts as a legitimate supplementary evidence basis** — but it must be **flagged as such**, not presented as if it were peer-reviewed Tier 1/2/3 support. The user gets honest framing:
+
+- *Where to use:* practices with established outcomes in production / institutional settings, accountable institutional sources, long-standing professional consensus
+- *Where NOT to use:* health claims (those still need Tier 1/2/3 peer-reviewed support per [Rule 7](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor)); operational tradition is for *operational patterns* and *technique knowledge*, not for nutrition / clinical claims
+
+When the system surfaces an operationally-grounded pattern to the user, the framing names the basis honestly — e.g., *"we use the same approach professional kitchens use to serve diverse needs from a single base"* — rather than hiding the provenance or implying peer-reviewed nutrition research that doesn't strongly exist.
+
+This is a sister pattern to [audit-as-education](#audit-as-education-pattern): both handle situations where the standard Tier 1–4 framework needs supplementary surfacing rules to stay honest.
+
 ## Audit-as-education pattern
 
 Evidence audits perform double duty in NutriMe:

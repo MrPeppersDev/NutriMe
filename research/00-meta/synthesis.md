@@ -64,4 +64,37 @@ User direction (2026-04-29, Stage 2 dialogue):
 
 ---
 
+## Tension 2 — "Common base + per-plate deltas" evidence basis honesty
+
+### What surfaced
+
+**Sweep #9** (multi-user household): the household conflict-resolution pattern we already chose (one shared meal plan satisfies multiple household members via base + per-plate variations) has **thin** family-meal-intervention research support but **strong** professional-kitchen operational tradition behind it (Escoffier mother sauces, CIA mise en place, institutional foodservice production cooking). Under [Rule 7 (peer-reviewed evidence floor)](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor), we need to be honest about what the basis actually is when surfacing this pattern to users.
+
+### Resolution
+
+**1. User-facing transparency: describe the pattern operationally.** When the system surfaces the "common base + per-plate deltas" pattern to users, it names the operational basis honestly — e.g., *"we use the same approach professional kitchens use to serve diverse needs from a single base — mise en place, mother sauces, modular service."* Honest, brief, and frames the system positively (using known-good patterns, not inventing).
+
+**2. Broader principle: operational tradition is a legitimate supplementary evidence basis when peer-reviewed evidence is thin — but must be flagged as such.** Codified as a new section in [evidence-tiers.md](evidence-tiers.md#operational-tradition-as-supplementary-basis), sister concept to audit-as-education. Both handle situations where the standard Tier 1–4 framework needs supplementary surfacing rules to stay honest.
+
+**3. Where this principle applies beyond sweep #9:** sweep #12's professional culinary curricula (CIA, Le Cordon Bleu, Tsuji, etc.) sit in the same epistemic territory — institutional authority, not peer-reviewed nutrition research. The system treats them analogously when surfacing skill knowledge.
+
+**4. Bounds on the principle:** operational tradition supports operational patterns and technique knowledge. **Health claims still require Tier 1/2/3 peer-reviewed support.** Operational tradition does not provide a back door for unsupported health claims.
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 dialogue Tension #2):
+> "I think we go with B. I think we stay operationally transparent, so to speak. By cue 2.2, I agree."
+
+Confirming both:
+- (b) describe operationally — honest about the operational basis
+- yes on adding the operational-tradition-as-legitimate-basis principle as a reusable cross-cutting concept
+
+### Updates applied
+
+- **evidence-tiers.md** — new section "Operational tradition as supplementary basis" added as sister concept to audit-as-education
+- **roadmap.md** — Tension #2 marked resolved in synthesis-phase tensions section
+- (sweep #9 and sweep #12 already reference operational tradition appropriately in their own findings; the new evidence-tiers.md section gives them a canonical anchor to point to in any future user-facing surface descriptions)
+
+---
+
 *Future tensions will be added as resolved.*

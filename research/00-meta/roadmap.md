@@ -58,6 +58,7 @@ Surfaced during research, these are real product-design tensions that synthesis 
 ### Resolved
 
 - **Tension 1 — Mental-load framing supersedes raw-time + inventory tracking distinction** — resolved 2026-04-29. See [synthesis.md Tension #1](synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction). This resolution preemptively closed the pantry "observed not asked" tension as well (see below).
+- **Tension 2 — "Common base + per-plate deltas" evidence basis honesty** — resolved 2026-04-29. See [synthesis.md Tension #2](synthesis.md#tension-2--common-base--per-plate-deltas-evidence-basis-honesty). User-facing transparency: describe the pattern operationally. New cross-cutting principle added: operational tradition is a legitimate supplementary evidence basis when peer-reviewed evidence is thin — but must be flagged as such. Codified in [evidence-tiers.md "Operational tradition as supplementary basis"](evidence-tiers.md#operational-tradition-as-supplementary-basis).
 
 ### Open
 
