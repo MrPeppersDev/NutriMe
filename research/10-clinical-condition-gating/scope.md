@@ -12,7 +12,7 @@ Map the conditions, drug-nutrient interactions, life-stage states, and regulator
 An annotated reference map containing:
 
 - **Condition enumeration** — globally-recognized top conditions in scope, with gating behavior framework. Less-prevalent or specialty conditions captured at higher level with [dynamic-research-expansion](../00-meta/dynamic-research-expansion.md) hook for deeper data.
-- **Behavior assignment per condition** — refuse / gate / proceed-with-disclaimer. Where collected data inherently suggests a gate (e.g., disclosed T1D → carb-counting gate), write it in. Where assignment is ambiguous, mark needs-second-pass at the condition's entry.
+- **Behavior assignment per condition** — refuse / gate / proceed-with-disclaimer. Where collected data inherently suggests a gate (e.g., disclosed T1D → carb-counting gate), write it in. **Where the underlying clinical literature is contested**, default to proceed-with-disclaimer + heavy consult-professional + audit-as-education per [synthesis.md Tension #9 bounded-role principle](../00-meta/synthesis.md#tension-9--pediatric-obesity-aap-2023--needs-second-pass-conditions) — NutriMe doesn't adjudicate contested clinical literature.
 - **Pediatric conditions** — comprehensive proposed list; **assume-add** posture toward additional pediatric conditions surfaced by research. Backend pruning pass later, not during the research sweep.
 - **Refer-out specialty mapping** — for each condition class, the specialties that "work to solve these issues" so the system can surface them in referral language. NO provider directory integration, NO telehealth partnerships.
 - **Regulatory landscape** — global wellness-app + medical-device-line analysis across all primary research scope countries, equal-weighted per Rule 9. Surface where regulatory positions differ and *why* (region + population context).
@@ -373,7 +373,7 @@ Sources: [NIAID Food Allergy Guidelines 2010 + 2017 update](https://www.niaid.ni
 - Chronic kidney transplant immunosuppression — see renal
 - Lyme post-treatment / chronic fatigue / long COVID — proceed-with-disclaimer + audit-as-education
 
-> **needs second pass:** depression/anxiety boundary between proceed-with-disclaimer and gate; SIBO; histamine intolerance; non-celiac gluten sensitivity; orthorexia; long COVID nutrition rails.
+> ~~**needs second pass:** depression/anxiety boundary between proceed-with-disclaimer and gate; SIBO; histamine intolerance; non-celiac gluten sensitivity; orthorexia; long COVID nutrition rails.~~ — **resolved 2026-04-29 by [synthesis.md Tension #9](../00-meta/synthesis.md#tension-9--pediatric-obesity-aap-2023--needs-second-pass-conditions).** All resolve to the default proceed-with-disclaimer + heavy consult-professional + audit-as-education on contested status per the bounded-role principle.
 
 ### 2. Pediatric conditions (kids as eaters per [sweep #9](../09-multi-user-household/scope.md))
 
@@ -411,7 +411,7 @@ Parent-mediated intake; **assume-add posture** for additional pediatric conditio
 
 > **assume-add:** any pediatric condition surfaced during research is added; pruning is a later pass. Examples encountered during scoping but not central: pediatric Crohn's-related growth failure, pediatric Alagille, biliary atresia post-Kasai, pediatric NAFLD, pediatric chronic constipation, juvenile idiopathic arthritis nutrition.
 
-> **needs second pass:** boundary between "feeding-team refer-out" and "proceed with cautious gate" for high-functioning ASD without ARFID; behavior assignment for pediatric obesity given AAP 2023 update controversy.
+> ~~**needs second pass:** boundary between "feeding-team refer-out" and "proceed with cautious gate" for high-functioning ASD without ARFID; behavior assignment for pediatric obesity given AAP 2023 update controversy.~~ — **resolved 2026-04-29 by [synthesis.md Tension #9](../00-meta/synthesis.md#tension-9--pediatric-obesity-aap-2023--needs-second-pass-conditions).** Both resolve to proceed-with-disclaimer + audit-as-education + heavy refer-out per the bounded-role principle. Pediatric obesity specifically: plan family-appropriate meals respecting child's needs as eater; do NOT weight system recommendations toward weight outcomes (no calorie cuts, no portion shaming, no aesthetic framing per Rule 3 + product-framing).
 
 Sources: [AAP Clinical Practice Guideline Childhood Obesity 2023 (Hampl et al.)](https://doi.org/10.1542/peds.2022-060640); [NASPGHAN Pediatric IBD Position Paper](https://doi.org/10.1097/MPG.0000000000003222); [Pediatric Celiac ESPGHAN 2020](https://doi.org/10.1097/MPG.0000000000002497); [ISPAD Clinical Practice Consensus Guidelines 2022 (Pediatric T1D)](https://doi.org/10.1111/pedi.13428); [Satter Division of Responsibility](https://www.ellynsatterinstitute.org/how-to-feed/the-division-of-responsibility-in-feeding/); [WHO Growth Standards (under 2)](https://www.who.int/tools/child-growth-standards); [CDC Growth Charts (≥ 2)](https://www.cdc.gov/growthcharts/).
 
