@@ -29,6 +29,19 @@ Items deferred because the current product is personal-use (user + family + a co
 - **Provider directory integration / telehealth partnerships** — out per sweep #10 user direction. Specialty surfacing yes; integration no.
 - **Localization beyond English / language translation layer** — implicitly in scope long-term given broad audience but no concrete plan; deferred-architectural
 
+## Pre-corpus-build verification pass (required)
+
+Wave 1 research (sweeps #1, #2, #6, #11) was executed in an environment where WebSearch and WebFetch were denied. Findings in those scope docs are populated from the agents' training-data knowledge of well-documented public-sector sources. The reference-map structure is intact and citation-complete; **specific time-sensitive details require re-verification before any corpus-build phase**:
+
+- **Sweep #1 (international nutrition standards)** — verify current versions of DRI / DRV / NRV publications, especially translations of CDRI 2023 (China), DRI-J 2025 (Japan), DGE 2024 (Germany), NNR 2023 status, Russian Rospotrebnadzor 2021 currency. AU/NZ NHMRC was unreachable during sweep — re-fetch from canonical domain.
+- **Sweep #2 (food composition databases)** — verify item counts (especially Open Food Facts product count, USDA FDC sub-dataset sizes), API rate limits / pricing, and license-text currency. Re-confirm whether BLS Germany remains paid-license.
+- **Sweep #6 (wearable & biometric data)** — verify vendor API current state (especially Fitbit Web API sunset trajectory, Garmin pricing tiers, Whoop v2 scope changes, Apple SpO2 patent-litigation status), re-confirm doctor-portal patient-API rollouts (ONC Cures Act §170.315(g)(10) compliance, Korean My HealthWay, Israeli Eitan, EHDS implementation timelines).
+- **Sweep #11 (recipe sourcing)** — re-verify all commercial API pricing + ToS at adoption time (Spoonacular, Edamam, ckbk, Eat Your Books, NYT Cooking subscription tiers).
+
+This verification pass becomes a research-pipeline task before corpus-build phase begins. It is not a re-do of the sweeps — the framework, source identification, and analytical structure stand. It's a freshness check on time-sensitive details that the wave-1 environment couldn't capture.
+
+When wave 2 / wave 3 sweeps complete, this section should be extended with their analogous verification needs.
+
 ## Deferred to architecture phase
 
 Items that are real but properly architectural — handled when implementation begins:
