@@ -55,6 +55,18 @@ Per user direction in sweep #9 turn:
 - **Per-meal surface feedback (liked / disliked):** shared by default
 - All defaults are user-configurable for downstream sharing as needed
 
+### Wearable / biometric / clinical data household sharing — abstracted constraint layer *(per [synthesis.md Tension #5](../00-meta/synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap))*
+
+When household members have wearable, biometric, or clinical data (CGM streams, lab results, condition disclosures, life-stage state including pregnancy / lactation / pediatric medical context), the system handles cross-household visibility through the **abstracted constraint layer** defined in [knowledge-model.md](../00-meta/knowledge-model.md#abstracted-constraint-layer):
+
+- Per-user model holds raw data + derived constraints + back-reference
+- Per-household model holds **only the constraints expressed in cooking terms** (e.g., `prefers lower-glycemic dinners`, `avoids X allergen`, `prefers cooked fish`, `priority on folate-rich foods`)
+- Other household members see the **constraint**, not the source data or the reason
+- Three-level sharing model: strict-per-user (default) + constraint-only (automatic for meal-planning) + mutual-consent (opt-in for richer visibility between specific members like couples or co-parents)
+- Reasonable opacity within a high-trust household; the system does not engineer against careful-observer inference
+
+This handles the cross-sweep gap surfaced during research (sweep #6 mapped the data; sweep #9 mapped the household; neither addressed the intersection).
+
 ### Conflict prioritization order
 
 1. **Allergens + intolerances** (always honored)
