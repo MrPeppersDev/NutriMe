@@ -368,4 +368,56 @@ User direction (2026-04-29, Stage 2 Tension #10 in dialogue / synthesis #9):
 
 ---
 
+## Tension 10 — Novel-synthesis publication ambition
+
+(Originally queued as Tension #11 in Stage 2 dialogue.)
+
+### What surfaced
+
+**Sweep #4** (adaptive intake agent) identified three plausible novel-synthesis contributions where NutriMe could publish into existing field gaps. Plus **sweep #3** flagged that a consumer-facing GLIM screener doesn't appear to exist (design opportunity); **sweep #7** flagged that NutriMe's own aggregated time-feedback data could fill a recipe-stated-vs-actual gap in the literature.
+
+The question: do we want to *publish into* these gaps as well, or just be aware they exist?
+
+### Resolution
+
+**Active publication ambition** — distribution intent expands from "personal use only" to "personal use primary + active open-source contribution to the field." The documentation discipline NutriMe is already operating at *is* publication-grade; deferring would waste that effort. Designing-for-publication from the start is cheaper than retrofitting a personal-use product later.
+
+**Four current publication targets** — all in:
+
+1. **Open-source nutrition-specific intake chatbot** (sweep #4 gap)
+2. **Hybrid LLM + CAT + structured-instrument open agent** (sweep #4 gap — the strongest "novel" claim)
+3. **Consumer-facing GLIM screener** (sweep #3 design opportunity — narrow, standalone shippable)
+4. **Recipe time-feedback aggregate data** (sweep #7 gap — depends on user base size for statistical meaningfulness)
+
+Plus capacity to add more as they organically emerge.
+
+**What changes:**
+
+- Documentation operates at publication standard from the start (discipline already established; just made explicit)
+- Data collection is reproducibility-aware from the start (versioning, instrument tracking, drift detection)
+- License + attribution clarity decisions surface earlier in architecture phase
+- Code quality bar set with open-source contribution in mind
+- New meta doc: [publication-ambitions.md](publication-ambitions.md) tracks targets, methodology principles, process for adding new ones
+
+**What does NOT change:**
+
+- **Bounded-role principle still applies** — we publish what we can defensibly publish; we don't overreach into clinical-claim territory beyond Rule 7
+- **Personal-use is still primary** — publication is co-equal, not dominant; the system is useful first
+- **Privacy + Rule 6 (health data local)** — published data is anonymized, aggregated, consented; we never publish personally-identifiable data
+- **Audit-as-education + epistemic-trail discipline** — applies to publication targets too
+
+### Why (user direction)
+
+User direction (2026-04-29, Stage 2 Tension #11 in dialogue / synthesis #10):
+> "Yeah, we're always designing with publication in mind, simply because we don't document to that degree. What's the point of doing it? We want to know; we want to have the data. I think they're all in. Frankly, I don't see why not. Might as well. I don't want to actively defer, though. I do want to have active publication ambitions, so we track and code to that degree."
+
+### Updates applied
+
+- **publication-ambitions.md** — new meta doc capturing the four current targets, methodology principles (reproducibility-aware, license clarity, publication-grade documentation, code quality bar), what publication doesn't change, process for adding new targets
+- **product-framing.md** — distribution intent expanded from "personal use only" to "personal use primary + active open-source contribution to the field" with shaping implications listed
+- **synthesis.md** — this entry (Tension #10)
+- **roadmap.md** — Tension #10 marked resolved; publication targets moved from "Broader-scope future" defer-tracking to active reference under publication-ambitions.md
+
+---
+
 *Future tensions will be added as resolved.*

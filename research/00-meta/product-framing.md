@@ -40,12 +40,15 @@ US, Canada, Western Europe (UK, France, Germany, Netherlands, Belgium, Nordics, 
 
 **Distribution intent (current):**
 
-**Personal use** — built for the user, their family, and possibly a few friends. Not commercial, not SaaS, not open-source distribution at present. This shapes:
+**Personal use primary + active open-source contribution to the field** — built for the user, their family, and possibly a few friends, **AND** designed from the start with publication-grade documentation, reproducibility-aware data collection, and code quality so that architectural / methodological work can contribute back to the field. Not commercial, not hosted SaaS. This shapes:
 
 - Regulatory analysis is informational rather than compliance-driven (we know where lines are, we're not crossing them at scale)
 - Recipe + data licensing leans on personal-use / non-commercial pathways where they exist
 - Privacy posture treats data with the rigor expected of regulated systems even though personal use does not legally require it
-- Distribution scope can change later — broader-scope implications tracked in [roadmap.md](roadmap.md)
+- **Documentation operates at publication standard** — already established discipline in `00-meta/`; explicit ambition codified in [publication-ambitions.md](publication-ambitions.md)
+- **Data collection is reproducibility-aware from the start** — designed so that aggregate, anonymized, consented data can become publishable contribution where gaps exist (recipe time-feedback being the clearest current target)
+- **Open-source contribution is the published artifact, not user data** — architecture + methodology + standalone components (e.g., consumer-facing GLIM screener, hybrid LLM + CAT + structured-instrument intake agent design) get published; user data stays per-user / per-household
+- Distribution scope can broaden further later — broader-scope implications tracked in [roadmap.md](roadmap.md)
 
 **Recipes / meals are not always for the requesting user.** A user may plan a meal for a household member, a guest, or someone else; the system applies clinical contraindications + allergen gating to the *eater*, not always the *requester* (per [Constitutional Rule 10](constitutional-rules.md#rule-10--user-decides-with-full-context)).
 

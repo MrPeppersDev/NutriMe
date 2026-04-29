@@ -16,6 +16,7 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 - [User decision framework](00-meta/user-decision-framework.md) — how the system handles conflicts between user requests and its knowledge (surface + let user decide)
 - [Geographic scope](00-meta/geographic-scope.md) — primary audience vs. broader research scope, with geographic-neutrality principle
 - [Synthesis](00-meta/synthesis.md) — Stage 2 cross-cutting decisions resolving research-surfaced tensions
+- [Publication ambitions](00-meta/publication-ambitions.md) — active tracker of publication-grade contributions NutriMe is designed to make to the field
 - [Roadmap](00-meta/roadmap.md) — living tracker of open tensions, stretch goals, deferred items, and broader-scope futures
 - [Citation style](00-meta/citation-style.md) — citation format and cross-reference conventions
 - [Sources index](00-meta/sources.md) — navigational index of source coverage across sweeps
