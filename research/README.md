@@ -41,6 +41,7 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 | 11 | Recipe sourcing, licensing, attribution, distribution | Scoped | [11-recipe-sourcing/](11-recipe-sourcing/) |
 | 12 | Skills-by-cuisine mapping | Scoped | [12-skills-by-cuisine/](12-skills-by-cuisine/) |
 | 13 | Grocery sourcing, ordering, and delivery infrastructure | Scoped | [13-grocery-infrastructure/](13-grocery-infrastructure/) |
+| 14 | Ingredient interactions, flavor science, and pairing knowledge | Scoped (research launching 2026-05-01) | [14-ingredient-interactions/](14-ingredient-interactions/) |
 
 ## Cross-reference map
 
@@ -56,6 +57,10 @@ Sweeps don't sit in isolation. Notable known overlaps:
 - **#7 ↔ #12** — Equipment + skills + cuisine bindings sit between #7 (general barriers) and #12 (cuisine-specific mapping)
 - **#11 ↔ #12** — Recipe selection depends on user skill ↔ cuisine matrix
 - **#11 ↔ all** — Recipe sourcing is downstream of every nutrition-substrate decision
+- **#14 ↔ #2** — Pairing-corpus ingredient identity resolves via composition-database authority table
+- **#14 ↔ #11** — Pairing knowledge informs recipe ranking + substitution logic
+- **#14 ↔ #12** — Technique-pairing-cuisine bindings (tadka enables Indian pairings, sofrito enables Latin pairings)
+- **#14 ↔ #13** — Substitution logic informed by pairing science
 
 Cross-references inside docs use relative markdown links and should be added in both directions when a connection is identified.
 
