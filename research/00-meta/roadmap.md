@@ -62,8 +62,13 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | B1 | Semantic RAG vs. structured query strategy | Resolved 2026-05-01 across Q1.1–Q1.4 — three-mode retrieval (vector + FTS5 + structured-relational), filter-then-rank default, embed-for-retrieval-deliver-source principle, Voyage primary embedding + local model for PHI only. See [architecture.md B1](architecture.md#b1--semantic-rag-vs-structured-query-strategy). |
 | B2 | Rule 8 epistemic trail implementation | Resolved 2026-05-01 — substrate derivation graph + operational event log; structured + narrative capture; hybrid rule-based + LLM-causal-explanation verification; layered disclosure; stored + on-demand reconstruction. See [architecture.md B2](architecture.md#b2--rule-8-epistemic-trail-implementation). |
 | B3 | Dynamic research expansion infrastructure | Resolved 2026-05-01 across Q3.1–Q3.5c — hybrid reactive + proactive gap detection; hybrid explicit + LLM-extraction adapters; both source-specific + centralized verification; per-content-type TTLs + change-triggered re-fetch; cascade failure with partial-success rebuild; fixed-N exponential backoff retries. See [architecture.md B3](architecture.md#b3--dynamic-research-expansion-infrastructure). |
-| B4 | Knowledge model schema | NEXT |
-| Schema design | ~1-week focused work between Blocks B and C — atom types + composition types + relationship types + provenance discipline + three-confidence-concepts distinction | Pending B1–B4 |
+| B4 | Knowledge model schema (architecture-level) | Resolved 2026-05-01 — three confidence concepts (system_confidence / evidence_tier / user_facing_certainty) with deterministic mapping; 17 atom + 8 molecule + 16 synthesized types + 7 relationships + bitemporal lifecycle. ~70% confidence with 8 flags explicitly deferred to schema-design phase. See [architecture.md B4](architecture.md#b4--knowledge-model-schema-architecture-level). |
+| **Block B complete** | All B1–B4 resolved; schema-design phase next |
+| C1 | Conversational intake agent architecture | NEXT (after schema-design phase, OR may run in parallel since schema is being refined) |
+| C2–C5 | Hybrid administration UX, recipe presentation, daily cadence | Pending C1 |
+| D1–D4 | External integrations | Can run in parallel with C now that A is complete |
+| E1–E4 | Reproducibility + publication infrastructure | Can run in parallel with C now that A is complete |
+| Schema design (Stage 3.5) | Detailed schema work resolving B4's 8 explicitly-flagged questions (F1–F8) plus table layouts + indexes + FK + migrations + base-table-vs-type-specific normalization + verification rule-set + embedding-table layout. ~1+ weeks of focused work. | Pending Block B (now complete); can begin |
 | C1–C5 | Intake + interaction | Pending Blocks A + B |
 | D1–D4 | External integrations | Pending Block A |
 | E1–E4 | Reproducibility + publication infrastructure | Pending Block A |

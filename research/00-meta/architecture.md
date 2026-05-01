@@ -469,4 +469,104 @@ User direction throughout the Q3.1 → Q3.5c dialogue (2026-05-01).
 
 ---
 
+## B4 — Knowledge model schema (architecture-level)
+
+> Resolved 2026-05-01 across four sub-decisions Q4.1–Q4.4. **This decision lands the architecture-level schema choices; a deeper-pass schema design phase between Block B and Block C will resolve the lower-confidence flags noted below.**
+
+### ⚠ Confidence + scope of this decision
+
+This B4 entry is the **architecture-level** schema decision — it commits NutriMe to a specific organizing taxonomy + relationship-type set + bitemporal lifecycle + confidence-concept reconciliation. It is **NOT a finalized implementation schema**. Detailed work (table definitions, indexes, foreign keys, constraints, migrations, type-merge decisions on the lower-confidence flags) lands in the **schema-design phase** between Block B and Block C, per the [A4 schema-design risk callout](#a4--data-persistence--knowledge-model-storage).
+
+**Overall architecture-level confidence: ~70%.**
+
+The lower-confidence flags below are explicitly recorded as **schema-design phase deliverables** rather than buried; they need a more in-depth pass before any implementation work lands. Per the [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty), this surfacing of confidence is the design itself.
+
+### Q4.1 — Three confidence concepts, naming + reconciliation
+
+The system has three distinct concepts that must NOT collapse into one column:
+
+- **`system_confidence`** (numeric 0.0–1.0) — internal numeric confidence for write-time conflict resolution + DerivedFrom propagation
+- **`evidence_tier`** (enum: 1 / 2 / 3 / 4 / N/A) — source classification per the [4-tier framework](evidence-tiers.md)
+- **`user_facing_certainty`** (enum: strong / moderate / suggestive / not-applicable) — display layer per [Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension)
+
+**Mapping rules between them** (deterministic; final numeric values tunable in schema-design phase):
+
+| Source mix | evidence_tier | system_confidence default | user_facing_certainty |
+|---|---|---|---|
+| All inputs Tier 1 + GRADE high/moderate | Tier 1 | 0.95 | Strong |
+| Tier 2 + GRADE moderate | Tier 2 | 0.80 | Moderate |
+| Mixed Tier 1 + Tier 2 + low GRADE | Tier 1/2 mix | 0.70 | Moderate |
+| Tier 3 only | Tier 3 | 0.50 | Suggestive |
+| Tier 2 + GRADE low/very low | Tier 2 | 0.40 | Suggestive |
+| Tier 4 audit-as-education context | Tier 4 | 0.20 | Suggestive (with "evidence weak" framing) |
+
+### Q4.2 — Knowledge type taxonomy
+
+#### Atom types (immutable, append-only — 17)
+
+`intake_response`, `screener_result`, `literacy_response`, `pediatric_observation`, `cook_confirmation`, `meal_feedback_liked`, `meal_feedback_time`, `wearable_signal_aggregate`, `lab_analyte_value`, `inventory_observation`, `grocery_order_record`, `clinical_disclosure`, `preference_statement`, `document_upload_event`, `corpus_extracted_claim`, `recipe_attribution_record`, `phi_crossing_event`
+
+#### Molecule (composition) types (8)
+
+`intake_session`, `lab_panel`, `wearable_daily_aggregate`, `meal_event`, `document_upload`, `grocery_order`, `recipe_document`, `week_of_meal_events`
+
+#### Synthesized entry types (mutable, LLM-managed — 16)
+
+`nutrient_intake_estimate`, `dietary_constraint`, `abstracted_constraint`, `meal_plan`, `meal_recommendation`, `recipe_match`, `educational_recommendation`, `inference`, `inferred_pattern`, `pairing_rationale`, `substitution_proposal`, `stretch_recipe_disclosure`, `audit_as_education_content`, `dietary_pattern_assessment`, `stretch_readiness_signal`, `audit_log_entry`
+
+### ⚠ Lower-confidence flags — schema-design phase resolves
+
+The following architecture-level decisions are landed but warrant explicit deeper review before implementation. **Schema-design phase has these as deliverables.**
+
+| # | Flag | Open question | Architecture-level lean (~confidence) |
+|---|---|---|---|
+| F1 | **Asynchrony / temporal state model** | The taxonomy doesn't yet capture meal lifecycle (proposed → accepted → scheduled → cooking → cooked → skipped). Probably belongs as `state` fields on existing types like `meal_recommendation`, not new types. | Add state machines to existing types, not new types (~50% confident) |
+| F2 | **Household vs. user-level subject boundary** | Most synthesized types need a `subject_id` + `subject_type ∈ {user, household, member_subset}` field. Pattern repeats across `meal_plan`, `meal_recommendation`, `dietary_constraint`, `abstracted_constraint`. | Add `subject_id` + `subject_type` to all synthesized types (~70% confident); could be more granular if needed |
+| F3 | **Corpus vs. substrate boundary for system-generated shareable content** | `pairing_rationale` is generated from corpus + user-knowledge-model state, but is the same across users for the same recipe. Should there be a 4th storage layer for `corpus_synthesized_content`? | Keep in substrate for now (~55% confident); flag for re-evaluation if cache patterns emerge |
+| F4 | **User-correction handling** | When a user corrects a prior inference ("no, that wasn't lactose intolerance — it was a one-off"), do we use a generic `clinical_disclosure` atom + Supersedes relationship, or introduce a `user_correction` atom type? | Use existing types + Supersedes (~50% confident); could shift to `user_correction` atom type after observation |
+| F5 | **Generic `inference` catch-all type** | Generic catch-all types are usually a smell. Should we force every inference into a specific synthesized type, or keep `inference` as a load-bearing catch-all? | Keep as load-bearing catch-all (~65% confident); flag as smell to monitor; remove once enumeration matures |
+| F6 | **Possible type merges** | `dietary_pattern_assessment` ↔ `screener_result` (both might be the same shape with different `instrument_type` enum values). `audit_as_education_content` ↔ `educational_recommendation` (might be the same shape with different `evidence_tier_framing` enum). | Currently separate (~40% confident on each merge being right vs. wrong); resolve in schema-design phase |
+| F7 | **`provenance_chain` as relationship vs. computed view** | The full lineage atom → molecule → synthesis → user-facing-surface needed for layered-disclosure rendering. Lean on it being a computed view over recursive `DerivedFrom` traversal rather than a stored relationship. | Computed view (~tentative); decide in schema-design phase |
+| F8 | **Possibly-overengineered atoms reconsidered** | I considered + rejected: `emotional_state_atom` (folded into meal feedback), `goal_atom` (folded into preference_statement), `schedule_atom` (folded into meal_event time). Reconsider during schema-design phase if real use cases surface. | Folded into existing types currently; flag for revisit |
+
+### Q4.3 — Typed relationship enumeration (7)
+
+`DerivedFrom`, `Contradicts`, `Supersedes`, `Tension`, `EnrichedBy`, `MemberOf`, `RetractedBy`
+
+Per LC pattern adopted in [A4](#a4--data-persistence--knowledge-model-storage). Forward + reverse indexes on `(source_id, type, target_id)` / `(target_id, type, source_id)` so derivation traversal is a graph operation, not a log scan.
+
+### Q4.4 — Bitemporal lifecycle field naming
+
+- **`valid_from`** (timestamp) — when this entry became authoritative
+- **`valid_until`** (timestamp, nullable) — when this entry was superseded; null means currently valid
+- **`recorded_at`** (timestamp) — when the entry was written to the DB (different from `valid_from` for backdated entries)
+
+Most queries default to `valid_until IS NULL` (current state); historical queries use the full bitemporal pair. Per LC pattern adopted in A4.
+
+### Schema-design phase deliverables (between Block B and Block C)
+
+The schema-design phase is now scoped with these explicit deliverables:
+
+1. Resolve the 8 lower-confidence flags above (F1–F8)
+2. Define detailed table layouts (column definitions, types, constraints, defaults)
+3. Define indexes (especially the `(source_id, type, target_id)` + `(target_id, type, source_id)` relationship indexes)
+4. Define foreign key + referential integrity rules
+5. Define migration strategy (how the schema evolves over time without losing the bitemporal-immutability discipline)
+6. Define the `KnowledgeEntry` base table vs. type-specific table normalization approach
+7. Define the verification rule-set (per [B2](#b2--rule-8-epistemic-trail-implementation))
+8. Define the embedding-table layout (`embeddings_voyage_*` + `embeddings_local_*` per [B1 Q1.3](#b1--semantic-rag-vs-structured-query-strategy))
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — B4 marked resolved (architecture-level); schema-design phase deliverables expanded
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; schema-design phase scope expanded with the 8 flag deliverables
+
+### Sources
+
+User direction throughout the Q4.1 → Q4.4 dialogue (2026-05-01); explicit hybrid-A-and-C resolution on flag-handling.
+
+---
+
+*Block B complete. Block C (intake + interaction) is next; Block D (external integrations) and Block E (reproducibility + publication) can run in parallel after Block A but were deferred per the topic-by-topic cadence.*
+
 *Future architecture decisions will be added as resolved.*

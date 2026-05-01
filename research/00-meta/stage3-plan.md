@@ -41,7 +41,18 @@ Most cross-cutting decisions. Must be first.
 
 ### Schema design — Stage 3.5 deliverable between Blocks B and C
 
-Per the [A4 schema-design overhead risk](architecture.md#a4--data-persistence--knowledge-model-storage), defining NutriMe's atom types + composition types + relationship types + provenance discipline + the three-confidence-concepts distinction is ~1 week of focused work that lands between Block B and Block C. Architecture deliverable, not build deliverable. Captured in a future `schema.md` once Block B settles the retrieval shape that the schema has to support.
+Per the [A4 schema-design overhead risk](architecture.md#a4--data-persistence--knowledge-model-storage) + [B4 architecture-level decision with explicit flags](architecture.md#b4--knowledge-model-schema-architecture-level), the schema-design phase has these explicit deliverables:
+
+1. **Resolve the 8 B4 lower-confidence flags (F1–F8)** — asynchrony / temporal state model; household-vs-user subject boundary; corpus-vs-substrate boundary for system-generated shareable content; user-correction handling; generic `inference` catch-all; possible type merges (`dietary_pattern_assessment` ↔ `screener_result` and `audit_as_education_content` ↔ `educational_recommendation`); `provenance_chain` as relationship vs. computed view; possibly-overengineered atoms reconsideration
+2. Define detailed table layouts (column definitions, types, constraints, defaults)
+3. Define indexes (especially the `(source_id, type, target_id)` + `(target_id, type, source_id)` relationship indexes for graph traversal)
+4. Define foreign key + referential integrity rules
+5. Define migration strategy preserving bitemporal-immutability discipline
+6. Define `KnowledgeEntry` base table vs. type-specific table normalization approach
+7. Define the verification rule-set (per [B2](architecture.md#b2--rule-8-epistemic-trail-implementation))
+8. Define the embedding-table layout (`embeddings_voyage_*` + `embeddings_local_*` per [B1 Q1.3](architecture.md#b1--semantic-rag-vs-structured-query-strategy))
+
+Captured in a future `schema.md` once Block C dialogue surfaces additional schema requirements (intake agent + recipe presentation + daily-cadence model all touch the schema).
 
 ### Block B — Knowledge + retrieval (data flow)
 
