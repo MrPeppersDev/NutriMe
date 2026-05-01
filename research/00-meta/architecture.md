@@ -995,4 +995,71 @@ User direction throughout the Q5.1 → Q5.5 dialogue (2026-05-01); two user-intr
 
 *Block C complete. Block D (external integrations) is next.*
 
+## D1 — Wearable + biometric aggregation
+
+> Resolved 2026-05-01 across five sub-decisions Q1.1–Q1.5.
+
+### Decision
+
+**Hybrid HealthKit primary + direct vendor APIs as second-pass** when user requests; **MVP-priority data type set** with framework-over-source-list extensibility for additions; **HealthKit background delivery (push) primary + periodic polling backup**; **hybrid pre-computed common constraints + on-demand uncommon constraints**, all flowing through the [Tension #5 abstracted-constraint-layer](synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap); **validation metadata per device + signal type informs runtime confidence weighting** flowing into the knowledge model's `system_confidence` field per B4.
+
+### Q1.1 — HealthKit primary + direct vendor APIs as second-pass
+
+Per [A2](#a2--application-shell) (native macOS app) and [Rule 6 / phi-handling.md](#a3--llm-provider--privacy-posture), Apple HealthKit is the natural primary aggregator:
+
+- HealthKit-primary path covers ~80% of cases automatically — Apple Watch, iPhone, plus dozens of third-party devices that mirror to HealthKit (Whoop, Oura, smart scales, BP monitors, Withings, etc.)
+- Single integration with native macOS access via HealthKit framework
+- Data stays local per A1 + Rule 6
+- Direct vendor APIs (Whoop, Oura, Garmin, Eight Sleep, etc.) added as second-pass when the user has a specific gap (vendor doesn't mirror to HealthKit, or richer data is available via direct API than what HealthKit surfaces)
+
+Implementation follows the [framework-over-source-list principle](dynamic-research-expansion.md#framework-over-source-list--the-corpus-design-principle) — vendor adapters register their capability profiles; the framework determines what's available. Adding a vendor = drop in an adapter.
+
+### Q1.2 — MVP-priority data type set
+
+| Priority | Signals |
+|---|---|
+| **High** | Heart rate variability (HRV), resting heart rate, sleep stages + duration, weight, activity / workout summary, blood glucose (if CGM present for T1D / T2D users) |
+| **Medium** | Body composition (smart scale BIA), VO2 max, training load, blood pressure |
+| **Low** | Skin temperature, ECG, blood oxygen, menstrual cycle, mindfulness minutes |
+
+These map to constraint generation per [Tension #5 abstracted-constraint-layer](synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap). High-priority signals produce constraints like "user is recovering — favor anti-inflammatory dinners" or "elevated post-meal glucose pattern — favor lower-glycemic options."
+
+Adding signals later is a constraint-generator addition, not a schema change — per the framework-over-source-list principle.
+
+### Q1.3 — Background delivery (push) primary + periodic polling backup
+
+- **HealthKit background delivery** as the primary mechanism — efficient, immediate, native to the platform
+- **Periodic polling** as backup — catches missed notifications; handles cases where push isn't available for a specific data type
+- **Polling cadence respects data-type update frequency** — HRV updates several times daily, weight updates once a day at most, sleep updates once per morning, etc.
+
+### Q1.4 — Hybrid constraint computation
+
+- **Pre-compute common constraints continuously** — daily-recovery-status from HRV + sleep, glucose-pattern, sleep-debt, training-load. These are checked frequently enough that pre-computing wins on latency.
+- **Compute uncommon constraints on-demand** — when meal planner queries for a specific constraint not in the pre-computed set
+- **Pre-computed constraints live as `synthesized` entries per [B4](#b4--knowledge-model-schema-architecture-level)** with their own bitemporal lifecycle (per [A4](#a4--data-persistence--knowledge-model-storage)) — meal planner reads current state without re-computing
+- All constraints flow through the [Tension #5 abstracted-constraint-layer](synthesis.md#tension-5--cross-sweep-wearable-data-household-sharing-gap) — raw data stays per-user; constraints surface to household level in cooking-terms only
+
+### Q1.5 — Validation metadata + runtime confidence weighting
+
+Per [Rule 7 (peer-reviewed floor)](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor) + sweep #6 findings (skin-tone bias in PPG sensors, vendor-vs-independent-validation gaps):
+
+- **Hard-coded validation metadata** per device + signal type — system knows "Apple Watch HR has X validation profile, Whoop sleep staging has Y validation profile" with sources to peer-reviewed validation literature
+- **Confidence weighting per signal** — every wearable signal carries a confidence score derived from the validation profile
+- **Validation metadata informs default confidence weighting** — confidence flows into the knowledge model's `system_confidence` field per [B4 Q4.1](#b4--knowledge-model-schema-architecture-level)
+
+When the system surfaces "elevated post-meal glucose pattern detected" or "user is in low-recovery state," the user can drill in via the epistemic trail to see the device + signal + validation profile + resulting confidence — per [Rule 8 + B2 layered disclosure](#b2--rule-8-epistemic-trail-implementation).
+
+**Skin-tone PPG bias** (per Bent et al. 2020 + Koerber et al. 2023, surfaced in sweep #6) is one specific case the validation metadata captures — signal confidence is not uniform across users; the system reflects this honestly in the epistemic trail rather than presenting a uniform confidence.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — D1 marked resolved; D2 (doctor-portal patient API integration) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+
+### Sources
+
+User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-01).
+
+---
+
 *Future architecture decisions will be added as resolved.*
