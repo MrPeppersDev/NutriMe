@@ -801,4 +801,98 @@ User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-01); user-introduc
 
 ---
 
+## C4 — Multi-modal recipe presentation rendering
+
+> Resolved 2026-05-01 across five sub-decisions Q4.1–Q4.5, with two architectural refinements that generalize beyond C4: the **"tap to understand more"** pattern (cross-domain) and the **anti-paternalism + context-conditional selection tracking** principle.
+
+### Decision
+
+**Hybrid modality availability** (fallback chain default, user-controlled filtering); **embed video inline by default with deep-link option** for fullscreen / cast-to-TV; **inline tooltip with text + linked demo video** for terminology lookup, **generalized to all domains including medical / clinical content**; **render-time presentation** at MVP (cache deferred); **hybrid system-suggestion + user-agency** for tier-shift over time, with **the system never pre-filtering options by perceived skill** — present the full range, track context-conditional selection patterns as signal not constraint.
+
+### Q4.1 — Modality availability: hybrid fallback chain + user filter
+
+Recipes won't all exist in all four modalities (video / structured text / cookbook prose / illustrated). System handles gaps via:
+
+- **Default fallback chain** — preferred modality → next-best available → ultimately structured text (always available since corpus is markdown). User sees "video version not available; here's structured text instead."
+- **User-controlled filtering** — user can request "show me only recipes with video for tonight" when modality matters
+
+No recipe is hidden just because the user's preferred modality isn't available. Per Rule 10 user agency.
+
+### Q4.2 — Video sourcing: embed inline by default + deep-link option
+
+YouTube + subscription-platform videos are inline-embedded via WebKit / AVKit by default — keeps user in app's flow during cooking. Deep-link option for fullscreen / cast-to-TV / Picture-in-Picture cases (cooking with iPad propped + video playing on TV via cast).
+
+A1 (pure local) compatible because video delivery is the only cloud touch and it's content delivery, not PHI. Per A1 boundaries: outbound network for non-PHI public content delivery is acceptable.
+
+### Q4.3 — Real-time terminology lookup: inline tooltip with text + linked demo video
+
+Inline tooltip surfaces the term definition immediately (lightweight, no leaving the recipe). One-tap-deeper opens the linked demo video if available. Definition source is the curated culinary glossary corpus (CIA professional glossary, Larousse Gastronomique, On Cooking, Joy of Cooking technique sections) per [sweep #11](../11-recipe-sourcing/scope.md).
+
+### "Tap to understand more" — generalized cross-domain pattern *(architectural refinement from C4 Q4.3 dialogue)*
+
+The inline-tooltip pattern is **not specific to culinary terminology**. Per user direction:
+
+> "The same should be for medical information. We should be able to tap text and understand more of what's happening and what we're trying to understand."
+
+The pattern generalizes: **any text the system displays can carry inline lookup.** Same UX surface, different content corpus per domain:
+
+| Term type | Corpus source |
+|---|---|
+| Culinary terminology + technique | CIA professional glossary, Larousse, On Cooking, Joy of Cooking technique sections (per sweep #11) |
+| Medical / clinical / nutritional terminology | MedlinePlus, NIH ODS, ADA Standards of Care patient pages, Cochrane Plain Language Summaries, NHS A–Z health topics, peer-reviewed sources via [B3 dynamic-research-expansion](#b3--dynamic-research-expansion-infrastructure) |
+| Evidence-tier / certainty labels | In-system explanation of [audit-as-education pattern + 3-level certainty display per Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension) |
+| Screener / instrument names | Curated clarification corpus from [C3 Q3.2](#c3--hybrid-administration-ux) |
+| Ingredient names | Authority table + [sweep #14 ingredient interaction corpus](../14-ingredient-interactions/scope.md) — pairing rationale + scientific basis on tap |
+| Cuisine / cultural terminology | Cuisine + technique knowledge from [sweep #12](../12-skills-by-cuisine/scope.md) |
+
+Design implications:
+
+- **Text rendering throughout the app supports term annotation** — text can declare "this term is loadable" without knowing which corpus serves it
+- **Centralized lookup service** routes terms to the right corpus by domain
+- **Lookups are cached + persistent** — once the user has expanded a term, the system tracks the expansion for the [knowledge model](knowledge-model.md) so concepts-delivered state is updated (per [B2 epistemic trail](#b2--rule-8-epistemic-trail-implementation))
+
+This is a real architectural pattern that affects every text-rendering surface. Worth being explicit about — captured here as a C4 deliverable but applies system-wide.
+
+### Q4.4 — Render-time presentation at MVP
+
+Recipes in corpus are markdown files (per A4). User-facing rendered version (embedded video, glossary tooltips, ingredient-identity authority-table links for inventory matching) is **rendered at view time at MVP**. Pre-rendered cache deferred unless rendering becomes a real latency problem.
+
+Personal-use scale doesn't have the request volume that justifies pre-rendered caches. Render-time is simpler + always reflects current corpus state + always reflects current user preferences (modality, confidence tier). Cache complexity isn't load-bearing at our scale.
+
+### Q4.5 — Anti-paternalism: present full range; track context-conditional selection as signal *(architectural refinement)*
+
+Per user direction during this dialogue:
+
+> "I don't want to be limiting users too much by our perceived skill of them. Present high-skill options, but track how often the user picks them versus the easier options. Ensure that we map that to time available and resources available, etc."
+
+The system **does NOT pre-filter recipe surfaces by perceived skill.** Instead:
+
+- **Full range of options including high-skill is always presented** to the user
+- **Selection patterns are tracked** — how often the user picks higher-skill vs. easier options
+- **Context-conditional pattern recognition** — selection mapped against time available, equipment available, current life context (busy week vs. quiet weekend, time of day, day of week, life-stage signals like high-stress periods)
+- **Suggestions become context-appropriate** — if user consistently picks easier options on weekday evenings + harder options on weekend mornings, suggestions lead with appropriate options for the current context, but the **full menu stays accessible**
+
+This sharpens [Tension #7's "honest disclosure, not default filter"](synthesis.md#tension-7--stretch-recipe-metadata-for-honest-disclosure-not-a-default-filter) principle and extends it from skill-novelty to **skill-tier selection broadly**.
+
+**B4 schema implication flagged:** the `stretch_readiness_signal` synthesized type needs to track **context-conditional selection patterns**, not just a single "user is X-confident" scalar score. Possible dimensions:
+
+- Skill-level actually-demonstrated through completed recipes
+- Skill-level the user *picks* in different contexts (time of day, day of week, life-stage signals)
+- Divergence between picked vs. demonstrated (picks high-skill but doesn't complete vs. picks easier but completes well)
+
+Added to schema-design phase deliverables for refinement of `stretch_readiness_signal`.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — C4 marked resolved; C5 (daily-cadence interaction model) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; "tap to understand more" architectural pattern flagged as cross-cutting; `stretch_readiness_signal` schema refinement added to schema-design phase
+- [B4 architecture.md entry](#b4--knowledge-model-schema-architecture-level) — `stretch_readiness_signal` description note extended with context-conditional refinement flag
+- [knowledge-model.md](knowledge-model.md) — note that `stretch_readiness_signal` tracks context-conditional patterns, not a scalar score
+
+### Sources
+
+User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-01); two user-introduced refinements during the dialogue: tap-to-understand-more pattern generalization beyond culinary terminology, and anti-paternalism + context-conditional selection tracking.
+
+---
+
 *Future architecture decisions will be added as resolved.*

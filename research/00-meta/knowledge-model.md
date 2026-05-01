@@ -84,6 +84,18 @@ The system uses the per-user knowledge model to identify which next cuisine / di
 
 When household members have conflicting preferences (per [sweep #9](../09-multi-user-household/scope.md) conflict prioritization order), the household knowledge model surfaces precedent — "this household typically resolves preference conflicts by [pattern X]" — to inform without overriding the current decision.
 
+## Stretch-readiness as context-conditional pattern, not scalar
+
+Per [architecture.md C4 Q4.5](architecture.md#c4--multi-modal-recipe-presentation-rendering), the `stretch_readiness_signal` synthesized type tracks **context-conditional selection patterns**, not a single "user is X-confident" scalar score. Dimensions include:
+
+- Skill-level actually-demonstrated through completed recipes
+- Skill-level the user *picks* in different contexts (time of day, day of week, life-stage signals like high-stress periods)
+- Divergence between picked vs. demonstrated (picks high-skill but doesn't complete vs. picks easier but completes well)
+
+The system **never pre-filters recipe surfaces by perceived skill** — full range always presented; suggestions become context-appropriate based on tracked patterns; user agency preserved per Rule 10.
+
+Schema details for the context-conditional structure deferred to schema-design phase per B4 flag F8 (and now an additional refinement flagged here).
+
 ## Partial intake is the default state, not the exception
 
 Per [architecture.md C3 Q3.3](architecture.md#c3--hybrid-administration-ux), the user can pause intake / screener administration at any time and continue using the core app (meal planning, recipes, grocery features) while intake remains incomplete. This means **the system reasons over partial knowledge as the default state, not the exception.**
