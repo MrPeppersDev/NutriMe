@@ -895,4 +895,104 @@ User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-01); two user-intr
 
 ---
 
+## C5 — Daily-cadence interaction model
+
+> Resolved 2026-05-01 across five sub-decisions Q5.1–Q5.5, with two user-introduced refinements during dialogue: sharpened immediate-vs-later feedback content + new "reorient tonight's meal" quick-action capability.
+
+### Decision
+
+**Adaptive primary home-screen surface** (computed from time-of-day + recent activity); **user-configurable per-category notifications, defaults to material-only**; **two-stage feedback prompts** with cooking-experience questions immediate + body-response question later; **dual-mode epistemic trail surfacing** (inline drill-in everywhere + dedicated audit view); **quick-actions including "reorient tonight's meal"** for real-time constraint changes.
+
+### Q5.1 — Adaptive primary home-screen surface
+
+Home-screen primary content is computed from current time-of-day + most-recent activity. Examples:
+
+- **Morning** — surfaces today + tomorrow's plan
+- **Midday** — surfaces tonight's meal
+- **Post-dinner** — surfaces feedback prompt for what was just cooked + tomorrow preview
+
+Aligns with [Tension #1 mental-load reduction](synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction) — surfaces what's relevant *now* without the user navigating. Home-screen state is computed from current time + last meal completed + last cook confirmation + current intake / inventory / knowledge model state.
+
+### Q5.2 — User-configurable per-category notifications, default material-only
+
+Per [Tension #3](synthesis.md#tension-3--spaced-repetition-cadence-vs-no-daily-check-in-rule), no streak-driven daily prompts. But material updates (per [B3 Q3.5b late-arriving sub-fetch](#b3--dynamic-research-expansion-infrastructure)) and per-meal feedback timing windows are genuinely useful.
+
+- **Per-category notification controls** — user picks what's worth interrupting them for
+- **Default to material-only** — late-arriving refinements that materially change a recommendation; per-meal feedback timing within a window
+- User can dial up or down per category
+
+Respects user autonomy + [Rule 10](constitutional-rules.md#rule-10--user-decides-with-full-context).
+
+### Q5.3 — Two-stage feedback prompts with refined content
+
+Per user direction, two distinct prompts at different timepoints, with sharpened content:
+
+- **Immediate (post-cook confirmation)** — about the cooking experience:
+  - *"How easy was the meal to make for you?"*
+  - *"How enjoyable was this to make for you?"*
+- **Later (several hours)** — about the body's response:
+  - *"How did this make your body feel?"*
+
+The immediate prompt captures **cooking experience** (effort + enjoyment of the *making*) while it's fresh. The later prompt captures **body response** (energy / digestion / fullness / mood) when the data exists.
+
+Each prompt is brief; total burden is low. User can dismiss either.
+
+**B4 schema implication flagged:** B4 currently has `meal_feedback_liked` + `meal_feedback_time` as separate atoms but doesn't cleanly distinguish "cooking experience feedback" from "body response feedback." Schema-design phase refines this split — possibly two distinct atom types like `meal_feedback_cooking_experience` (immediate) + `meal_feedback_body_response` (later) — both still members of the `meal_event` molecule.
+
+### Q5.4 — Dual-mode epistemic trail surfacing
+
+- **Inline drill-in everywhere** — every recommendation, every evidence-tier label, every certainty indicator has a "show your work" affordance (per [B2 layered disclosure](#b2--rule-8-epistemic-trail-implementation))
+- **Dedicated audit view** — separate surface for "show me everything the system did with my data this month" — periodic review aligned with [Rule 8 surface-the-trail commitment](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) + audit log requirements from [phi-handling.md](phi-handling.md)
+
+Both serve different needs: inline for in-the-moment "why did you suggest this," dedicated audit for "I want to understand what the system has been up to."
+
+### Q5.5 — Quick-actions at the home screen, including "reorient tonight's meal"
+
+Quick-actions one-tap from the home screen:
+
+- **"Plan this week"** — weekly plan view + suggestion flow
+- **"Browse recipes"** — recipe corpus browse with filtering
+- **"Continue intake"** — wherever intake left off (per [C3 Q3.3 pause-anywhere](#c3--hybrid-administration-ux))
+- **"Show inventory"** — inventory state view + edit
+- **"Show me what you know about me"** — knowledge model summary view (per epistemic trail surface-the-trail)
+- **"What's coming up"** — grocery list + delivery / pickup status
+- **"Reorient tonight's meal"** ← new per user direction
+
+#### "Reorient tonight's meal" — life-happens affordance *(architectural refinement from C5 Q5.5 dialogue)*
+
+Per user direction:
+
+> "There also needs to be an option to reorient what's going on for that upcoming meal if you know time constraints have changed or something like that."
+
+The user can change the upcoming-meal context on the fly:
+
+- Time available shifts (got home late, need a 20-min meal not the 45-min one planned)
+- Equipment changes (oven occupied, need stovetop-only)
+- Ingredients shift (one of the planned ingredients went bad)
+- Energy / mood shifts (don't have it in me to do something complex tonight)
+- Household availability shifts (partner working late, just cooking for one)
+
+This is the **"life happens" affordance** — the system handles real-time constraint changes gracefully without forcing the user back through full meal-planning. Not just a UI feature; it implies:
+
+- **Meal-planning agent supports a "regenerate within updated constraints, preserving intake-level constraints" operation** that returns quickly
+- **Updated constraints are session-scoped, not global** — tonight's reorient doesn't change the week's plan or intake-level constraints (allergens, conditions, life-stage, etc.)
+- **Reorient flow is brief** — a few targeted questions, not a re-plan
+- **Cascade-failure-aware** — if reorient triggers a fetch (e.g., new ingredient lookup), the cascade-failure model from B3 applies
+
+Per [Rule 10 user agency](constitutional-rules.md#rule-10--user-decides-with-full-context) + [Tension #1 mental-load reduction](synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction).
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — C5 marked resolved; Block C complete; Block D becomes available next
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; meal-feedback atom split refinement added to schema-design phase
+- [B4 architecture.md entry](#b4--knowledge-model-schema-architecture-level) — meal-feedback atom split flagged for schema-design refinement
+
+### Sources
+
+User direction throughout the Q5.1 → Q5.5 dialogue (2026-05-01); two user-introduced refinements: immediate-vs-later feedback content sharpening + "reorient tonight's meal" quick-action.
+
+---
+
+*Block C complete. Block D (external integrations) is next.*
+
 *Future architecture decisions will be added as resolved.*
