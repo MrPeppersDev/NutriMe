@@ -18,6 +18,7 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 - [Synthesis](00-meta/synthesis.md) — Stage 2 cross-cutting decisions resolving research-surfaced tensions
 - [Publication ambitions](00-meta/publication-ambitions.md) — active tracker of publication-grade contributions NutriMe is designed to make to the field
 - [Stage 3+ comprehensive plan](00-meta/stage3-plan.md) — full path from current state through architecture, MVP, build, iteration, and parallel tracks; downstream-impact callouts
+- [Architecture decisions](00-meta/architecture.md) — Stage 3 architecture decisions as they resolve (sister doc to synthesis.md)
 - [PHI handling](00-meta/phi-handling.md) — operational doc for cloud LLM use under HIPAA-discipline posture; query-level decomposition principle
 - [Roadmap](00-meta/roadmap.md) — living tracker of open tensions, stretch goals, deferred items, and broader-scope futures
 - [Citation style](00-meta/citation-style.md) — citation format and cross-reference conventions

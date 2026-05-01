@@ -58,8 +58,10 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | A1 | Deployment model | Resolved 2026-04-29 — pure local-first, single-device, no LAN, no cloud sync |
 | A2 | Application shell | Resolved 2026-04-29 — native macOS app primary; localhost web acceptable for build speed |
 | A3 | LLM provider + privacy posture | Resolved 2026-04-29 — Anthropic + Google with query-level PHI decomposition (per [phi-handling.md](phi-handling.md)). Multi-agent orchestration specifics deferred to C1. **Open thread:** why both providers (provider diversity / capability differentiation / cost optimization) — affects C1 orchestration |
-| A4 | Data persistence + knowledge model storage | NEXT |
-| B1–B4 | Knowledge + retrieval | Pending Block A close-out |
+| A4 | Data persistence + knowledge model storage | Resolved 2026-04-30 — hybrid SQLite (substrate + operational) + markdown vault (corpus); 12 LC + CKV patterns adopted; atoms-with-molecules organizing principle. See [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). |
+| B1 | Semantic RAG vs. structured query strategy | NEXT (with embedding model choice flagged within) |
+| B2–B4 | Knowledge + retrieval (epistemic trail impl, dynamic expansion infra, knowledge model schema) | Pending B1 |
+| Schema design | ~1-week focused work between Blocks B and C — atom types + composition types + relationship types + provenance discipline + three-confidence-concepts distinction | Pending B1–B4 |
 | C1–C5 | Intake + interaction | Pending Blocks A + B |
 | D1–D4 | External integrations | Pending Block A |
 | E1–E4 | Reproducibility + publication infrastructure | Pending Block A |
