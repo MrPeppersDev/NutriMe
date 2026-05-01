@@ -65,8 +65,9 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | B4 | Knowledge model schema (architecture-level) | Resolved 2026-05-01 — three confidence concepts (system_confidence / evidence_tier / user_facing_certainty) with deterministic mapping; 17 atom + 8 molecule + 16 synthesized types + 7 relationships + bitemporal lifecycle. ~70% confidence with 8 flags explicitly deferred to schema-design phase. See [architecture.md B4](architecture.md#b4--knowledge-model-schema-architecture-level). |
 | **Block B complete** | All B1–B4 resolved; schema-design phase next |
 | C1 | Conversational intake agent architecture | Resolved 2026-05-01 — hybrid orchestrator + bounded sub-agents; structured tool call default with conversation-handoff escape hatch; hybrid operational+substrate state; double-layer (per-agent + per-tool) PHI enforcement. New foundational principle: **LLM provider agnosticism** via capability-vector routing per [provider-abstraction.md](provider-abstraction.md). See [architecture.md C1](architecture.md#c1--conversational-intake-agent-architecture). |
-| C2 | CAT / IRT integration — PROMIS public banks + classical psychometric fallback | NEXT |
-| C3–C5 | Hybrid administration UX, recipe presentation, daily cadence | Pending C2 |
+| C2 | CAT / IRT integration | Resolved 2026-05-01 across Q2.1–Q2.5 — existing CAT engine (specific engine deferred to build); PROMIS banks downloaded locally for pure-local A1-compliant execution; two parallel delivery paths (PROMIS adaptive + classical deterministic sum-score) both producing `screener_result` atoms; bitemporal + item-bank version stamping; invisible adaptive nature with explicit early-stopping notification giving user agency. See [architecture.md C2](architecture.md#c2--cat--irt-integration). |
+| C3 | Hybrid administration UX | NEXT |
+| C4–C5 | Recipe presentation, daily cadence | Pending C3 |
 | D1–D4 | External integrations | Can run in parallel with C now that A is complete |
 | E1–E4 | Reproducibility + publication infrastructure | Can run in parallel with C now that A is complete |
 | Schema design (Stage 3.5) | Detailed schema work resolving B4's 8 explicitly-flagged questions (F1–F8) plus table layouts + indexes + FK + migrations + base-table-vs-type-specific normalization + verification rule-set + embedding-table layout. ~1+ weeks of focused work. | Pending Block B (now complete); can begin |
@@ -79,6 +80,8 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 - **Query-decomposition specifics** — the operational mechanism for splitting LLM calls so no single query carries a full health profile (per [phi-handling.md](phi-handling.md)). Deferred to Stage 3 Block C, since orchestration architecture and decomposition enforcement are tightly coupled.
 - **Why both Anthropic AND Google** — provider diversity / capability differentiation / cost optimization — to be resolved during C1 (intake agent architecture) since orchestration shape depends on it.
 - **Local embedding model choice for PHI content** — `mxbai-embed-large` / `BGE-M3` / `nomic-embed-text` candidates; final choice in schema-design phase. M-series hardware compatibility primary criterion.
+- **CAT engine choice** (per C2 Q2.1) — mirtCAT (R), Concerto (R), catR (R), or Python re-implementation. Lands during build when stack is pinned. Lean: mirtCAT in R with thin Python wrapper if stack is Python-primary; evaluate R-interop overhead vs. porting validated logic.
+- **MVP PROMIS bank scope** (per C2 Q2.2) — start with depression / anxiety / sleep / fatigue / perceived stress at MVP; add others as user disclosure surfaces need per B3 gap-detection.
 - **Voyage-vs-open-source embedding publication-reproducibility tradeoff** — Voyage corpus embeddings aren't reproducible without API access. For publication target #4, may need optional re-embedding pipeline using open-source model so external reproducers can validate analysis. Tracked here; decision lands when publication target #4 starts shipping data.
 
 ## Synthesis-phase tensions to resolve

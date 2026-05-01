@@ -653,4 +653,74 @@ User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-01); explicit elev
 
 ---
 
+## C2 — CAT / IRT integration
+
+> Resolved 2026-05-01 across five sub-decisions Q2.1–Q2.5.
+
+### Decision
+
+**Use an existing CAT engine** (avoid NIH syndrome until operational difficulties surface), **download PROMIS calibrated item banks for local CAT execution** (no PHI crosses, A1-compliant), **two parallel delivery paths** (PROMIS adaptive via CAT engine + classical instruments via deterministic sum-score) both producing `screener_result` atoms per [B4 taxonomy](#b4--knowledge-model-schema-architecture-level), **bitemporal lifecycle with item-bank version stamping**, and **invisible adaptive nature with explicit early-stopping notification** giving the user agency to continue if desired.
+
+### Q2.1 — Existing engine, not roll-your-own
+
+**Use an existing CAT engine.** Don't reinvent the wheel until operational difficulties during build justify it.
+
+Open sub-question deferred to build phase: **which existing engine?**
+
+- **R-based mature options:** mirtCAT (integrates with `mirt` Multidimensional IRT, strong psychometric grounding), Concerto (used in academic CAT-MH research, MIT-licensed), catR (lighter, focused on CAT simulation + administration)
+- **Python re-implementation:** less mature than R-based options; no R interop overhead
+
+Lean: mirtCAT in R with thin Python wrapper if stack ends up Python-primary; evaluate R-interop overhead vs. porting validated logic ourselves once stack is pinned. Decision lands during build.
+
+### Q2.2 — PROMIS banks: local download + local CAT execution
+
+**Download PROMIS calibrated item banks; run CAT locally** with the chosen engine. Pure-local execution per [A1](#a1--deployment-model); no PHI crossing per [phi-handling.md](phi-handling.md). PROMIS Assessment Center API (web service) is incompatible with A1 + violates phi-handling boundaries — out.
+
+Item-bank download is a one-time setup; periodic re-fetch per B3 cache+freshness policy (annual TTL on PROMIS banks since calibrations are updated periodically).
+
+Open sub-question deferred to build phase: **PROMIS bank scope at MVP.** Per [stage3-plan.md MVP](stage3-plan.md), MVP includes 5–10 highest-leverage instruments. Lean: **start with MVP set** (depression, anxiety, sleep, fatigue, perceived stress); **add others as user disclosure surfaces need** per [B3 dynamic-research-expansion gap-detection](#b3--dynamic-research-expansion-infrastructure).
+
+### Q2.3 — Classical instruments: deterministic sum-score, same hybrid administration UX
+
+PROMIS covers depression / anxiety / sleep / fatigue / perceived stress. Classical instruments (PHQ-9, GAD-7, SCOFF, EAT-26, PSQI, CCSS, AUDIT-C, Hunger Vital Sign) are scored differently — sum-score with documented cutoffs, not IRT-based ability estimates. Sweep #4 found no PROMIS bank exists for diet quality / eating behavior / cooking confidence; classical instruments fill those gaps per [sweep #3](../03-clinical-nutrition-assessment/scope.md).
+
+**Two parallel delivery paths:**
+
+- **PROMIS instruments** — adaptive item selection via local CAT engine
+- **Classical instruments** — verbatim items in fixed order (per Tension #4); deterministic sum-score with documented cutoffs (PHQ-9 ≥10 = moderate depression, etc.)
+
+**Both produce `screener_result` atoms** per [B4 taxonomy](#b4--knowledge-model-schema-architecture-level) with:
+- The score
+- The interpretation tier (none / mild / moderate / severe / etc.)
+- The item-bank version (per Q2.4 below)
+- Provenance: `validated-instrument` per [knowledge-model.md](knowledge-model.md)
+
+**Hybrid administration UX (per [Tension #4](synthesis.md#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation)) is the same for both paths** — verbatim items + conversational framing prefaces. Only the under-the-hood scoring engine differs. The user experience is uniform.
+
+### Q2.4 — Bitemporal lifecycle + item-bank version stamping
+
+Adopts the standard B4 bitemporal pattern (`valid_from` / `valid_until`) plus an additional **item-bank version stamp** on every `screener_result` atom.
+
+- A 2026 PHQ-9 administration is distinguishable from a 2030 PHQ-9 administration if cutoffs change in the interim
+- Item-bank revisions tracked per B3 cache+freshness policy (annual TTL with change-triggered re-fetch)
+- Migration handling for users with stored results from an older bank version when the bank updates: existing results retain their original version stamp; new administrations use the current version; longitudinal-comparison queries surface version differences honestly per [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty)
+
+### Q2.5 — UX during CAT administration
+
+**Adaptive nature is invisible.** The user shouldn't have to understand IRT to take a screener. Items appear one at a time; the fact that the next item is selected by max-information is implementation detail, not user-facing.
+
+**Early-stopping notification with user agency.** When CAT measurement reaches sufficient precision, the user is shown: *"We have a confident measurement now; you can stop here or continue if you want."* Per [Rule 10 (user decides with full context)](constitutional-rules.md#rule-10--user-decides-with-full-context). Some users will want to complete the full instrument anyway (psychological closure, comparing against prior administrations, etc.); the system honors that without forcing it.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — C2 marked resolved; C3 (hybrid administration UX) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; engine choice + MVP PROMIS scope flagged as build-phase decisions
+- [phi-handling.md](phi-handling.md) — note that PROMIS item-bank download is a one-time non-PHI fetch; CAT administration runs locally with no PHI crossing
+
+### Sources
+
+User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-01); explicit early-stopping reversal mid-dialogue.
+
+---
+
 *Future architecture decisions will be added as resolved.*
