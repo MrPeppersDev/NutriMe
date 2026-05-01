@@ -59,8 +59,9 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | A2 | Application shell | Resolved 2026-04-29 — native macOS app primary; localhost web acceptable for build speed |
 | A3 | LLM provider + privacy posture | Resolved 2026-04-29 — Anthropic + Google with query-level PHI decomposition (per [phi-handling.md](phi-handling.md)). Multi-agent orchestration specifics deferred to C1. **Open thread:** why both providers (provider diversity / capability differentiation / cost optimization) — affects C1 orchestration |
 | A4 | Data persistence + knowledge model storage | Resolved 2026-04-30 — hybrid SQLite (substrate + operational) + markdown vault (corpus); 12 LC + CKV patterns adopted; atoms-with-molecules organizing principle. See [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). |
-| B1 | Semantic RAG vs. structured query strategy | NEXT (with embedding model choice flagged within) |
-| B2–B4 | Knowledge + retrieval (epistemic trail impl, dynamic expansion infra, knowledge model schema) | Pending B1 |
+| B1 | Semantic RAG vs. structured query strategy | Resolved 2026-05-01 across Q1.1–Q1.4 — three-mode retrieval (vector + FTS5 + structured-relational), filter-then-rank default, embed-for-retrieval-deliver-source principle, Voyage primary embedding + local model for PHI only. See [architecture.md B1](architecture.md#b1--semantic-rag-vs-structured-query-strategy). |
+| B2 | Rule 8 epistemic trail implementation — provenance schema, reasoning-chain capture, verification pipeline | NEXT |
+| B3–B4 | Dynamic expansion infrastructure + knowledge model schema | Pending B2 |
 | Schema design | ~1-week focused work between Blocks B and C — atom types + composition types + relationship types + provenance discipline + three-confidence-concepts distinction | Pending B1–B4 |
 | C1–C5 | Intake + interaction | Pending Blocks A + B |
 | D1–D4 | External integrations | Pending Block A |
@@ -70,6 +71,8 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 
 - **Query-decomposition specifics** — the operational mechanism for splitting LLM calls so no single query carries a full health profile (per [phi-handling.md](phi-handling.md)). Deferred to Stage 3 Block C, since orchestration architecture and decomposition enforcement are tightly coupled.
 - **Why both Anthropic AND Google** — provider diversity / capability differentiation / cost optimization — to be resolved during C1 (intake agent architecture) since orchestration shape depends on it.
+- **Local embedding model choice for PHI content** — `mxbai-embed-large` / `BGE-M3` / `nomic-embed-text` candidates; final choice in schema-design phase. M-series hardware compatibility primary criterion.
+- **Voyage-vs-open-source embedding publication-reproducibility tradeoff** — Voyage corpus embeddings aren't reproducible without API access. For publication target #4, may need optional re-embedding pipeline using open-source model so external reproducers can validate analysis. Tracked here; decision lands when publication target #4 starts shipping data.
 
 ## Synthesis-phase tensions to resolve
 

@@ -54,6 +54,15 @@ Even though NutriMe is single-user (the user is identifiable to themselves), the
 - Computed nutrient targets as numerics, not as derived-from-X-condition framings
 - Cuisine / technique / ingredient knowledge queries (zero PHI)
 
+### Embedding-layer PHI boundary
+
+Per [B1 (semantic RAG vs. structured query strategy)](architecture.md#b1--semantic-rag-vs-structured-query-strategy):
+
+- **Voyage** (cloud embedding) for non-PHI corpus content (recipes, educational content, food composition descriptions, cuisine knowledge, glossary, regulatory content)
+- **Local embedding model** for any PHI-touching content (per-user atoms, semantic feedback prose, household abstracted constraints, user-specific text)
+
+Two index spaces in the substrate DB — `embeddings_voyage_*` and `embeddings_local_*` — keep the boundary mechanical, not conventional. PHI content cannot be embedded by Voyage by construction.
+
 ## Why both Anthropic AND Google
 
 Open thread flagged for resolution during Block C (intake agent architecture). Plausible reasons under consideration:

@@ -184,4 +184,79 @@ CKV: Obsidian dependency for the user-facing product; Smart Connections as the p
 
 ---
 
+## B1 — Semantic RAG vs. structured query strategy
+
+> Resolved 2026-05-01 across four sub-decisions Q1.1–Q1.4.
+
+### Decision
+
+Three retrieval modes used together — **vector search + full-text search + structured-relational query** — composed via filter-then-rank. Embeddings are an index over content, not a substitute for it: deliver from source, retrieve via embeddings. Embedding provider chosen per information type — Voyage as primary for non-PHI content, local model for PHI-touching content.
+
+### Q1.1 — Embed-vs-structured-query line + the "embed for retrieval, deliver source" principle
+
+**The line per content type:**
+
+| Content type | Retrieval mode |
+|---|---|
+| Recipe text descriptions, technique glossary, educational content prose, cuisine context | Semantic — meaning-based search |
+| Recipe metadata (ingredients normalized, time, equipment, complexity tier, dietary tags) | Structured — filter-driven |
+| Food composition data (USDA FDC nutrient values per ingredient) | Structured — exact lookups |
+| Nutrition standards (DRI tables, dietary patterns) | Structured — by population/nutrient |
+| Per-user knowledge model state | Structured — relational queries |
+| Per-household abstracted constraints | Structured — relational |
+| Audit logs + epistemic trail | Structured — temporal + categorical filters |
+| Educational content chunks | Both — topic tags for navigability + filtering, embeddings for "what content does this user need next" |
+| Validated screener items | Structured — exact items, never embedded (we deliver verbatim per Tension #4) |
+| Clinical condition gating logic | Structured — exact rules, never embedded |
+| Recipe similarity ("recipes like this one") | Hybrid — embed for similarity + structured filter for constraints |
+| User want-to-try preferences elicited conversationally | Semantic — meaning-based matching against recipe corpus |
+
+**Edge case settled — recipe ingredients:** structured (`ingredient_id` references composition data + canonical authority record). Identity matters for inventory matching, allergen detection, condition gating, substitution logic. Authority table resolves variants ("chicken breast" / "boneless skinless chicken breast") to canonical records, not vector similarity.
+
+**Embeddings as index, not substitute (the principle):**
+
+> Embeddings are used **for retrieval matching only**. The artifact delivered to the user is **always the ground-truth source content**, never an LLM-regenerated version. Semantic embedding finds the right recipe / educational chunk / glossary entry; the system then retrieves and renders the source markdown file itself.
+
+This eliminates a class of regeneration mistakes (LLM accidentally changes a temperature, drops an ingredient, mis-paraphrases a step) and preserves attribution + provenance per Rule 8 + Constitutional Rule 4 (no recipe generation).
+
+### Q1.2 — Filter-then-rank as default hybrid orchestration
+
+Constraints (allergens, conditions, equipment, time-budget, life-stage requirements) are non-negotiable per the [conflict prioritization order](../09-multi-user-household/scope.md). Filter first against structured constraints; then semantic-rank within the safe set. Cheaper, more deterministic, easier to debug, and respects safety priorities mechanically.
+
+Deviates only with explicit reason (e.g., evidence-weak [audit-as-education](evidence-tiers.md#audit-as-education-pattern) content discovery doesn't have hard constraints — semantic-first is fine there).
+
+### Q1.3 — Embedding provider routing per information type
+
+**Voyage as primary** for non-PHI content (recipes, educational content, food composition descriptions, cuisine knowledge, glossary, regulatory content). Best quality; the bulk of corpus retrieval is here.
+
+**Local embedding model** (best-fit for our hardware constraints — likely `mxbai-embed-large`, `BGE-M3`, `nomic-embed-text` via Ollama or `sentence-transformers` direct; final choice in schema-design phase) **only for PHI-touching content** — per-user atoms, semantic feedback prose, household abstracted constraints, user-specific embeddings.
+
+This makes Voyage the primary in most cases. PHI is the only domain where local embedding is required (per [phi-handling.md](phi-handling.md)).
+
+**Architectural implications:**
+
+- **Two index spaces in the substrate DB** — `embeddings_voyage_*` and `embeddings_local_*` — schema needs a `provider` field per embedding row
+- **Cross-space queries** (rare but real — "find recipes similar to what made the user feel sluggish" needs PHI-side feedback embeddings + non-PHI-side recipe embeddings): pattern is re-embed query string into both spaces, search separately, combine results in application layer with provenance preserved
+- **Local model choice is narrower** than originally scoped — MVP-relevant local content is per-user feedback + per-user atoms; manageable on M-series hardware
+- **Publication-reproducibility flag** — Voyage embeddings are proprietary; corpus content embedded via Voyage isn't reproducible by anyone without API access. For publication target #4 (recipe time-feedback aggregate data), reproducibility considerations may favor optional re-embedding pipeline using open-source model. Tracked in [roadmap.md](roadmap.md).
+
+### Q1.4 — FTS5 alongside sqlite-vec from the start
+
+SQLite's FTS5 is built-in, mature, fast, runs alongside sqlite-vec in the same DB. Adopted as the third retrieval mode for keyword-exact queries ("find recipes with 'butternut squash'") where semantic search is too fuzzy. Trivial to add at MVP since FTS5 is built into SQLite.
+
+Three-mode retrieval (vector + FTS + structured-relational) covers the full query space.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — B1 marked resolved; B2 (epistemic trail implementation) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; embedding model choice for PHI deferred to schema-design phase; Voyage-vs-open-source-embedding publication-reproducibility tradeoff flagged
+- [phi-handling.md](phi-handling.md) — note that embedding-layer PHI boundary is enforced via local-only embeddings for PHI content
+- [dynamic-research-expansion.md](dynamic-research-expansion.md) — embedding pipeline decision flagged for the verification-and-integrate step
+
+### Sources
+
+User direction throughout the Q1.1 → Q1.4 dialogue (2026-05-01).
+
+---
+
 *Future architecture decisions will be added as resolved.*
