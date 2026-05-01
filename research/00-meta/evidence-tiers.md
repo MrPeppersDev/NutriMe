@@ -81,6 +81,13 @@ Both feed the [epistemic trail](epistemic-trail.md). The user sees the 3-level c
 - [Rule 7 (peer-reviewed floor)](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor) — Tier 4 still cannot drive system behavior; can only appear as audit-as-education content with explicit "the evidence is weak, here's why" framing
 - [Rule 8 (epistemic trail)](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) — full Tier + GRADE preserved in the trail behind the user-facing certainty display
 
+## Audit-as-education — illustrative examples
+
+The audit-as-education pattern was originally surfaced for personalized-nutrition claims (microbiome, nutrigenomics, metabolomics). It also applies to:
+
+- **Flavor-pairing controversies** (per [sweep #14](../14-ingredient-interactions/scope.md)) — the aroma-compound-overlap hypothesis (Ahn et al. 2011 *Scientific Reports*) is contested in the food-science literature; Western cuisines tend toward shared-compound pairings while many East Asian cuisines tend toward contrasting-compound. The system covers both traditions equal-weighted per Rule 9 + names the controversy honestly per audit-as-education.
+- **Microbiome / nutrigenomic / metabolomic personalization** (per [sweep #5](../05-personalized-nutrition-evidence/scope.md)) — original example.
+
 ## Audit-as-education pattern
 
 Evidence audits perform double duty in NutriMe:

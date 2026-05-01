@@ -31,6 +31,7 @@ An annotated reference map containing:
 - **Access details:** API endpoints, rate limits, pricing, license terms, terms of use
 - **Coverage gaps:** known weaknesses (international prepared dishes, regional/ethnic foods, traditional preparations)
 - **Harmonization standards:** INFOODS tagnames, LanguaL food classification, FoodEx2
+- **Cross-corpus identity (per [sweep #14](../14-ingredient-interactions/scope.md) integration pass):** the authority table must accept FlavorDB ingredient IDs alongside USDA FDC IDs so that food-composition lookups and ingredient-interaction lookups resolve to the same canonical record. See [architecture.md A4 authority table](../00-meta/architecture.md#a4--data-persistence--knowledge-model-storage)
 
 ## Out of scope (with reasons)
 

@@ -60,8 +60,9 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | A3 | LLM provider + privacy posture | Resolved 2026-04-29 — Anthropic + Google with query-level PHI decomposition (per [phi-handling.md](phi-handling.md)). Multi-agent orchestration specifics deferred to C1. **Open thread:** why both providers (provider diversity / capability differentiation / cost optimization) — affects C1 orchestration |
 | A4 | Data persistence + knowledge model storage | Resolved 2026-04-30 — hybrid SQLite (substrate + operational) + markdown vault (corpus); 12 LC + CKV patterns adopted; atoms-with-molecules organizing principle. See [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). |
 | B1 | Semantic RAG vs. structured query strategy | Resolved 2026-05-01 across Q1.1–Q1.4 — three-mode retrieval (vector + FTS5 + structured-relational), filter-then-rank default, embed-for-retrieval-deliver-source principle, Voyage primary embedding + local model for PHI only. See [architecture.md B1](architecture.md#b1--semantic-rag-vs-structured-query-strategy). |
-| B2 | Rule 8 epistemic trail implementation — provenance schema, reasoning-chain capture, verification pipeline | NEXT |
-| B3–B4 | Dynamic expansion infrastructure + knowledge model schema | Pending B2 |
+| B2 | Rule 8 epistemic trail implementation | Resolved 2026-05-01 — substrate derivation graph + operational event log; structured + narrative capture; hybrid rule-based + LLM-causal-explanation verification; layered disclosure; stored + on-demand reconstruction. See [architecture.md B2](architecture.md#b2--rule-8-epistemic-trail-implementation). |
+| B3 | Dynamic research expansion infrastructure | NEXT |
+| B4 | Knowledge model schema | Pending B3 |
 | Schema design | ~1-week focused work between Blocks B and C — atom types + composition types + relationship types + provenance discipline + three-confidence-concepts distinction | Pending B1–B4 |
 | C1–C5 | Intake + interaction | Pending Blocks A + B |
 | D1–D4 | External integrations | Pending Block A |

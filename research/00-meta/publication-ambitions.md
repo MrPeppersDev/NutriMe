@@ -43,6 +43,14 @@ The reasoning: the documentation rigor we're already operating at *is* publicati
 
 **Design implications:** data collection design must support reproducibility from the start (recipe identifier, user-confidence stratification, time-accuracy delta capture, optional demographic aggregation). Anonymization protocol + IRB-equivalent consent design needed before any data is shared. Not an immediate publication target — depends on user base size for statistical meaningfulness.
 
+### 5. Cooking-state changes pairings — flavor-science aggregate data
+
+**Gap surfaced by:** [sweep #14 (ingredient interactions)](../14-ingredient-interactions/scope.md). Cooking-state changes ingredient pairings (e.g., raw vs. cooked tomato + basil) — currently under-quantified in peer-reviewed flavor-science literature.
+
+**What NutriMe contributes:** With per-meal semantic feedback capturing how meals made the user feel + the recipe's cooking-state metadata + ingredient-interaction tagging from sweep #14, NutriMe could generate aggregate data on user-perceived pairing satisfaction across cooking states. With sufficient sample size + appropriate anonymization, this becomes publishable food-science data.
+
+**Design implications:** depends on (a) the same anonymization + consent infrastructure as target #4, (b) pairing-tradition + cooking-state metadata being on every recipe served (per the sweep #14 integration pass updates to sweep #11 metadata), (c) sufficient user base for statistical meaningfulness. Long-horizon target. Not immediate.
+
 ## Methodology principles
 
 For all publication targets:

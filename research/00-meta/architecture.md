@@ -259,4 +259,96 @@ User direction throughout the Q1.1 → Q1.4 dialogue (2026-05-01).
 
 ---
 
+## B2 — Rule 8 epistemic trail implementation
+
+> Resolved 2026-05-01 across five sub-decisions Q2.1–Q2.5.
+
+### Decision
+
+The epistemic trail is implemented as **a structural derivation graph in the substrate DB plus an event-log in the operational DB**, with reasoning-chain capture in both structured and narrative form, hybrid rule-based + LLM-causal-explanation verification, layered-disclosure user-facing rendering, and stored-at-inference-time-with-on-demand-reconstruction-fallback durability.
+
+### Q2.1 — Trail storage location
+
+**Both substrate primary + operational supplementary.**
+
+- **Substrate** — every inference is a synthesized entry per [A4 atoms-with-molecules schema](#a4--data-persistence--knowledge-model-storage); the trail is the entry's `derived_from` graph + reasoning chain + verification metadata. The substrate's typed-relationship graph IS the canonical structural backbone of the epistemic trail.
+- **Operational** — chronological event log of inference computation events (LLM calls made, intermediate verification step results, latencies, failures). Useful for debugging + AI-confidence calibration over time. Supplementary, not the canonical trail.
+
+### Q2.2 — Reasoning-chain capture format
+
+**Both structured + narrative.** Structured fields on synthesized entries are the queryable derivation substrate (find all inferences depending on atom X, all inferences with low confidence, etc.). LLM-generated narrative is the user-facing "show me the reasoning" surface.
+
+**Narrative generation IS the verification step** per [Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension) + [epistemic-trail.md section 3](epistemic-trail.md#3-verification-before-presenting). Generating the causal-explanation catches yes/no flips and off-by-one errors before the inference reaches the user. Verification + user-facing trail are produced by the same artifact, preventing drift between what the system did internally and what it tells the user externally.
+
+### Q2.3 — Verification step implementation
+
+**Hybrid: deterministic rule-based checks + LLM-generated causal-explanation.**
+
+Rule-based checks (deterministic, fast, reliable) handle:
+- Input-existence (do all referenced atoms / compositions exist?)
+- Peer-reviewed-floor confirmation (per [Rule 7](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor))
+- Sanity-range checks (numbers in plausible ranges)
+- Contradiction detection against existing knowledge model entries
+
+LLM-generated causal-explanation handles soft-coherence verification — does the reasoning hold together? — which isn't easily ruled.
+
+Failed rule-based checks fail closed (inference rejected or downgraded). Failed coherence checks surface low-confidence framing per Tension #8 + Rule 1.
+
+### Q2.4 — User-facing trail rendering
+
+**Layered disclosure** — three depths:
+
+- **Default:** 1-2 sentence summary of what drove the recommendation
+- **Show more:** linear chain — inputs → reasoning → output
+- **Show full trail:** graph view + reasoning narrative + verification status + PHI crossings (per [phi-handling.md](phi-handling.md))
+
+Most queries surface the default; the deeper layers are available on demand without overwhelming the primary surface.
+
+### Q2.5 — Real-time vs. stored trail
+
+**Stored at inference time as primary; reconstruction-on-demand also supported as a fallback when errors are encountered.**
+
+Stored at inference time because: (i) the verification step IS the trail generation — they can't be skipped; (ii) reconstruction relies on inputs being available, but atoms get superseded over time per the bitemporal lifecycle from A4; (iii) AI-confidence-calibration over time requires stored historical data; (iv) at our scale, trail storage cost is trivial.
+
+Reconstruction-on-demand also supported because: when errors are encountered, walking back through the entire derivation chain reconstructively is genuinely useful for debugging. Both modes available; stored is the default; reconstruction is a debugging fallback.
+
+### Updates applied
+
+- Three concepts of "confidence" remain to be distinguished in schema design: *system confidence* (write-time conflict resolution), *evidence tier* (source classification per Tier 1–4 framework), *user-facing certainty* (Strong / Moderate / Suggestive display per Tension #8). Already flagged in roadmap.
+- Verification rule-set design is its own substantial spec — flagged for schema-design phase between Block B and Block C.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — B2 marked resolved; B3 (dynamic research expansion infrastructure) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; verification rule-set design added to schema-design phase scope
+
+### Sources
+
+User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-01); Stage 3 architecture context.
+
+---
+
+## Sweep #14 integration pass — applied 2026-05-01
+
+Sweep #14 (ingredient interactions, flavor science, pairing knowledge) returned with findings during Stage 3 Block B dialogue. Per the sweep's design, a structured integration pass surfaces what existing docs need updates from its findings.
+
+### Updates applied
+
+- **[Sweep #2 (food composition)](../02-food-composition-databases/scope.md)** — authority table requirement extended to accept FlavorDB ingredient IDs alongside USDA FDC IDs; food-composition lookups and ingredient-interaction lookups resolve to the same canonical record
+- **[Sweep #11 (recipe sourcing)](../11-recipe-sourcing/scope.md)** — recipe metadata adds pairing-tradition tags (Western shared-compound, Japanese umami-synergy, Chinese five-flavor balance, Indian masala-with-tadka, Latin sofrito-base, Korean gochugaru-base, etc.) for audit-as-education explanations + horizon-broadening recommendations
+- **[Sweep #12 (skills-by-cuisine)](../12-skills-by-cuisine/scope.md)** — institutional culinary academy list cross-referenced with sweep #14; same academies serve both technique-pedagogy (#12) and pairing-pedagogy (#14)
+- **[Sweep #13 (grocery infrastructure)](../13-grocery-infrastructure/scope.md)** — substitution logic uses pairing-role taxonomy (acid / umami / aromatic / pungent / textural / fat-vehicle) from sweep #14, not just nominal-similarity
+- **[evidence-tiers.md](evidence-tiers.md)** — audit-as-education pattern gets new illustrative-examples section, with the flavor-pairing controversy added alongside microbiome / nutrigenomics
+- **[publication-ambitions.md](publication-ambitions.md)** — new publication target #5 added: cooking-state changes pairings flavor-science aggregate data (depends on sweep #14 metadata + same anonymization infra as target #4 + sufficient user base)
+- **[B1 corpus organization](#b1--semantic-rag-vs-structured-query-strategy)** — both ingredient-as-node and pairing-as-document views fit naturally into the markdown corpus + authority-table model from A4; no architectural changes needed, just documented as a fit
+- **No changes** to constitutional rules, intake-pattern, knowledge-model, phi-handling, dynamic-research-expansion, or other meta docs
+
+### Notable findings worth surfacing
+
+- **Umami synergy** (glutamate + 5'-nucleotides) and **capsaicin + TRPV1 cooling-pairings** are the strongest peer-reviewed mechanistic pairing science — both Tier 1 / 2 grounded in primary taste-receptor pharmacology
+- The **Ahn et al. 2011 aroma-compound-overlap hypothesis is NOT universal** — Western cuisines lean shared-compound, East Asian cuisines lean contrasting-compound; the system covers both equal-weighted per Rule 9, names the controversy honestly per audit-as-education
+- **Cooking-state changes pairings** (raw vs. cooked tomato + basil) is a publishable research gap — added as publication target #5
+
+---
+
 *Future architecture decisions will be added as resolved.*

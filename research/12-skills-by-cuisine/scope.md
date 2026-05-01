@@ -61,6 +61,10 @@ Methodology is **hybrid top-down + bottom-up**: top-down ("what does the literat
 
 Recipes carry **novelty count** (how many new skills relative to user's mastered set) and **failure cost** (deep-frying, fermentation, laminated doughs and other high-failure-cost techniques) as metadata. **This metadata drives honest disclosure, NOT system-default filtering** — the system does not pre-limit recipe surfaces by stretch level. When a recipe introduces multiple new skills or has high failure cost, the system *names* that fact so the user can pick with full context. See [intake-pattern.md stretch metadata section](../00-meta/intake-pattern.md#stretch-recipe-metadata-for-honest-disclosure-per-synthesismd-tension-7).
 
+### Institutional culinary academy overlap with pairing knowledge *(per [sweep #14](../14-ingredient-interactions/scope.md) integration pass)*
+
+The same institutional culinary academies cataloged in this sweep (Le Cordon Bleu, ALMA, Tsuji, Ferrandi, Hattori, IHM India, China Culinary Academy, Korean Food Foundation, ICUM) are the institutional sources for [sweep #14](../14-ingredient-interactions/scope.md)'s pairing knowledge as well — pairing pedagogy is part of their curricula. Cross-reference the institutional list rather than duplicating; the same source serves both technique-pedagogy (here) and pairing-pedagogy (sweep #14).
+
 ### Skill progression paths
 
 Build dependency graph:
