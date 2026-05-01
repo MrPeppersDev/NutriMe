@@ -723,4 +723,82 @@ User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-01); explicit earl
 
 ---
 
+## C3 — Hybrid administration UX
+
+> Resolved 2026-05-01 across five sub-decisions Q3.1–Q3.5.
+
+### Decision
+
+**Items rendered by application (LLM never has the chance to modify item text)**, **curated clarification corpus per validated instrument**, **pause-anywhere with core-service access during incomplete intake + caveat surfacing**, **templated framing with variable slots**, and **double validation (pre-render + post-hoc review) on LLM-generated framing**.
+
+### Q3.1 — Item-text-as-data: items rendered by application; LLM produces only framing
+
+**Items are application data; the LLM never produces item text.** The application layer renders verbatim item text directly in the UI; the LLM produces only the surrounding conversational framing (preface, transitions, item-level clarification on request, pacing).
+
+- Eliminates LLM-text-drift risk entirely — items can't be paraphrased / "simplified" / elaborated
+- Validity preservation is mechanical, not conventional
+- Framing references items abstractly (*"I'm going to ask you 9 questions about how you've been feeling lately"*) since LLM doesn't see/render the items
+- **Surfacing ground truth**: per user direction, items are surfaced verbatim so any accidental LLM blips or mistakes the user notices can be caught + corrected during comprehensive review
+
+Tradeoff: slightly more application code (item-rendering layer) + framing is decoupled from item rendering. Worth it for the safety + simplicity.
+
+### Q3.2 — Item-level clarification: curated corpus per instrument
+
+When users request item-level clarification (*"What does 'little interest or pleasure' mean here?"*), the application looks up + delivers from a **curated clarification corpus per validated instrument**.
+
+- PROMIS + classical instruments have published "user guides" + "administration manuals" with clarification language for common items
+- Curate these into a corpus per instrument
+- Higher quality + consistency than LLM general knowledge
+- Respects the validated-instrument provenance discipline (clarifications come from the instrument's own publishers, not from the LLM)
+- Falls back to LLM-generated clarification only if curated corpus has no entry; flagged for curation review
+
+### Q3.3 — Pause anywhere; core service stays accessible; caveat-surface honestly
+
+**The user can pause intake / screener administration at any time AND continue using the core app while incomplete.** Intake completion is NOT a gate on accessing meal planning + recipes + grocery features. The convenience starts immediately, not after clinical-grade intake completes.
+
+- **Pause is a first-class action at every step** — not a special "save and resume later" flow; just stopping is fine
+- **Core service usable with partial intake** — meal planning, recipes, grocery list all work
+- **Caveat surfacing** — when the user accesses features that *would* benefit from missing data, the system surfaces honestly: *"You haven't finished the [sleep questionnaire / cooking confidence assessment / clinical history]. We're working with what we have. If you completed [X], we'd be able to [pinpoint Y / refine Z / personalize W]."*
+- **Caveat is informational, not pushy** — tells the user what they'd gain from completing, doesn't badger
+- **Per-item save points** — anything answered is preserved + used (per `intake_response` atoms in B4 taxonomy being independently meaningful)
+
+**Downstream implication:** the system gracefully handles partial intake as the **default state, not the exception**. Inferences computed with partial data carry honest "we're working with limited information" framing per Rule 8 epistemic trail. The 3-level user-facing certainty display (per [Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension)) skews toward Suggestive until intake matures — that's fine; it's honest.
+
+Aligns with:
+- [Convenience-driven framing](product-framing.md) — convenience starts immediately, not after intake completes
+- [Rule 10 user agency](constitutional-rules.md#rule-10--user-decides-with-full-context) — user decides when to deepen system's understanding
+- [Tension #1 mental-load reduction](synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction) — intake friction is itself mental load; deferring it preserves the convenience win
+- [knowledge-model.md](knowledge-model.md) — system reasons over partial knowledge with appropriate confidence framing
+
+### Q3.4 — Conversational framing: templated with variable slots
+
+Framing is **templated with variable slots** — fixed structural skeleton (curated, application-owned) + LLM-generated context-aware fills.
+
+- Predictable structure for testing + auditing + validity discipline
+- LLM responsiveness for context-aware adaptation (e.g., preface knows it's user's third intake session, adjusts tone)
+- Templates are part of application's curated content
+- Variable slots are LLM-generated and pass through Q3.5 validation
+
+Best of both deterministic + variable patterns.
+
+### Q3.5 — Validation: both pre-render + post-hoc
+
+**Pre-render validation** — LLM-generated framing is checked against rules (no item-content reference, no leading language, no answer-priming) before rendering to user. Strict gate; failures fall back to deterministic template-only framing.
+
+**Post-hoc review** — framing is logged + audited periodically; problem cases surface even if they slipped past pre-render rules. Pattern-detection layer.
+
+Both per [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) — every LLM-generated framing is captured + auditable. Pre-render prevents worst cases reaching users; post-hoc catches subtle patterns the rules don't anticipate.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — C3 marked resolved; C4 (multi-modal recipe presentation rendering) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; partial-intake-as-default-state flagged as a downstream implication for Block C4 + C5 design
+- [knowledge-model.md](knowledge-model.md) — note that partial intake state is the default, not exception; system reasons over partial knowledge with appropriate confidence framing per Rule 8
+
+### Sources
+
+User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-01); user-introduced refinement on Q3.3 expanding pause-and-resume into full pause-anywhere-with-core-service-access pattern.
+
+---
+
 *Future architecture decisions will be added as resolved.*

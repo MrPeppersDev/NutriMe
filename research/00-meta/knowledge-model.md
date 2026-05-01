@@ -84,6 +84,17 @@ The system uses the per-user knowledge model to identify which next cuisine / di
 
 When household members have conflicting preferences (per [sweep #9](../09-multi-user-household/scope.md) conflict prioritization order), the household knowledge model surfaces precedent — "this household typically resolves preference conflicts by [pattern X]" — to inform without overriding the current decision.
 
+## Partial intake is the default state, not the exception
+
+Per [architecture.md C3 Q3.3](architecture.md#c3--hybrid-administration-ux), the user can pause intake / screener administration at any time and continue using the core app (meal planning, recipes, grocery features) while intake remains incomplete. This means **the system reasons over partial knowledge as the default state, not the exception.**
+
+Implications for the knowledge model:
+
+- Synthesized entries computed from partial atom sets are normal, not edge cases
+- Confidence framing per [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) reflects partial knowledge honestly — *"we're working with limited information; here's what we'd refine if we had X"*
+- The 3-level user-facing certainty display per [Tension #8](synthesis.md#tension-8--grade-4-level-certainty-vs-consumer-comprehension) skews toward Suggestive until intake matures; this is correct + honest
+- Caveat surfacing per C3 Q3.3 happens at the application layer when features would benefit from missing data; the knowledge model itself doesn't gate access — it surfaces what it can and what it can't
+
 ## Daily-interaction cadence — clarification
 
 The knowledge model is updated on the natural daily-ish cadence of the user opening the app to plan / cook / shop. **This is NOT the same as a "daily check-in" product** (which is out per [Rule 3](constitutional-rules.md#rule-3--no-food--macro--calorie-logging) and the [product-framing](product-framing.md)). The user is not prompted to log; they are interacting with the meal-planning surface that they would interact with anyway. Knowledge model updates ride on that interaction.
