@@ -569,4 +569,88 @@ User direction throughout the Q4.1 → Q4.4 dialogue (2026-05-01); explicit hybr
 
 *Block B complete. Block C (intake + interaction) is next; Block D (external integrations) and Block E (reproducibility + publication) can run in parallel after Block A but were deferred per the topic-by-topic cadence.*
 
+---
+
+## C1 — Conversational intake agent architecture
+
+> Resolved 2026-05-01 across five sub-decisions Q1.1–Q1.5, with a new architectural commitment to **LLM provider agnosticism** that cascades across the system.
+
+### Decision
+
+**Hybrid orchestrator + bounded specialized sub-agents** topology, with **structured tool call** as the default agent communication protocol, **hybrid short-term-operational + long-term-substrate state management**, and **double-layered (per-agent + per-tool) PHI enforcement** that fails closed. All of this routed through a **provider-agnostic adapter layer** keyed on capability vector, not provider name (per the new [provider-abstraction.md](provider-abstraction.md)).
+
+### Provider agnosticism — new architectural commitment
+
+User direction during C1 dialogue elevated provider choice into a foundational principle: **the system addresses LLM capabilities, not LLM providers.** Capability vectors are the addressable unit; providers register their capability vectors at the adapter layer; the routing layer matches request capability requirements against registered providers.
+
+Adding a new provider = dropping in an adapter, not refactoring the system. Today's Anthropic Claude + Google Gemini choice is a current default, not a baked-in dependency. Local LLMs become first-class adapters for PHI-lane reasoning when capability matches.
+
+Captured as a foundational meta doc: [provider-abstraction.md](provider-abstraction.md). Cascades across A3, B1, C1, and forward.
+
+### Q1.1 — Topology: hybrid orchestrator + bounded specialized sub-agents
+
+A single primary agent handles user-facing dialog + meal planning + education delivery + general retrieval. Specialized sub-agents are invoked only for bounded tasks where specialization clearly wins:
+
+- Validated-screener administration (per [Tension #4 hybrid administration](synthesis.md#tension-4--consumer-friendly-clinical-instrument-vs-validity-preservation))
+- Complex multi-source verification cascades (per [B3 dynamic research expansion](#b3--dynamic-research-expansion-infrastructure))
+- Possibly recipe-to-cart translation (per [sweep #13](../13-grocery-infrastructure/scope.md))
+
+Most concerns stay in the primary agent's context. Simpler than full multi-agent; less brittle than single-agent-with-everything.
+
+### Q1.2 — Why both Anthropic + Google: combination (capability differentiation + failover + cost optimization)
+
+Resolves the open thread from A3. Three layers, each serving a distinct purpose:
+
+- **Capability differentiation** — load-bearing reason. Claude's structured-output reliability + reasoning quality on substrate writes; Gemini's native search grounding for [B3 dynamic-research-expansion](#b3--dynamic-research-expansion-infrastructure) fetches + multimodal capability.
+- **Failover** — provider-agnostic adapter layer means if primary provider is down / rate-limited / quality-degraded, secondary takes over without application change.
+- **Cost optimization** — per-query tier choice within each provider's lineup (Sonnet vs. Haiku, Pro vs. Flash) keyed on capability requirements.
+
+Now operationalized through capability-vector routing per [provider-abstraction.md](provider-abstraction.md), not hardcoded provider-name routing.
+
+### Q1.3 — State management: hybrid short-term-operational + long-term-substrate
+
+- **Short-term conversation state** (last N turns of current session) lives in `nutrime-operational.db` so any agent picking up the session has recent context without re-fetching
+- **Long-term knowledge state** (per-user history, preferences, semantic feedback patterns, knowledge model entries) is queried from `nutrime-substrate.db` per-call so it's always fresh + reflects updates from concurrent activity
+
+Avoids the "agent has stale knowledge of the user" problem while keeping per-call latency reasonable.
+
+### Q1.4 — Communication protocol: structured tool call (with conversation-handoff escape hatch flagged)
+
+**Structured tool call as default** — sub-agents are exposed as tool calls; primary agent invokes them with structured inputs, gets structured outputs.
+
+**Wins:**
+- Auditability (B2 epistemic trail captures inputs + outputs cleanly)
+- PHI-decomposition enforcement (structured calls make it easy to declare + enforce which PHI categories are allowed)
+- Testability (sub-agents become unit-testable: known inputs → expected outputs)
+- Provider-agnosticism friendly (maps cleanly to capability-vector routing)
+- Failure handling integrates cleanly with B3 cascade-failure model
+
+**Drawbacks acknowledged (deferred to specific-use-case escape hatch):**
+- Structured tool call discards conversational nuance (rapport, hesitations, qualifying language); recreation via structured fields isn't perfect
+- Multi-turn within a sub-agent is awkward (e.g., 9-turn PHQ-9 administration via repeated tool calls)
+- User notices the seams — stitch-together responses vs. seamless conversation
+- Sub-agent specialization can't accumulate cross-session expertise the same way
+
+**Escape hatch:** if a specific use case during build hits drawbacks 1 or 2 hard enough that structured tool call is genuinely the wrong tool, we add a conversation-handoff sub-pattern **for that specific case** — not as a general capability. Per the discipline of "every adopted pattern needs a concrete use within MVP scope" from the LC research.
+
+### Q1.5 — PHI enforcement: both per-agent + per-tool (double layer, fails closed)
+
+- **Per-agent PHI policy** — outer envelope: each agent (primary, sub-agent) declares the PHI categories it's allowed to handle; calls that would exceed are rejected at the agent boundary
+- **Per-tool PHI policy** — inner enforcement: each tool call declares the PHI categories it's allowed to carry; agents may be flexible but tool calls are the actual enforcement point at the LLM-call site
+
+Both layers fail closed. Per [phi-handling.md](phi-handling.md) "typed, tested, fails closed" commitment. Belt-and-suspenders on PHI to catch leaks even if one layer is bypassed.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — C1 marked resolved; C2 (CAT/IRT integration) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; provider-agnosticism added as a foundational principle alongside the existing meta docs
+- [README.md](../README.md) — provider-abstraction.md added to read-first index
+- [phi-handling.md](phi-handling.md) — note the per-agent + per-tool double-layer enforcement now explicit in C1
+
+### Sources
+
+User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-01); explicit elevation of provider-agnosticism principle to foundational status.
+
+---
+
 *Future architecture decisions will be added as resolved.*

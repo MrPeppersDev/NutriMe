@@ -97,14 +97,15 @@ The user can see not just *what reasoning produced this recommendation* but also
 
 ## Boundary enforcement (architectural)
 
-The query-decomposition principle has to be enforced at call time, not at design time. Architectural mechanism (specifics deferred to Block C):
+The query-decomposition principle is enforced at call time, not at design time. Per [architecture.md C1 Q1.5](architecture.md#c1--conversational-intake-agent-architecture), enforcement is **double-layered**:
 
-- LLM call site has a typed interface that requires specifying allowed-PHI-categories per call
+- **Per-agent PHI policy** (outer envelope) — each agent (primary orchestrator, sub-agent) declares the PHI categories it's allowed to handle; calls that would exceed are rejected at the agent boundary
+- **Per-tool PHI policy** (inner enforcement) — each tool call declares the PHI categories it's allowed to carry; agents may be flexible but tool calls are the actual enforcement point at the LLM-call site
 - A pre-call boundary check verifies the actual context being sent matches the declared allowed categories
 - Violations fail closed (the call is rejected, the operation falls back to local handling or surfaces an error)
 - Tests at the boundary specifically guard against accidental PHI bleed
 
-The boundary enforcement is **typed, tested, and fails closed** — boundary mistakes shouldn't be possible by accident.
+The boundary enforcement is **typed, tested, and fails closed** — boundary mistakes shouldn't be possible by accident. Belt-and-suspenders so a leak in one layer is caught by the other.
 
 ## Source
 
