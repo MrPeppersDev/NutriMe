@@ -84,8 +84,22 @@ This means we should **never pigeon-hole the system into a fixed list of sources
 - User direction (2026-04-28, sweep #10 scoping) on conditions: "Let's start with what are the top things we're looking at that all the experts are looking at across the globe, and then where we need to pull in more specified information. We should have some sort of framework in place to identify that in the data we're collecting and then pass that off to deep research analysis to pull back information as needed."
 - User direction (2026-04-28, sweep #11 scoping) on framework over source-list: "We want to make sure that we're not pigeon-holing ourselves in any sort of way, but building frameworks that can extract what we need when desired."
 
+## Operational pipeline architecture *(per [architecture.md B3](architecture.md#b3--dynamic-research-expansion-infrastructure))*
+
+The above pattern is operationalized through a concrete pipeline architecture decided in Stage 3 Block B3:
+
+- **Gap detection** — hybrid reactive (gap surfaces during real query) + proactive (intake-triggered or background-scheduled fetches for predictable gaps)
+- **Source adapters** — hybrid explicit per-source code adapters (USDA FDC, OpenFDA, DailyMed, EMA SmPC, NIH ODS, PubMed, FlavorDB, Cochrane, authoritative DRI publications, major recipe APIs) + generic web-fetch + LLM-extraction adapter for one-off / unstructured / low-volume sources
+- **Verification harness** — both source-specific (in adapter, "well-formed for its type") + centralized (peer-reviewed-floor, sanity-range, contradiction detection, causal-explanation generation per [B2 epistemic trail verification](architecture.md#b2--rule-8-epistemic-trail-implementation))
+- **Cache + freshness** — per-content-type TTL defaults (drug labels monthly; DRIs annual; food composition quarterly; recipes per-recipe lazy-refresh; regulatory guidance annual + on-demand; peer-reviewed literature indefinite with citation-tracking for retractions; cuisine/technique annual; ingredient-interaction annual) + change-triggered re-fetch when TTL fires
+- **Failure handling** — cascade failure with partial-success rebuild: independent per-sub-fetch success/fail; partial corpus rebuild; retry only failed sub-fetches with bounded exponential backoff; surface cascade state to user; downgrade inference confidence with specific gap acknowledgment per Rule 8
+- **Cascade composition** — both system-defined templates (drug-nutrient, recipe, condition-gating) + LLM-decomposed for novel queries
+- **Late-arriving sub-fetch surfacing** — trail update always notified (low-key); material refinements that change the answer surfaced prominently
+- **Per-sub-fetch retry caps** — default 3 retries with exponential backoff (30s / 2m / 10m); per-source-type override available
+
 ## Related
 
 - [epistemic-trail.md](epistemic-trail.md) — verification flow
 - [evidence-tiers.md](evidence-tiers.md) — sources fetched must meet the same tier discipline
 - [constitutional-rules.md](constitutional-rules.md) — Rules 1, 7, 8, 9 all apply to fetched data
+- [architecture.md B3](architecture.md#b3--dynamic-research-expansion-infrastructure) — operational pipeline architecture

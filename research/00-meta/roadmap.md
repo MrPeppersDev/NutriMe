@@ -61,8 +61,8 @@ All 13 sweeps now have populated Findings and References sections. Pre-corpus-bu
 | A4 | Data persistence + knowledge model storage | Resolved 2026-04-30 — hybrid SQLite (substrate + operational) + markdown vault (corpus); 12 LC + CKV patterns adopted; atoms-with-molecules organizing principle. See [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). |
 | B1 | Semantic RAG vs. structured query strategy | Resolved 2026-05-01 across Q1.1–Q1.4 — three-mode retrieval (vector + FTS5 + structured-relational), filter-then-rank default, embed-for-retrieval-deliver-source principle, Voyage primary embedding + local model for PHI only. See [architecture.md B1](architecture.md#b1--semantic-rag-vs-structured-query-strategy). |
 | B2 | Rule 8 epistemic trail implementation | Resolved 2026-05-01 — substrate derivation graph + operational event log; structured + narrative capture; hybrid rule-based + LLM-causal-explanation verification; layered disclosure; stored + on-demand reconstruction. See [architecture.md B2](architecture.md#b2--rule-8-epistemic-trail-implementation). |
-| B3 | Dynamic research expansion infrastructure | NEXT |
-| B4 | Knowledge model schema | Pending B3 |
+| B3 | Dynamic research expansion infrastructure | Resolved 2026-05-01 across Q3.1–Q3.5c — hybrid reactive + proactive gap detection; hybrid explicit + LLM-extraction adapters; both source-specific + centralized verification; per-content-type TTLs + change-triggered re-fetch; cascade failure with partial-success rebuild; fixed-N exponential backoff retries. See [architecture.md B3](architecture.md#b3--dynamic-research-expansion-infrastructure). |
+| B4 | Knowledge model schema | NEXT |
 | Schema design | ~1-week focused work between Blocks B and C — atom types + composition types + relationship types + provenance discipline + three-confidence-concepts distinction | Pending B1–B4 |
 | C1–C5 | Intake + interaction | Pending Blocks A + B |
 | D1–D4 | External integrations | Pending Block A |

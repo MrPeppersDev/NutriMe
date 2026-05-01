@@ -351,4 +351,122 @@ Sweep #14 (ingredient interactions, flavor science, pairing knowledge) returned 
 
 ---
 
+## B3 — Dynamic research expansion infrastructure
+
+> Resolved 2026-05-01 across eight sub-decisions Q3.1–Q3.5c.
+
+### Decision
+
+Operationalizes [dynamic-research-expansion.md](dynamic-research-expansion.md) into a concrete pipeline: **hybrid reactive + proactive gap detection; hybrid explicit + LLM-extraction source adapters; both source-specific + centralized verification; both per-source TTLs + change-triggered re-fetch; cascade failure with partial-success rebuild and per-sub-fetch retry budgets**.
+
+### Q3.1 — Gap-detection mechanism — hybrid reactive + proactive
+
+**Proactive** for predictable gaps (intake reveals new medication → background fetch for related drug-nutrient interactions; new condition disclosed → background fetch for condition-specific guidance + composition data for relevant nutrients).
+
+**Reactive** for unpredictable gaps (user asks about an obscure cuisine, a niche regional dish, a drug we haven't seen before — fetch is triggered by the actual query).
+
+### Q3.2 — Source adapter architecture — hybrid explicit + LLM-extraction
+
+**Explicit per-source code adapters** for high-volume / high-trust / structured-API sources where extraction errors would be high-cost:
+- USDA FoodData Central
+- OpenFDA / DailyMed (drug labels)
+- EMA SmPC (EU drug labels)
+- NIH ODS (Office of Dietary Supplements)
+- PubMed (peer-reviewed nutrition literature)
+- FlavorDB
+- Cochrane (systematic reviews)
+- Authoritative DRI publications (NASEM, EFSA, SACN, etc.)
+- Major recipe APIs (Spoonacular, Edamam)
+
+**Generic web-fetch + LLM-extraction adapter** for one-off / unstructured / low-volume sources where fetch-and-parse via LLM is acceptable. Used for novel queries against sources that don't justify dedicated adapter work.
+
+Boundary moves over time — if a generic-extraction source proves valuable + high-volume, it gets promoted to an explicit adapter.
+
+### Q3.3 — Verification harness — both source-specific + centralized
+
+**Source-specific verification (in adapter)** handles "is this content well-formed for its type":
+- USDA FDC adapter verifies record has required fields, units are recognized, source citation present
+- Drug-label adapter verifies the SmPC structure, active-ingredient identification, indication present
+- Recipe adapter verifies markdown frontmatter is valid, ingredient identity resolves to authority table
+
+**Centralized verification pipeline** handles cross-source concerns:
+- Peer-reviewed-floor confirmation (per [Rule 7](constitutional-rules.md#rule-7--peer-reviewed-evidence-floor))
+- Sanity-range checks (numbers in plausible ranges)
+- Contradiction detection against existing knowledge model entries
+- Causal-explanation generation (per [B2 epistemic trail verification](#b2--rule-8-epistemic-trail-implementation))
+
+Both run before integration; failures are categorized so the failure-handling cascade (Q3.5) knows what failed and how.
+
+### Q3.4 — Cache + freshness policy — both per-source TTLs + change-triggered re-fetch
+
+**Per-content-type TTL defaults:**
+
+| Content type | TTL | Notes |
+|---|---|---|
+| Drug labels | Monthly | Drug labels update with safety reports; monthly cap on staleness |
+| Nutrition standards (DRIs) | Annual | Revisions are rare; annual touchstone |
+| Food composition (USDA FDC, etc.) | Quarterly | Update cadence varies per source |
+| Recipe APIs | Per-recipe re-check on cite | Whole-corpus re-fetch is expensive; per-recipe lazy refresh |
+| Regulatory guidance | Annual touchstone + on-demand re-check | When regulatory landscape is queried, re-check freshness |
+| Peer-reviewed literature | Indefinite TTL | Papers don't change after publication; use citation-tracking for retractions / corrections |
+| Cuisine + technique knowledge | Annual | Slow-changing |
+| Ingredient interaction / pairing knowledge | Annual | Slow-changing per [sweep #14 findings](../14-ingredient-interactions/scope.md) |
+
+**Change-triggered re-fetch** complements TTLs: when TTL fires, fetch the source's current hash; if hash differs from last-fetched, full re-fetch + re-verify; if hash matches, just update accessed-at timestamp.
+
+### Q3.5 — Failure handling — cascade failure with partial-success rebuild
+
+The pipeline isn't atomic; it's compositional. A query like "drug-nutrient interactions for warfarin + foods rich in vitamin K" decomposes into multiple parallel sub-fetches:
+
+- Drug label fetch (DailyMed)
+- Drug-nutrient interaction database fetch (Lexicomp / NHS DFI)
+- Vitamin K composition data (USDA FDC)
+- Peer-reviewed literature on warfarin/vitamin K interaction (PubMed)
+
+**If one sub-fetch fails (e.g., PubMed times out), the others still succeeded. Don't throw away the partial corpus.** Pattern:
+
+1. Each sub-fetch fails or succeeds independently — failures are isolated, not cascading
+2. Partial success is captured — system records what got fetched + verified successfully, what didn't
+3. Rebuild from successes — system continues with the inference using the partial corpus + explicit acknowledgment of gaps in the [epistemic trail](epistemic-trail.md)
+4. Retry only the failures — bounded retries with exponential backoff on just the failed sub-fetches
+5. Surface the cascade state to the user — "we got drug label + interaction database + composition data; we're still trying for the peer-reviewed literature; here's what we have so far + what's still loading"
+6. Per-failure-type error surfacing — different failure modes (timeout / verification-failed / source-down / rate-limited) get different surfacing
+
+**Inference confidence is downgraded when sources are missing.** Per [B2 epistemic trail](#b2--rule-8-epistemic-trail-implementation), confidence isn't generic "low" — it's "moderate confidence; missing peer-reviewed literature; retrying" with specific gap acknowledgment.
+
+**[Rule 1 (consult-professional)](constitutional-rules.md#rule-1--consult-a-professional) callout fires automatically when a clinical-adjacent inference ships with missing critical sources.**
+
+### Q3.5a — Cascade composition rules — both system-defined templates + LLM-decomposed
+
+**System-defined templates** for common query types (drug-nutrient query → these N standard sub-fetches; recipe query → these M standard sub-fetches; condition-gating query → these K standard sub-fetches). Cheaper, deterministic, debuggable.
+
+**LLM-decomposed** at query time for novel queries that don't match a template. Flexible; falls back to LLM-driven decomposition with the same per-sub-fetch failure handling.
+
+### Q3.5b — Late-arriving sub-fetch surfacing — two distinct notifications
+
+When a previously-failed sub-fetch eventually succeeds after the initial inference shipped, **two distinct kinds of surfacing happen depending on what changed**:
+
+- **Trail update — always notify** — any time a previously-failed sub-fetch succeeds and updates the trail, the user sees a low-key notification that the system's underlying state changed. Knowledge model updates, audit trail records updated, evidence-tier or confidence may shift.
+- **Material refinement — prominent surfacing** — if the new data materially changes the answer (contradicts the prior inference, shifts confidence meaningfully, adds a new safety consideration), the user gets prominent "this changes things — your prior recommendation should be revisited" framing.
+
+Both surface honestly per [Rule 8](constitutional-rules.md#rule-8--epistemic-trail-of-honesty); the difference is *prominence* in the user-facing surface, not whether-or-not the user is told. The user always knows when underlying state changed; they're prompted to revisit only when the answer materially changed.
+
+### Q3.5c — Per-sub-fetch retry caps — fixed N with exponential backoff
+
+**Default: 3 retries with exponential backoff (e.g., 30s / 2m / 10m).** Per-source-type override available later if specific sources prove flaky and need different parameters.
+
+Caps are at the **sub-fetch level**, not the whole-query level — partial success can ship while individual failed sub-fetches retry within their own budgets.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — B3 marked resolved; B4 (knowledge model schema) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+- [dynamic-research-expansion.md](dynamic-research-expansion.md) — operational pipeline architecture detail added (gap-detection modes, source adapters, verification harness, cache/freshness, cascade failure)
+
+### Sources
+
+User direction throughout the Q3.1 → Q3.5c dialogue (2026-05-01).
+
+---
+
 *Future architecture decisions will be added as resolved.*
