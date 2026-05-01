@@ -14,8 +14,18 @@ NutriMe operates to **HIPAA discipline at the data-handling level**, not at the 
 **Out of scope (per user direction):**
 - Breach notification readiness (no enterprise contract / no covered-entity status to notify)
 - Formal key management infrastructure (Keychain is sufficient at this scale)
-- Encryption-at-rest as a formal compliance posture (filesystem encryption is fine; no additional formal layers required)
+- Encryption-at-rest as a formal compliance posture (filesystem encryption is the baseline; *see scope extension below for clinical source documents specifically*)
 - Formal access control infrastructure (single-device, single-household, single trust domain — local OS access controls suffice)
+
+**Scope extension — per-document encryption for clinical source documents** *(per [architecture.md D2 Q2.3](architecture.md#d2--doctor-portal-patient-api-integration))*:
+
+Clinical source documents (lab PDFs, doctor's notes, imaging reports) get per-document encryption beyond FileVault baseline:
+- Per-document encryption with locally-derived key
+- Key stored in macOS Keychain (account-password-protected + Secure Enclave hardware-backed)
+- Decrypt-on-read; file on disk is never plaintext
+- Per-document granularity, not per-volume
+
+Reasoning: clinical documents are denser PHI per file, long-lived unmodified, and commonly caught up in document-exfiltration malware. Per-document encryption adds meaningful protection beyond FileVault with low engineering cost. Does not extend to substrate / operational DBs or non-clinical corpus (recipes, educational content, food composition, etc. — those stay under FileVault baseline).
 
 This posture is **HIPAA-discipline-as-culture**, not HIPAA-compliance-as-certification.
 

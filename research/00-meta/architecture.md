@@ -1062,4 +1062,94 @@ User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-01).
 
 ---
 
+## D2 — Doctor-portal patient API integration
+
+> Resolved 2026-05-01 across five sub-decisions Q2.1–Q2.5, with one architectural refinement: per-document encryption for clinical source documents specifically.
+
+### Decision
+
+**Three-path clinical data flow** — Apple Health Records / FHIR US Core primary, direct EHR adapters second-pass, manual upload always available; **US-API-first with manual upload as the fallback for HIPAA-constrained content** even within US coverage; **substrate-extracted-data + corpus-preserved-source-documents with per-document encryption for clinical documents specifically**; **NutriMe doesn't diagnose — surfaces trends, defers to clinician**; **mechanical inheritance of B3 cache + B4 bitemporal patterns** for clinical refresh.
+
+### Q2.1 — Three-path data flow (HealthKit primary + direct EHR + manual upload always)
+
+Per user direction, manual upload is co-equal with API paths, not a fallback for international cases only:
+
+> "There is a lot of documentation that we won't have API access to because of HIPAA constraints, but that the patient might be able to pull themselves as PDFs and then upload to our system."
+
+Three paths, available in any combination:
+
+1. **Apple Health Records (FHIR US Core) primary** — single integration covers most major US EHR vendors via Apple's patient-mediated FHIR aggregation; user authorizes once via iPhone; data flows to HealthKit and the macOS app reads it from there
+2. **Direct EHR adapters** as second-pass for gaps in Apple's coverage (small regional EHRs not on Apple's list, vendors with richer direct-API data than what FHIR US Core surfaces)
+3. **Manual upload** always available — patient pulls PDFs from any portal, uploads to NutriMe, system extracts structured data via LLM per [B3 dynamic-research-expansion fetch + verification pipeline](#b3--dynamic-research-expansion-infrastructure) applied to user-uploaded documents
+
+ONC Cures Act §170.315(g)(10) compliance has driven most major US EHR vendors to support FHIR US Core; Apple Health Records aggregates this. Same framework-over-source-list discipline as D1.
+
+### Q2.2 — US-API first; manual upload fallback for everything else
+
+MVP: US-API via Apple Health Records (and direct EHR adapters as needed for US gaps) + manual upload fallback for all other cases.
+
+Direct international EHR adapters (UK NHS App, Australian My Health Record, etc.) are roadmap items, not MVP. Manual upload + LLM extraction handles non-US users.
+
+Per user direction:
+> "Right now, we're only worried about US documentation."
+
+### Q2.3 — Substrate + corpus + per-document encryption for clinical source documents
+
+**Both extracted structured data + original source documents preserved:**
+
+- **Extracted structured data lives in substrate** as atoms + compositions per [B4](#b4--knowledge-model-schema-architecture-level): `lab_analyte_value` atoms in `lab_panel` composition; `clinical_disclosure` atoms; `document_upload` composition with `corpus_extracted_claim` atoms
+- **Original source documents preserved in corpus** with frontmatter provenance — when the system surfaces "your vitamin D is 28 ng/mL," the user can drill down via the [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) to the original lab PDF the value came from
+- **Re-extraction is possible** if extraction logic improves over time
+
+#### Per-document encryption for clinical source documents *(architectural refinement)*
+
+Per user direction during dialogue, encryption needs surfaced honestly. Best-practice approach that fits our scope (HIPAA discipline at data-handling level, NOT formal compliance):
+
+**Clinical source documents specifically get per-document encryption** beyond the FileVault baseline:
+
+- **Per-document encryption with a locally-derived key** — only for clinical documents in the corpus subdirectory holding clinical source files (lab PDFs, doctor's notes, imaging reports, etc.); not all data
+- **Key stored in macOS Keychain** — protected by the user's account password + macOS hardware-secured enclave (T2 / Secure Enclave on Apple Silicon)
+- **Decrypt-on-read** via the application; file on disk is never plaintext
+- **Per-document, not per-volume** — granular; if one document is corrupted or needs deletion, others remain intact
+
+**Reasoning:** clinical documents are denser PHI per file than other data, often stored long-lived unmodified, and commonly caught up in document-exfiltration malware. Per-document encryption adds meaningful protection beyond FileVault with low engineering cost (encrypted-at-rest libraries mature; Keychain integration native), without crossing into compliance-grade infrastructure.
+
+**What this is NOT:**
+- Not full-database encryption (substrate + operational DBs continue as plain SQLite — fine under FileVault for our scope)
+- Not formal key management infrastructure beyond Keychain
+- Not breach-notification-ready (still out per [phi-handling.md](phi-handling.md))
+
+The rest of the corpus (recipes, educational content, food composition, etc.) stays unencrypted under the FileVault baseline.
+
+### Q2.4 — NutriMe doesn't diagnose
+
+Sharpened from my original "capture explicit + flag patterns" framing per user direction:
+
+> "NutriMe doesn't diagnose 2.4. We can show data, but we don't diagnose. We just say, 'Here is a trend. Consult your doctor.' Done."
+
+**Capture explicit clinical disclosures only** (diagnosed conditions, prescribed medications, allergies as-stated in EHR data or user-provided). **Surface trends without classification** — when lab patterns suggest something not in the explicit problem list, surface the pattern data with consult-professional callout per [Rule 1](constitutional-rules.md#rule-1--consult-a-professional). The system never auto-classifies, never produces system-generated diagnoses, never surfaces inferences that could be read as diagnostic conclusions.
+
+Sharpens the [bounded-role principle from Tension #9](synthesis.md#tension-9--pediatric-obesity-aap-2023--needs-second-pass-conditions) for clinical-pattern surfacing specifically: NutriMe shows data + defers to clinician; classification is the clinician's job, not the system's.
+
+### Q2.5 — Mechanical inheritance of refresh + change-detection patterns
+
+No new sub-decision. Inherits from existing decisions:
+
+- **Annual TTL with change-triggered re-fetch** for patient-API connection per [B3 cache+freshness policy](#b3--dynamic-research-expansion-infrastructure)
+- **New data triggers full re-verification + integration** via cascade-failure pattern from B3
+- **Bitemporal lifecycle** per [A4](#a4--data-persistence--knowledge-model-storage) + [B4](#b4--knowledge-model-schema-architecture-level) captures historical state — superseded conditions retain their record (e.g., lactose intolerance flagged then resolved per B4 F4 example)
+- **User-initiated "refresh from doctor portal" action** available for cases where the user knows new data has arrived (post-appointment, post-lab)
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — D2 marked resolved; D3 (grocery cart-aggregation integration) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+- [phi-handling.md](phi-handling.md) — note the per-document encryption refinement for clinical source documents specifically; flag as scope-extension to the previous "filesystem encryption is sufficient" framing
+
+### Sources
+
+User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-01); user-introduced refinement on Q2.1 (manual upload as co-equal third path) + sharpening on Q2.4 (NutriMe doesn't diagnose) + accepted encryption proposal on Q2.3.
+
+---
+
 *Future architecture decisions will be added as resolved.*
