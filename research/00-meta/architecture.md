@@ -1152,4 +1152,76 @@ User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-01); user-introduc
 
 ---
 
+## D3 — Grocery cart-aggregation integration
+
+> Resolved 2026-05-02 across five sub-decisions Q3.1–Q3.5, with Hong Kong / Chinese market interest deferred to broader-scope-future per roadmap.
+
+### Decision
+
+**Three-layered cart-construction flow** (single-cart per scheduled trip + multi-cart split when retailer coverage requires + user-controlled cadence); **combined-gate substitution authorization** (pre-approved rules + system-mediated constraint checks at fulfillment time + real-time user approval only for genuine judgment calls); **cart hand-off only at MVP** (Instacart IDP recipe-link integration; user completes payment on Instacart); **both periodic polling for material state changes + user-initiated refresh**; **mechanical inheritance of sweep #13 six-tier graceful-degradation** for non-aggregator regions.
+
+### Q3.1 — Three-layered cart-construction flow
+
+All three patterns layered:
+
+- **User-controlled cadence** (outermost) — user picks their grocery rhythm: weekly, twice-weekly, ad-hoc; system batches accordingly per [Rule 10 user agency](constitutional-rules.md#rule-10--user-decides-with-full-context)
+- **Multi-cart split when retailer coverage requires** — when no single retailer carries everything within the user's cadence trip, system surfaces a 2-or-3-cart flow per [sweep #13 multi-store split pattern](../13-grocery-infrastructure/scope.md)
+- **Single-cart-per-scheduled-trip** (innermost happy path) — system batches all needed ingredients into one cart for one delivery / pickup within each scheduled trip
+
+User picks the rhythm; system handles the operational complexity.
+
+### Q3.2 — Combined-gate substitution authorization
+
+Three patterns layered into a single combined gate:
+
+1. **Pre-approved substitution rules** as user-facing input — user sets preferences upfront for ingredient classes ("if X out of stock, accept Y; if Y also out, refund," "always accept organic substitution," "never substitute brand on dairy")
+2. **System-mediated constraint check** at fulfillment time — substitution proposal goes through allergen / condition / pairing-role / dietary-pattern checks AND user's pre-approved rules in one combined gate
+3. **Real-time user approval requests only when both gates can't decide** — falls through to user when novel ingredient or genuinely ambiguous case
+
+User has direct control upfront via rules; system handles constraint-checking automatically; user only gets pinged for genuine judgment calls. This is exactly where the abstracted-constraint-layer + condition-gating + ingredient-interaction (sweep #14 pairing-role taxonomy) all converge.
+
+### Q3.3 — Cart hand-off only at MVP
+
+Per [sweep #13](../13-grocery-infrastructure/scope.md) findings, Instacart IDP indie-tier supports recipe-link integration (cart pre-populated, user finishes checkout on Instacart). Full programmatic order placement requires partner-tier agreement.
+
+**MVP: cart hand-off only.** System builds cart, hands user to Instacart for checkout; user completes payment there. Works without any partnership; doesn't depend on Instacart approval timeline.
+
+Partner-tier programmatic order placement remains a roadmap item if distribution scope ever broadens.
+
+### Q3.4 — Both periodic polling + user-initiated refresh
+
+- **Periodic polling** of Instacart's order status API for material state changes — specifically: delivery delays that would affect tonight's meal plan, in which case the system can proactively suggest reorienting tonight's meal per [C5 reorient affordance](#c5--daily-cadence-interaction-model)
+- **User-initiated refresh** for casual checks
+- **Polling cadence respectful** — once every 15-30 min during expected delivery window, not constant
+
+### Q3.5 — Non-aggregator regions: mechanical inheritance
+
+Mechanical inheritance from [sweep #13's six-tier graceful-degradation](../13-grocery-infrastructure/scope.md): list-export → native-grocery-app deep-link → printable list → email/SMS export → pure recipe-only display. The system gracefully degrades through the tiers; meal planning + recipes still work fully.
+
+### Hong Kong / Chinese market interest — deferred
+
+User flagged interest during D3 dialogue:
+
+> "I also really want to look at what options are available to take this and translate this into something that'll work in the Chinese market, specifically in Hong Kong."
+
+**Deferred per user direction** — *"Let's defer the Hong Kong interest until after we've built and proved the US interest. Then we can go back and see what we want to do."*
+
+Documented in [roadmap.md](roadmap.md) under broader-scope-future. Notable HK-specific considerations to revisit when the time comes:
+- Distinct grocery infrastructure: HKTVmall, Wellcome / 惠康, ParknShop / 百佳, City Super, FreshDirect HK, Foodpanda HK groceries, Amazon HK
+- HKMA consumer-app framework + PDPO (Personal Data Privacy Ordinance) instead of HIPAA
+- Trilingual content (Cantonese / Traditional Chinese / English) — meaningful localization work
+- Cuisine assumption shifts: Cantonese / Hong Kong cha chaan teng tradition + mainland regional + global influences
+- Distinct from mainland China (NMPA / cybersecurity-law frameworks) and from broader Western-audience expansion paths
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — D3 marked resolved; D4 (recipe source integration) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; Hong Kong / Chinese market expansion added to broader-scope-future tracking
+
+### Sources
+
+User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-02); user-introduced refinement on Q3.2 (combined-gate substitution authorization with all three patterns layered) + Hong Kong market interest deferred to broader-scope-future.
+
+---
+
 *Future architecture decisions will be added as resolved.*
