@@ -1224,4 +1224,113 @@ User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-02); user-introduc
 
 ---
 
+## D4 — Recipe source integration
+
+> Resolved 2026-05-02 across five sub-decisions Q4.1–Q4.5, with two architectural refinements: open-source-only MVP (no paid sources at start) + source-coherent multi-modality principle (no cross-source compositing).
+
+### Decision
+
+**Open-source / non-paid sources only at MVP** (TheMealDB + Project Gutenberg public-domain historical + open datasets per their own licenses; paid commercial APIs and subscription publishers deferred); **convert to canonical Cooklang format on ingest**, stored as markdown in corpus with provenance frontmatter, embeddings indexed into substrate per A4 + B1; **best-effort ingredient identity resolution with user-review flag**, operational nuance deferred to schema-design phase; **source-coherent multi-modality only — never cross-source composite**; **mechanical inheritance of B3 cache + B4 bitemporal patterns** with quiet-update + surface-on-next-view refinement.
+
+### Q4.1 — Open-source-only MVP
+
+Per user direction:
+
+> "Whatever is minimally viable, and I think we start with no paid sources and lean on open source, non-paid to begin with."
+
+**MVP recipe corpus baseline** (no paid sources at start):
+
+- **TheMealDB** — free API, smaller corpus, no friction to integrate
+- **Project Gutenberg public-domain historical cookbooks** — Mrs. Beeton, Fannie Farmer, multiple historical works; legally clean baseline
+- **Open datasets** usable per their own licenses — RecipeNLG (academic, ~2.2M recipes), Recipe1M+ (MIT), Food.com Kaggle, OpenRecipes successors
+
+**Deferred (not MVP):**
+- Spoonacular, Edamam (paid commercial APIs) — added later if open sources prove insufficient
+- NYT Cooking, ckbk, Eat Your Books (paid subscriptions) — added per gap-driven dynamic-research-expansion when user surfaces specific gaps
+
+Source additions follow the [framework-over-source-list principle](dynamic-research-expansion.md#framework-over-source-list--the-corpus-design-principle) — new sources qualify through the [sweep #11 source qualification framework](../11-recipe-sourcing/scope.md), not added by enumeration.
+
+### Q4.2 — Convert to canonical Cooklang on ingest
+
+Per [sweep #11 finding](../11-recipe-sourcing/scope.md): Cooklang + schema.org/Recipe is the recommended interchange-format architecture.
+
+- **Convert to canonical Cooklang format on ingest**
+- **Store as markdown in corpus** with provenance frontmatter (source identity, content hash, ingestion timestamp, evidence tier, verification status)
+- **Embeddings indexed into substrate** per [A4 + B1](#a4--data-persistence--knowledge-model-storage)
+- Source-format isn't preserved long-term; provenance metadata captures the source identity
+- Re-ingestion from source per B3 cache+freshness handles updates
+
+Single canonical internal format simplifies everything downstream — ranking, presentation, modification, attribution.
+
+### Q4.3 — Best-effort ingredient identity resolution; operational nuance deferred to schema-design phase
+
+When a recipe arrives with "chicken thigh," it needs to resolve to the canonical authority record (per A4 authority table) so inventory matching, allergen detection, condition gating, and pairing-role substitution all work.
+
+**Architectural-level decision: best-effort resolution with user-review flag.**
+
+- Strict resolution is too brittle (every novel ingredient blocks ingestion)
+- Lazy resolution defers the problem and means downstream queries can fail unpredictably
+- Best-effort balances corpus growth with resolution quality
+- Unresolved ingredients trigger the dynamic-research-expansion pipeline (per [B3](#b3--dynamic-research-expansion-infrastructure)) to fetch authority data + integrate
+
+**Operational nuance flagged for schema-design phase per user direction:**
+
+> "Let's actually flag this for further review because this can get pretty nuanced."
+
+Schema-design phase resolves:
+- How aggressive resolution attempts are (fuzzy match thresholds, fallback ranking)
+- What counts as a confident match
+- How user-review flags surface in the UX
+- What fraction of corpus we're willing to ship with unresolved ingredients
+- Test discipline for the resolution pipeline (heavily tested per user direction)
+
+Added to schema-design phase deliverables.
+
+### Q4.4 — Source-coherent multi-modality; no cross-source compositing *(architectural refinement)*
+
+Per user direction, important sharpening of my original "auto-search for missing modalities at ingest" lean:
+
+> "We don't want to serve something unrelated to the original recipe. If we have a text recipe from somebody's grandma that we throw in here to get surfaced, we don't want to then provide also some random YouTube video that goes with it."
+
+**A single recipe view shows content from exactly one source, in whatever modalities that source provided.** No cross-source completion. The system never composites a recipe from multiple unrelated sources.
+
+**Multi-modality serving is bounded by the source's own contents:**
+
+- **Single-modality source** (text-only recipe from a cookbook) — user sees the text. No auto-search for matching video.
+- **Multi-modality source** (YouTube cooking video that includes video + summary text + linked / description recipe text) — user can see all three modalities **because they all came from the same original source**
+
+**This protects against:**
+
+- **Attribution corruption** — grandma's recipe shouldn't appear linked to someone else's video as if they're related
+- **Quality drift** — a video's interpretation of "the same dish" may differ meaningfully from the original recipe
+- **Provenance confusion** — the epistemic trail should always say *one* source per recipe view, not "stitched together recipe text from X with video from Y"
+
+**Glossary / terminology lookup is out of band** — when the user encounters an unfamiliar technique term in a recipe, they can click into a glossary lookup per the [C4 "tap to understand more" pattern](#c4--multi-modal-recipe-presentation-rendering). That's a separate corpus + separate provenance — not cross-source recipe completion. The user is not consuming the recipe in mixed-source form; they're separately learning about a technique.
+
+### Q4.5 — Mechanical inheritance with quiet-update refinement
+
+Mechanical inheritance from existing decisions:
+
+- **Per-recipe re-check on cite** (not whole-corpus re-fetch) per [B3 cache+freshness](#b3--dynamic-research-expansion-infrastructure)
+- **Bitemporal lifecycle preserves prior version** when source recipe changes (per [A4](#a4--data-persistence--knowledge-model-storage) + [B4](#b4--knowledge-model-schema-architecture-level))
+- **Source change triggers full re-ingest + re-canonicalize**
+
+**MVP refinement:** **don't surface every source-recipe change automatically; track in epistemic trail; surface prominently only when user accesses the recipe again.** Quiet-update + surface-on-next-view is less noisy than push-notify-on-every-change. Per Tension #1 mental-load reduction.
+
+For recipes the user has cooked before, surfacing changes prominently when the user views again — especially if changes affect ingredients / time / technique meaningfully — per Rule 8 epistemic trail.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — D4 marked resolved; Block D complete; Block E (reproducibility + publication) becomes available next
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; ingredient identity resolution operational nuance added to schema-design phase deliverables; paid commercial recipe sources added to broader-scope-future tracker
+- [B4 architecture.md entry](#b4--knowledge-model-schema-architecture-level) — ingredient identity resolution operational nuance added as flagged schema-design phase deliverable
+
+### Sources
+
+User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-02); two user-introduced refinements: open-source-only MVP (no paid sources at start) + source-coherent multi-modality principle (no cross-source compositing).
+
+---
+
+*Block D complete. Block E (reproducibility + publication) is next.*
+
 *Future architecture decisions will be added as resolved.*
