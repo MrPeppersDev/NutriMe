@@ -1333,4 +1333,71 @@ User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-02); two user-intr
 
 *Block D complete. Block E (reproducibility + publication) is next.*
 
+## E1 — Data collection schema for reproducibility
+
+> Resolved 2026-05-03 across five sub-decisions Q1.1–Q1.5; all five sub-decisions resolved to "both" — universal minimum + expanded for publication-eligible.
+
+### Decision
+
+**Hybrid reproducibility scope** (universal minimum metadata for all collected data; expanded metadata for publication-eligible only); **dual versioning of methodology** (coarse system version on everything + fine component version when components change); **dual drift detection** (schema versioning + diff capture in operational DB); **anonymization-ready schema** (separates identifying / analytic fields from the start) + **publication-prep logic** for edge cases; **dual data lineage** (derivation graph from epistemic trail captures data inputs + dedicated analysis metadata captures methodology that turned data into a result).
+
+### Q1.1 — Hybrid reproducibility scope
+
+- **Universal minimum metadata** for all collected data — provenance + timestamp + version stamp on every atom + composition + synthesized entry. Aligns with epistemic-trail discipline already settled in [B2](#b2--rule-8-epistemic-trail-implementation) + [B4](#b4--knowledge-model-schema-architecture-level).
+- **Expanded metadata** only for publication-eligible data — sample design, anonymization-ready fields, IRB-equivalent context, methodology spec
+- Marked as publication-eligible at write time (not retroactively) — eligibility is a flag the writing code declares per [publication-ambitions.md](publication-ambitions.md) target inventory
+
+Universal minimum is cheap and aligns with existing discipline; expanded metadata is justified by the publication ambition; trying to apply full reproducibility metadata to every casual data write is overhead without payoff.
+
+### Q1.2 — Dual versioning of methodology
+
+Per [B4](#b4--knowledge-model-schema-architecture-level) + [C2](#c2--cat--irt-integration) + [B3](#b3--dynamic-research-expansion-infrastructure), versioning of *content sources* (item-bank version stamp, content-source TTLs) is already settled. E1 extends to versioning of **collection methodology itself**:
+
+- **Coarse system version** on every atom — system version + relevant component version (intake-agent version, screener-administration version, semantic-feedback-prompt version)
+- **Fine component version** stamped only when methodology actually changes — if v1.2 of system uses same methodology as v1.1 for screener X, no new component-version stamp on screener X data; if v1.3 changes the screener-administration logic, new component-version stamp goes on data collected from v1.3 forward
+
+Both feed reproducer-side analysis: *"all data collected under intake-agent v2.x"* vs. *"all data collected under system v1.5 to v1.7 regardless of which intake-agent version."*
+
+### Q1.3 — Dual drift detection
+
+Methodology drift (changes in how the system collects data) and content-source drift (changes in upstream sources) both affect reproducibility:
+
+- **Schema versioning** — every methodology + content-source change bumps a version; reproducer sees the version chain. Automatic, queryable substrate.
+- **Diff capture** — when methodology or content source changes, the system records *what* changed (not just "version bumped" but *"this question now asks X instead of Y,"* *"this content source dropped field Z"*). Recorded in operational DB.
+
+Version chain is automatic + queryable; diff capture is one-time cost at change time + reproducer-actionable detail. Both needed for honest reproducibility.
+
+### Q1.4 — Anonymization-ready schema + publication-prep logic
+
+Per [publication-ambitions.md](publication-ambitions.md) data collection design must support reproducibility-aware anonymization from the start.
+
+- **Anonymization-ready schema** — schema separates identifying fields from analytic fields from the start; publication-prep logic just selects analytic fields, no transformation needed at publication time. Prevents accidental identifier leakage by construction.
+- **Publication-prep logic** for edge cases — low-cardinality fields that are technically non-identifying but might re-identify in combination; rare-condition disclosures that uniquely identify even when isolated; small-sample concerns where individual users could be identified by clustering. Logic handles edge cases the schema separation doesn't.
+
+Schema separation is the foundation; publication-prep logic is the safety net. Per [E2 anonymization + consent infrastructure](#e2--anonymization--consent-infrastructure) (next decision).
+
+### Q1.5 — Dual data lineage
+
+When a publishable analysis is performed (e.g., aggregate recipe time-feedback analysis per publication target #4), the analysis must be reproducible from underlying data. Per [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) + [B2](#b2--rule-8-epistemic-trail-implementation), the derivation graph from atoms → synthesized entries is already partially settled.
+
+- **Reproducibility inherits from epistemic trail** — the same derivation graph that supports the trail also supports reproducibility queries. The data inputs to any analysis are queryable via DerivedFrom traversal.
+- **Dedicated analysis metadata** — analyses get their own metadata: analysis version, timestamp, parameters used, code git SHA, embedding model used (per [B1 Q1.3](#b1--semantic-rag-vs-structured-query-strategy) Voyage vs. local), inference results
+
+Derivation graph reproduces the **data side** (what data fed into this analysis); analysis metadata reproduces the **methodology side** (what code, what parameters, what models turned data into result). Both needed for true reproducibility.
+
+Becomes important the moment publication target #4 (recipe time-feedback aggregate data) actually starts shipping data, and target #5 (cooking-state changes pairings) similarly.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — E1 marked resolved; E2 (anonymization + consent infrastructure) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+- [publication-ambitions.md](publication-ambitions.md) — methodology principles section refined with dual-versioning + dual drift detection + anonymization-ready schema + dual data lineage details
+- [B4 architecture.md entry](#b4--knowledge-model-schema-architecture-level) — universal-minimum-metadata + expanded-for-publication-eligible distinction added as schema-design phase deliverable
+
+### Sources
+
+User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-03); all five sub-decisions resolved to "both" — both universal + expanded, both coarse + fine versioning, both schema + diff drift detection, both anonymization-ready schema + publication-prep logic, both inherited derivation + dedicated analysis metadata.
+
+---
+
 *Future architecture decisions will be added as resolved.*

@@ -57,10 +57,15 @@ For all publication targets:
 
 ### Reproducibility-aware data collection
 
+Per [architecture.md E1](architecture.md#e1--data-collection-schema-for-reproducibility), the schema is designed for reproducibility from day one:
+
 - Every data field has documented collection methodology (per [intake-pattern.md provenance tagging](knowledge-model.md))
 - Sample design choices documented at the architecture phase
-- Versioning of instruments, item banks, and assessment protocols
-- Drift detection so we can characterize whether data collected at time T1 is comparable to data collected at time T2
+- **Hybrid metadata scope** — universal minimum metadata (provenance + timestamp + version stamp) on every atom + composition + synthesized entry; expanded metadata (sample design, anonymization-ready fields, IRB-equivalent context) only for publication-eligible data
+- **Dual versioning** — coarse system version on everything + fine component version stamped only when methodology actually changes
+- **Dual drift detection** — schema versioning (automatic, queryable) + diff capture (one-time at change, reproducer-actionable detail) so we can characterize whether data collected at time T1 is comparable to data collected at time T2
+- **Anonymization-ready schema** — schema separates identifying fields from analytic fields from the start; publication-prep logic handles edge cases
+- **Dual data lineage** — derivation graph from epistemic trail captures data inputs + dedicated analysis metadata captures methodology that turned data into a result
 
 ### License + attribution clarity from the start
 
