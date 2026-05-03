@@ -67,6 +67,17 @@ Per [architecture.md E1](architecture.md#e1--data-collection-schema-for-reproduc
 - **Anonymization-ready schema** — schema separates identifying fields from analytic fields from the start; publication-prep logic handles edge cases
 - **Dual data lineage** — derivation graph from epistemic trail captures data inputs + dedicated analysis metadata captures methodology that turned data into a result
 
+### Anonymization + consent infrastructure
+
+Per [architecture.md E2](architecture.md#e2--anonymization--consent-infrastructure):
+
+- **Tiered standing-consent + per-publication-confirmation** — standing consent at intake establishes eligibility; per-publication confirmation gates each specific data release
+- **Dual consent granularity** — per-data-category (atom type) AND per-publication-target; both must be eligible for inclusion
+- **Three-layer anonymization** — direct identifier removal + quasi-identifier handling via k-anonymity (k=5 minimum) + inference-resistance review per publication
+- **Just-in-time pre-publication review** — user sees the exact data going out before any publication ships + can edit / exclude / cancel
+- **Full audit trail** of all publications — historical record per Rule 8 epistemic trail
+- **Right to withdraw** — future-publication blocking + re-publication exclusion in next revision; past publications stay as honest historical record (superseded with caveat, not recalled)
+
 ### License + attribution clarity from the start
 
 - License decisions documented at architecture phase (likely candidates: MIT or Apache 2.0 for code, CC-BY for documentation, AGPL considered for derivatives that should stay open — final call deferred)

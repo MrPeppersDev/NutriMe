@@ -1400,4 +1400,66 @@ User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-03); all five sub-
 
 ---
 
+## E2 — Anonymization + consent infrastructure
+
+> Resolved 2026-05-03 across five sub-decisions Q2.1–Q2.5.
+
+### Decision
+
+**Tiered standing-consent + per-publication-confirmation** model; **dual granularity** (per-data-category AND per-publication-target consent); **three-layer anonymization** (direct identifier removal + quasi-identifier handling via k-anonymity k=5 + inference-resistance review); **just-in-time pre-publication review** + **full audit trail of all publications**; **right to withdraw via re-publication exclusion + future-publication blocking** (past publications stay as honest historical record).
+
+### Q2.1 — Tiered consent model
+
+- **Standing publication consent at intake** establishes data eligibility — the user grants a baseline "this category of data is publication-eligible" at intake; per-data-category granularity applies (Q2.2)
+- **Per-publication confirmation** before any specific data is shared — *"this study is going out with your aggregated data; here's what's in it; want to participate?"*
+
+Standing consent makes participation possible at the architectural level (we know what data is publication-eligible at write time, per [E1 hybrid scope](#e1--data-collection-schema-for-reproducibility)); per-publication confirmation respects the user's right to revoke or pause. Per [Rule 10 user agency](constitutional-rules.md#rule-10--user-decides-with-full-context).
+
+### Q2.2 — Dual granularity of consent
+
+Both axes matter:
+
+- **Per-data-category consent** — per atom type the user picks what's eligible for any publication (intake responses / screener results / meal feedback / cooking experience / body response / inventory / etc.). User can rule out semantic-feedback-body-response globally even if they want to contribute time-feedback aggregate.
+- **Per-publication-target consent** — per publication target (recipe time-feedback / cooking-state pairings / etc.) the user picks which targets they participate in. User can opt out of a specific study even if categorically eligible.
+
+Both axes apply together: data is publication-eligible if the category is eligible AND the target is eligible.
+
+### Q2.3 — Three-layer anonymization
+
+All three layers required:
+
+- **Direct identifier removal** — name, email, account ID, device ID, household ID stripped before any data leaves the system
+- **Quasi-identifier handling** — fields that don't identify alone but might in combination (zip code + age + sex; rare-condition + small-sample) handled per **k-anonymity with k=5 minimum** as the working threshold. Differential privacy is an aspirational target but requires more infrastructure than personal-use scale justifies; k-anonymity is achievable + meaningful.
+- **Inference-resistance review** — one-time review per publication that the published data doesn't enable re-identification through inference (e.g., published recipe-time-feedback that uniquely fingerprints a user's cooking patterns)
+
+### Q2.4 — Just-in-time review + full audit trail
+
+- **Just-in-time pre-publication review surface** — when a publication is about to ship, user sees the exact data going out (in anonymized form) + can edit / exclude / cancel. The consent gate.
+- **Full audit trail of all publications** — historical record of what was shared, when, in which publication. After-the-fact transparency per [Rule 8 epistemic trail](constitutional-rules.md#rule-8--epistemic-trail-of-honesty) discipline.
+
+Sample-based review rejected — adds friction without full transparency.
+
+### Q2.5 — Right to withdraw via re-publication exclusion + future-publication blocking
+
+Withdrawal handles two distinct cases together:
+
+- **Future-publication blocking** (default ongoing posture for a withdrawn user) — user's data is excluded from any future publication
+- **Re-publication exclusion** — when a user withdraws, the next publication revision excludes their data; older revisions stay published with caveat noted
+
+**Past publications stay as historical record.** They're already out there; pretending we can recall them is dishonest. User-facing communication is honest about both: *"Your data has been excluded from this publication going forward and from all future publications. Past publications already shipped contain your aggregated contribution and cannot be recalled, but they're noted as superseded by the new revision."*
+
+This is the same epistemic-trail honesty applied to the publication surface — superseded data + audit-traceable + bitemporal-lifecycle-aligned with [A4](#a4--data-persistence--knowledge-model-storage) + [B4](#b4--knowledge-model-schema-architecture-level) discipline.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — E2 marked resolved; E3 (license decisions per publication target) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+- [publication-ambitions.md](publication-ambitions.md) — anonymization + consent section refined with E2 details (tiered consent, dual granularity, three-layer anonymization, just-in-time review + audit trail, right to withdraw with honest historical-record framing)
+
+### Sources
+
+User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-03).
+
+---
+
 *Future architecture decisions will be added as resolved.*
