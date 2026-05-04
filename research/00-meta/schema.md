@@ -170,4 +170,281 @@ User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-03); user picked h
 
 ---
 
-*Per-type payload schema batches follow within this sub-block.*
+### S2 — Atom payload schemas (Batch 1: 18 atom types)
+
+> Resolved 2026-05-03.
+
+Per-type payload schemas for atoms. Each lives in the `payload` JSON column of the `atom` table, alongside the 15 base columns from S1. Snake_case throughout, units in field names, required vs. optional explicit, plain-text vs. markdown declared per field per S2 principles.
+
+**Atom count:** 18 = B4's original 17 + C5's net addition of 1 (meal-feedback split into `meal_feedback_cooking_experience` + `meal_feedback_body_response` + `meal_feedback_time` = three distinct types instead of B4's original `meal_feedback_liked` + `meal_feedback_time` two-type split).
+
+#### Atom 1 — `intake_response`
+
+```
+required:
+  question_id           TEXT
+  question_text         TEXT      -- verbatim text shown to user (preserved per Tension #4)
+  response_value        TEXT      -- raw response (string for free-text, JSON-stringified for structured)
+  response_type         TEXT      -- 'free_text_plain' | 'single_choice' | 'multi_choice' | 'numeric' | 'scale' | 'date'
+  intake_session_id     TEXT      -- FK to intake_session molecule
+optional:
+  response_options      JSON_ARRAY  -- if response_type involved choice; null otherwise
+  freetext_format       TEXT        -- 'plain' | 'markdown'; null for non-freetext
+  user_clarification_requested  BOOLEAN  -- true if user asked for item-level clarification per C3 Q3.2
+```
+
+#### Atom 2 — `screener_result`
+
+```
+required:
+  instrument_name       TEXT      -- 'PHQ-9' | 'GAD-7' | 'SCOFF' | etc.
+  instrument_version    TEXT      -- per C2 Q2.4 item-bank version stamp
+  score                 REAL
+  score_interpretation  TEXT      -- 'none' | 'mild' | 'moderate' | 'severe' | etc. per instrument
+  scoring_method        TEXT      -- 'CAT' | 'sum_score' | 'weighted_sum' per C2 Q2.3
+optional:
+  per_item_responses    JSON_ARRAY  -- nested for sub-score reconstruction; null if not required
+  early_stopped         BOOLEAN     -- per C2 Q2.5; null for non-CAT instruments
+  precision_metric      REAL        -- standard error or similar; CAT only
+```
+
+#### Atom 3 — `literacy_response`
+
+```
+required:
+  literacy_type         TEXT      -- 'highest_education' | 'health_literacy' | 'cooking_literacy'
+  instrument_name       TEXT      -- 'NVS' | 'REALM-SF' | 'TOFHLA' | 'eHEALS' | 'self_reported_education' | 'cooking_literacy_inventory'
+  instrument_version    TEXT
+  score                 REAL
+  score_interpretation  TEXT
+optional:
+  per_item_responses    JSON_ARRAY
+```
+
+#### Atom 4 — `pediatric_observation`
+
+```
+required:
+  observation_type      TEXT      -- 'growth_metric' | 'allergen_history' | 'developmental_eating' | 'screener_result' | etc.
+  child_member_id       TEXT      -- FK to household member; child specifically
+  parent_recorder_id    TEXT      -- FK to household member; parent who recorded
+  observation_value     JSON      -- structured per observation_type
+optional:
+  age_at_observation_months  INTEGER  -- computed from child DOB + observation date
+  growth_chart_percentile    REAL     -- if observation_type is growth_metric
+```
+
+#### Atom 5 — `cook_confirmation`
+
+```
+required:
+  recipe_id             TEXT      -- FK to recipe in corpus
+  recipe_version        TEXT      -- per E4 + B3 cache+freshness; recipe version at time of cook
+  meal_event_id         TEXT      -- FK to meal_event molecule
+  cooked_at             TEXT      -- ISO 8601 UTC
+optional:
+  modifications         TEXT      -- markdown free-text; user's own modifications/substitutions noted
+  modifications_format  TEXT      -- always 'markdown' if modifications present
+```
+
+#### Atom 6 — `meal_feedback_cooking_experience` *(per C5 split refinement)*
+
+```
+required:
+  meal_event_id         TEXT
+  ease_rating           INTEGER   -- 1-5 scale; "How easy was the meal to make for you?"
+  enjoyment_rating      INTEGER   -- 1-5 scale; "How enjoyable was this to make for you?"
+  prompt_responded_at   TEXT      -- ISO 8601 UTC
+optional:
+  freetext_notes        TEXT      -- plain-text user notes
+  freetext_format       TEXT      -- always 'plain' if freetext_notes present
+```
+
+#### Atom 7 — `meal_feedback_body_response` *(per C5 split refinement)*
+
+```
+required:
+  meal_event_id         TEXT
+  freetext_response     TEXT      -- "How did this make your body feel?" (plain-text; the feeling itself is the data)
+  freetext_format       TEXT      -- always 'plain'
+  prompt_responded_at   TEXT      -- ISO 8601 UTC
+optional:
+  energy_rating         INTEGER   -- 1-5 scale; null if user didn't volunteer
+  digestion_rating      INTEGER   -- 1-5 scale
+  fullness_rating       INTEGER   -- 1-5 scale
+  mood_rating           INTEGER   -- 1-5 scale
+```
+
+#### Atom 8 — `meal_feedback_time`
+
+```
+required:
+  meal_event_id         TEXT
+  estimated_time_min    INTEGER   -- recipe's stated time
+  actual_time_min       INTEGER   -- user's reported actual time
+  time_delta_min        INTEGER   -- generated column or computed
+  prompt_responded_at   TEXT      -- ISO 8601 UTC
+```
+
+#### Atom 9 — `wearable_signal_aggregate`
+
+```
+required:
+  signal_type           TEXT      -- 'hrv_ms' | 'resting_hr_bpm' | 'sleep_duration_min' | 'sleep_stage_distribution' | 'weight_kg' | 'glucose_mg_dl' | 'activity_minutes' | etc.
+  source_device         TEXT      -- 'apple_watch_s9' | 'whoop_4' | 'oura_gen3' | 'apple_health_kit_aggregate' | etc.
+  validation_profile_id TEXT      -- FK to validation metadata table per D1 Q1.5
+  aggregate_value       REAL
+  aggregate_method      TEXT      -- 'daily_avg' | 'weekly_avg' | 'nightly_total' | 'instantaneous' | etc.
+  measurement_period_start TEXT   -- ISO 8601 UTC
+  measurement_period_end   TEXT   -- ISO 8601 UTC
+optional:
+  raw_value_count       INTEGER   -- how many raw measurements went into aggregate
+  confidence_modifier   REAL      -- 0.0-1.0; per validation profile (e.g., skin-tone PPG bias adjustment per Bent 2020)
+```
+
+#### Atom 10 — `lab_analyte_value`
+
+```
+required:
+  lab_panel_id          TEXT      -- FK to lab_panel molecule
+  analyte_name          TEXT      -- 'vitamin_d' | 'b12' | 'a1c' | 'ferritin' | etc.
+  analyte_canonical_id  TEXT      -- FK to authority record (S6); resolves nutrient identity across labs
+  value                 REAL
+  unit                  TEXT      -- 'ng_ml' | 'pg_ml' | 'percent' | 'ng_dl' | etc.
+  reference_range_low   REAL      -- lab's stated low end of normal
+  reference_range_high  REAL      -- lab's stated high end of normal
+  measurement_date      TEXT      -- ISO 8601; date of blood draw
+optional:
+  lab_provider          TEXT      -- 'labcorp' | 'quest' | etc.
+  collection_method     TEXT      -- 'venous_blood' | 'capillary_blood' | 'urine' | etc.
+  abnormal_flag         TEXT      -- 'low' | 'high' | 'normal' per lab's interpretation; null if not provided
+```
+
+#### Atom 11 — `inventory_observation`
+
+```
+required:
+  ingredient_canonical_id TEXT    -- FK to authority record
+  ingredient_text       TEXT      -- as user/source described it
+  observation_type      TEXT      -- 'have' | 'don't_have' | 'running_low' | 'expired' | 'used_up'
+  observed_at           TEXT      -- ISO 8601 UTC
+  observation_source    TEXT      -- 'initial_intake' | 'order_inferred' | 'cook_confirmation_decrement' | 'just_in_time_clarification' | 'manual_user_update'
+optional:
+  approximate_quantity  TEXT      -- "about 2 lbs" | "almost done" | etc.; loose per Tension #1
+  precise_quantity      REAL      -- only when just-in-time clarification asked for precision
+  precise_unit          TEXT      -- only when precise_quantity present
+  storage_location      TEXT      -- 'pantry' | 'fridge' | 'freezer' | etc.
+```
+
+#### Atom 12 — `grocery_order_record`
+
+```
+required:
+  grocery_order_id      TEXT      -- FK to grocery_order molecule
+  ingredient_canonical_id TEXT
+  ingredient_text       TEXT      -- as ordered
+  quantity              REAL
+  unit                  TEXT
+  retailer              TEXT      -- 'instacart_safeway' | 'kroger' | 'amazon_fresh' | etc.
+optional:
+  brand                 TEXT
+  was_substitution      BOOLEAN   -- true if Instacart shopper substituted per D3 Q3.2
+  original_requested    TEXT      -- if substitution, what was originally requested
+```
+
+#### Atom 13 — `clinical_disclosure`
+
+```
+required:
+  disclosure_type       TEXT      -- 'condition' | 'medication' | 'allergy' | 'intolerance' | 'past_event'
+  disclosure_text       TEXT      -- as disclosed; verbatim if user-typed; standardized if from EHR
+  disclosure_text_format TEXT     -- 'plain' | 'markdown'
+  disclosure_source     TEXT      -- 'self_reported_intake' | 'ehr_extracted' | 'manual_upload_extracted'
+optional:
+  canonical_code        TEXT      -- ICD-10/SNOMED/RxNorm code if available
+  canonical_code_system TEXT      -- 'icd10' | 'snomed' | 'rxnorm' | etc.
+  disclosure_date       TEXT      -- when condition was diagnosed/medication started/etc.
+  active                BOOLEAN   -- still relevant; null = unknown/not stated
+```
+
+#### Atom 14 — `preference_statement`
+
+```
+required:
+  preference_type       TEXT      -- 'cuisine_like' | 'cuisine_dislike' | 'ingredient_dislike' | 'ingredient_want_to_try' | 'cooking_method_preference' | 'dietary_pattern_preference' | etc.
+  subject_text          TEXT      -- "Italian" | "cilantro" | "fermented foods" | etc.
+  subject_canonical_id  TEXT      -- FK to authority record if resolved; null if unresolved
+  strength              TEXT      -- 'mild' | 'moderate' | 'strong' | 'absolute'
+  preference_format     TEXT      -- 'plain' (preferences are simple strings)
+optional:
+  reason                TEXT      -- plain-text user explanation if volunteered
+```
+
+#### Atom 15 — `document_upload_event`
+
+```
+required:
+  document_upload_id    TEXT      -- FK to document_upload molecule
+  filename              TEXT
+  file_hash             TEXT      -- SHA-256 of original file
+  file_type             TEXT      -- 'pdf' | 'jpeg' | 'png' | 'docx' | etc.
+  file_size_bytes       INTEGER
+  uploaded_at           TEXT      -- ISO 8601 UTC
+  encryption_status     TEXT      -- 'encrypted_at_rest' for clinical docs per D2 Q2.3 refinement; 'unencrypted' for non-clinical
+optional:
+  user_provided_label   TEXT      -- "Lab results from Dr. Smith" etc.
+  source_context        TEXT      -- 'clinical' | 'recipe' | 'nutrition_reference' | etc.
+```
+
+#### Atom 16 — `corpus_extracted_claim`
+
+```
+required:
+  document_upload_id    TEXT      -- FK to document_upload molecule (or to corpus markdown source for system-fetched)
+  claim_text            TEXT      -- markdown; preserves source structure
+  claim_text_format     TEXT      -- always 'markdown'
+  claim_type            TEXT      -- 'fact' | 'measurement' | 'recommendation' | 'caveat' | 'definition' | etc.
+  extraction_method     TEXT      -- 'llm_structured_extraction' | 'rule_based_parser' | 'manual'
+  extraction_confidence REAL      -- 0.0-1.0
+optional:
+  source_page_or_section TEXT     -- where in source document the claim appears
+  source_quote          TEXT      -- verbatim quote from source supporting the claim
+```
+
+#### Atom 17 — `recipe_attribution_record`
+
+```
+required:
+  recipe_id             TEXT      -- FK to recipe in corpus
+  source_name           TEXT      -- 'NYT Cooking' | 'TheMealDB' | 'Mrs. Beeton 1861' | etc.
+  source_url            TEXT      -- where applicable
+  source_license        TEXT      -- 'CC-BY-4.0' | 'public_domain' | 'TheMealDB_terms' | 'subscription_NYTCooking' | etc.
+  ingested_at           TEXT      -- ISO 8601 UTC
+  ingestion_method      TEXT      -- 'api_fetch' | 'rss' | 'manual_upload' | 'mirror_tool' per dynamic-research-expansion
+optional:
+  source_attribution_text  TEXT   -- preferred attribution string per source's own request (Cochrane-style citation template)
+  source_first_published   TEXT   -- ISO 8601 date if known
+```
+
+#### Atom 18 — `phi_crossing_event`
+
+```
+required:
+  operation_type        TEXT      -- 'recipe_filter' | 'nutrient_compute' | 'condition_substitution' | 'cuisine_query' | etc.
+  llm_provider          TEXT      -- 'anthropic_claude' | 'google_gemini' | 'local_ollama' | etc.
+  llm_model             TEXT      -- specific model identifier
+  phi_categories_sent   TEXT      -- JSON array of PHI categories included
+  phi_categories_returned TEXT    -- JSON array of PHI categories in result
+  request_id            TEXT      -- correlation ID for joining to operational event log
+  crossed_at            TEXT      -- ISO 8601 UTC
+optional:
+  decomposed_from_request TEXT    -- correlation ID of higher-level user request that decomposed into this crossing
+```
+
+### Sources
+
+User direction (2026-05-03) on Atom payload schemas batch 1.
+
+---
+
+*Molecule + synthesized batches follow within this sub-block.*
