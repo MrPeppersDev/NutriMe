@@ -1535,4 +1535,113 @@ User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-03); user flagged 
 
 ---
 
-*Future architecture decisions will be added as resolved.*
+## E4 — Update cadence + corpus refresh design
+
+> Resolved 2026-05-03 across five sub-decisions Q4.1–Q4.5, with one major architectural refinement: **NutriMe-as-preservation-layer principle** when sources disappear. **Last Stage 3 decision — Block E complete, Stage 3 complete.**
+
+### Decision
+
+**Hybrid trickle + scheduled batch refresh** (small items trickle within their TTL window; large bulk-corpus refreshes scheduled); **automatic with user-controllable overrides** (force / pause / view what's about to refresh); **partial-success cycles** inheriting B3 cascade-failure model; **both staleness indicator + in-context material-implication callout, PLUS NutriMe-as-preservation-layer when sources disappear**; **both Stage 5 one-time verification + ongoing quarterly (3-month) re-verification cycles**.
+
+### Q4.1 — Hybrid trickle + scheduled batch
+
+- **Trickle refresh** for small / quick-refresh items (single recipe lookup, individual drug-label check, per-item composition update). No batching — each item refreshes independently when its TTL expires per [B3 cache+freshness](#b3--dynamic-research-expansion-infrastructure).
+- **Scheduled batch refresh** for large bulk-corpus operations — full USDA FDC sync, full PROMIS bank refresh, full NIH ODS ingestion, full regulatory-guidance corpus sync. These have real download time + integration cost.
+
+User experience: trickle is invisible; batch refreshes are surfaced as *"system updating composition data, ready in X minutes"* with audit-as-education framing per [Rule 8](constitutional-rules.md#rule-8--epistemic-trail-of-honesty).
+
+### Q4.2 — Automatic with user-controllable overrides
+
+- **Default automatic** per B3 TTLs + Q4.1 batch schedules
+- **User-controllable overrides** — force a refresh ("I just got new lab results; please re-check my doctor portal"), pause auto-refresh ("I'm on slow internet for a week; don't auto-fetch"), view what's about to refresh + when
+- Aligns with [Rule 10 user agency](constitutional-rules.md#rule-10--user-decides-with-full-context); doesn't lose convenience-driven framing
+
+### Q4.3 — Partial-success cycles inheriting B3 cascade-failure model
+
+Direct inheritance of [B3 cascade-failure pattern](#b3--dynamic-research-expansion-infrastructure) at the refresh-cycle scope:
+
+- Cycles complete with whatever succeeded
+- Failures retry within their B3 retry budget (default 3 retries with exponential backoff 30s/2m/10m)
+- Cycle reports completion with success/failure breakdown
+- User surfacing per Q4.2 "view what's about to refresh" shows cycle state
+
+### Q4.4 — Both staleness indicator + material-implication callout, PLUS preservation layer
+
+**Staleness handling for content where the source still exists:**
+
+- **Visible staleness indicator** on every content surface showing TTL-bound data — content has a "last refreshed: [date]; TTL expired [date]" badge; user knows it's stale, low-key always-present
+- **Prominent in-context callout for material implications** — when staleness might materially affect a decision (e.g., a drug-label change since last refresh might have flipped a drug-nutrient warning), prominent callout per Rule 8
+- Per [Tension #1 mental-load reduction](synthesis.md#tension-1--mental-load-framing-supersedes-raw-time-plus-inventory-tracking-distinction) — don't push every staleness moment; never hide it either
+
+**NutriMe as preservation layer when sources disappear** *(architectural refinement — promoted to its own meta doc)*:
+
+Per user direction:
+> "If we've logged recipes and the site no longer serves that recipe but it was a good one, we don't want to lose it just because it doesn't serve it anymore."
+
+Once content has been verified + integrated, NutriMe takes preservation responsibility. Source disappearance is a **content-preservation event, not a deletion trigger**:
+
+- 404 / source-removed → "preserved version, source no longer carries this content"
+- Provenance frontmatter records the state transition
+- Staleness indicator shifts framing from "stale" to "preserved"
+- Re-verification cannot happen against a missing source — content stays in corpus indefinitely
+- Original-source license terms continue to govern (license grants don't disappear with sources)
+- Bitemporal lifecycle integration via new `source_removed_at` + `source_status ∈ {active, superseded, removed, revoked}` frontmatter fields
+
+The principle applies system-wide, not just to recipes — regulatory PDFs, peer-reviewed papers, vendor documentation, cuisine knowledge, educational content all preserved. Promoted to its own foundational meta doc: [preservation-layer.md](preservation-layer.md).
+
+### Q4.5 — Stage 5 one-time + quarterly re-verification cycles
+
+**Both:**
+
+- **Stage 5 one-time verification at corpus-build** per stage3-plan.md — runs once with live web tools to refresh time-sensitive details from waves 1-3 sweeps
+- **Ongoing quarterly (3-month) re-verification cycles** — annual was too infrequent; quarterly catches drift before it accumulates and surfaces emerging issues 4× faster
+
+Quarterly cadence catches drift the per-item TTL pattern might miss:
+- Sources moved to different URLs
+- Entire instruments retired
+- Authoritative bodies merged or restructured
+- License terms changed
+- Source content removed (triggers preservation transition per Q4.4)
+
+Higher operational cost than annual but acceptable since verification is mostly automated retrieval + diff against last-known state. Quarterly aligns with calendar quarters + how a lot of clinical guidance review cycles happen.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — E4 marked resolved; **Block E complete; Stage 3 complete**
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated; Stage 3 marked complete; Stage 3.5 schema-design phase becomes the next major work item
+- [README.md](../README.md) — preservation-layer.md added to read-first index
+- [B3 dynamic-research-expansion](#b3--dynamic-research-expansion-infrastructure) — cross-reference to E4 added for refresh-cycle scope decisions
+- [B4 architecture.md entry](#b4--knowledge-model-schema-architecture-level) — `source_removed_at` + `source_status` frontmatter fields added to schema-design phase deliverables (corpus-content frontmatter schema specifically)
+
+### Sources
+
+User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-03); two architectural refinements: NutriMe-as-preservation-layer principle on Q4.4 + quarterly (3-month) cadence on Q4.5 (changed from my annual lean).
+
+---
+
+## Stage 3 complete — closing summary
+
+All 19 architecture decisions resolved across Blocks A-E:
+
+- **Block A — Foundation:** A1 (deployment), A2 (app shell), A3 (LLM provider + privacy), A4 (data persistence)
+- **Block B — Knowledge + retrieval:** B1 (RAG strategy), B2 (epistemic trail), B3 (dynamic research expansion), B4 (knowledge model schema architecture-level)
+- **Block C — Intake + interaction:** C1 (intake agent + provider-agnosticism), C2 (CAT/IRT), C3 (hybrid administration UX), C4 (multi-modal recipe presentation), C5 (daily-cadence interaction model)
+- **Block D — External integrations:** D1 (wearable + biometric), D2 (doctor-portal patient API), D3 (grocery cart-aggregation), D4 (recipe source integration)
+- **Block E — Reproducibility + publication:** E1 (data collection schema), E2 (anonymization + consent), E3 (license decisions), E4 (update cadence + corpus refresh)
+
+**Foundational meta docs added during Stage 3:**
+- [phi-handling.md](phi-handling.md) — query-level PHI decomposition
+- [provider-abstraction.md](provider-abstraction.md) — LLM provider agnosticism via capability-vector routing
+- [preservation-layer.md](preservation-layer.md) — NutriMe-as-archival-layer when sources disappear
+
+**Schema-design phase (Stage 3.5) is the next major work item** with all the deferred refinements collected:
+- B4's 8 explicitly-flagged questions (F1–F8)
+- C4 refinement: stretch_readiness_signal as context-conditional pattern
+- C5 refinement: meal-feedback atom split (cooking-experience vs. body-response)
+- D4 refinement: ingredient identity resolution operational nuance
+- E1 refinement: universal-minimum vs. expanded-for-publication-eligible metadata distinction
+- E4 refinement: source_removed_at + source_status frontmatter fields
+
+---
+
+*Stage 3 architecture phase complete. Stage 3.5 schema-design phase is next; can begin immediately.*
