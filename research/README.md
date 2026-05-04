@@ -19,6 +19,7 @@ We are currently in **Stage 1: scoping and parallel research**. No code, no arch
 - [Publication ambitions](00-meta/publication-ambitions.md) — active tracker of publication-grade contributions NutriMe is designed to make to the field
 - [Stage 3+ comprehensive plan](00-meta/stage3-plan.md) — full path from current state through architecture, MVP, build, iteration, and parallel tracks; downstream-impact callouts
 - [Architecture decisions](00-meta/architecture.md) — Stage 3 architecture decisions as they resolve (sister doc to synthesis.md)
+- [Schema design](00-meta/schema.md) — Stage 3.5 schema-design decisions (sister doc to architecture.md)
 - [Provider abstraction](00-meta/provider-abstraction.md) — LLM provider agnosticism principle; capability-vector routing
 - [PHI handling](00-meta/phi-handling.md) — operational doc for cloud LLM use under HIPAA-discipline posture; query-level decomposition principle
 - [Preservation layer](00-meta/preservation-layer.md) — NutriMe as archival preservation when sources disappear (per Stage 3 E4 refinement)
