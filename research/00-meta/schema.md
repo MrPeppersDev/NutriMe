@@ -608,4 +608,288 @@ User direction (2026-05-03) on molecule payload schemas batch with hybrid-A-and-
 
 ---
 
-*Synthesized batch follows within this sub-block.*
+### S2 — Synthesized payload schemas (Batch 3: 16 synthesized types)
+
+> Resolved 2026-05-03 with per-type confidence breakdown + F-flag reminders. Closes S2.
+
+Per-type payload schemas for all 16 synthesized types from B4 + the C4 refinement (`stretch_readiness_signal` as context-conditional, not scalar) + the C5 refinement (meal-feedback split surfaced through `meal_recommendation` state machine). These are mutable, LLM-managed entries carrying derived inferences.
+
+#### Synthesized 1 — `nutrient_intake_estimate`
+
+```
+required:
+  estimate_period_start TEXT      -- ISO 8601 UTC
+  estimate_period_end   TEXT      -- ISO 8601 UTC
+  nutrient_canonical_id TEXT      -- FK to authority record
+  estimated_value       REAL
+  unit                  TEXT      -- 'g' | 'mg' | 'mcg' | 'kcal' | etc.
+  source_atom_count     INTEGER
+  estimate_method       TEXT      -- 'meal_event_aggregation' | 'sparse_recall' | 'wearable_proxy' | etc.
+optional:
+  uncertainty_range_low  REAL
+  uncertainty_range_high REAL
+  data_completeness_note TEXT     -- per C3 Q3.3 partial-intake-as-default; honest framing of gaps
+```
+
+#### Synthesized 2 — `dietary_constraint`
+
+```
+required:
+  constraint_type       TEXT      -- 'allergen' | 'intolerance' | 'medical_condition_required' | 'religious_observance' | 'preference' | 'life_stage_requirement' | etc.
+  constraint_priority   INTEGER   -- 1-6 per Tension #5 conflict prioritization order
+  constraint_text       TEXT      -- "no peanuts" | "lower-glycemic dinners" | "halal" | etc.
+  derived_from_disclosures JSON_ARRAY  -- atom IDs of clinical_disclosure / preference_statement that grounded this
+optional:
+  constraint_strength   TEXT      -- 'absolute' | 'strong' | 'moderate' | 'mild'
+  active_from_date      TEXT      -- ISO 8601 date; when constraint became active (e.g., pregnancy onset)
+  active_until_date     TEXT      -- ISO 8601 date; when constraint expires (e.g., lactation end)
+```
+
+#### Synthesized 3 — `abstracted_constraint`
+
+```
+required:
+  household_id          TEXT      -- per Tension #5 abstracted-constraint-layer at household level
+  source_member_id      TEXT      -- which household member the constraint originates from (back-reference)
+  abstracted_text       TEXT      -- cooking-terms expression: "prefers lower-glycemic dinners" | "avoids peanuts" | etc.
+  sharing_level         TEXT      -- 'strict_per_user' | 'constraint_only_automatic' | 'mutual_consent_explicit' per Tension #5
+optional:
+  back_reference_visible_to JSON_ARRAY  -- member IDs allowed to see the back-reference; per mutual-consent sharing
+```
+
+#### Synthesized 4 — `meal_plan`
+
+```
+required:
+  plan_period_start     TEXT      -- ISO 8601 date
+  plan_period_end       TEXT      -- ISO 8601 date
+  plan_subject_id       TEXT      -- subject_id for whom (user / household)
+  meal_recommendation_ids JSON_ARRAY  -- ordered list of synthesized meal_recommendation IDs
+  plan_status           TEXT      -- 'draft' | 'active' | 'archived' | 'superseded'
+optional:
+  generation_method     TEXT      -- 'weekly_batch_initial' | 'reorient_regeneration' per C5 Q5.5 | 'horizon_broadening_pass' per intake-pattern.md
+  cadence_choice        TEXT      -- 'weekly' | 'twice_weekly' | 'ad_hoc' per D3 Q3.1 user-controlled cadence
+```
+
+#### Synthesized 5 — `meal_recommendation`
+
+```
+required:
+  recipe_id             TEXT      -- FK to recipe in corpus
+  recipe_version        TEXT
+  meal_slot             TEXT      -- 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'special_occasion'
+  planned_for_date      TEXT      -- ISO 8601 date
+  recommendation_state  TEXT      -- 'proposed' | 'accepted' | 'scheduled' | 'cooking' | 'cooked' | 'skipped' (per F1 state machine; replaces meal_event boolean cooked + skipped fields per M4 flag)
+  household_eater_targets JSON   -- structured per Rule 10 user-decision-framework; supports household members AND guests AND for-whom-other-than-requester (addresses M4 flag household_eaters gap)
+  recommendation_rationale TEXT   -- markdown; the "why this recipe" explanation per Rule 8
+  rationale_format      TEXT      -- always 'markdown'
+optional:
+  reorient_constraint_snapshot JSON  -- if recommendation came from a reorient event per C5 Q5.5; captures the constraint set the reorient applied (addresses M4 flag)
+  novelty_skill_count   INTEGER   -- per-user-context value of novelty per Tension #7 (NOT on recipe molecule per M7 flag)
+  failure_cost_tags     JSON_ARRAY  -- per-user-context failure cost surfacing per Tension #7
+```
+
+#### Synthesized 6 — `recipe_match`
+
+```
+required:
+  recipe_id             TEXT      -- FK to recipe in corpus
+  match_query_context   TEXT      -- what query produced this match (filter-then-rank per B1 Q1.2)
+  match_score           REAL      -- 0.0-1.0
+  ranking_position      INTEGER   -- where this recipe ranked among candidates
+  filtered_constraints  JSON      -- which constraints this recipe satisfied (allergens, conditions, equipment, time-budget)
+optional:
+  ranked_against_count  INTEGER   -- candidate set size that this recipe was ranked within
+  semantic_similarity_score REAL  -- vector-search component of the score
+  fts_relevance_score   REAL      -- full-text component of the score
+```
+
+#### Synthesized 7 — `educational_recommendation`
+
+```
+required:
+  concept_id            TEXT      -- canonical concept identifier from educational corpus
+  delivery_surface      TEXT      -- 'per_meal_microlearning' | 'opt_in_pull' | 'in_context_tooltip' per Tension #3 Option D
+  trigger_context       TEXT      -- what prompted this recommendation (recipe choice, semantic feedback pattern, time-since-last-delivery, etc.)
+  delivery_state        TEXT      -- 'queued' | 'delivered' | 'engaged' | 'dismissed' | 'comprehended_signal_observed'
+optional:
+  spaced_repetition_position INTEGER  -- which re-surface cycle this is (1st, 2nd, 3rd) per knowledge-model.md
+  prior_engagement_signals JSON   -- engagement history with this concept; informs scheduling
+```
+
+#### Synthesized 8 — `inference` *(generic catch-all per F5)*
+
+```
+required:
+  inference_subject     TEXT      -- what the inference is about
+  inference_text        TEXT      -- markdown; the inference itself with reasoning chain
+  inference_text_format TEXT      -- always 'markdown'
+  reasoning_chain       JSON      -- structured fields per B2 Q2.2: inputs, inference_type, assumptions, excluded, confidence_factors, causal_explanation
+  verification_status   TEXT      -- 'verified' | 'verification_failed_rule' | 'verification_failed_coherence' | 'verification_pending'
+optional:
+  user_facing_phrasing  TEXT      -- markdown; user-friendly version of inference_text if it differs
+```
+
+⚠ **F5 reminder:** generic catch-all exists per the explicit B4 F5 flag — load-bearing for cases not yet enumerated as specific synthesized types, with a smell flag to monitor + remove once enumeration matures.
+
+#### Synthesized 9 — `inferred_pattern`
+
+```
+required:
+  pattern_type          TEXT      -- 'food_response_correlation' | 'cooking_frequency_trend' | 'cuisine_preference_drift' | 'wearable_signal_pattern' | etc.
+  pattern_text          TEXT      -- markdown; the pattern description + evidence
+  pattern_text_format   TEXT      -- always 'markdown'
+  observation_period_start TEXT   -- ISO 8601 UTC
+  observation_period_end   TEXT   -- ISO 8601 UTC
+  supporting_atom_count INTEGER   -- how many atoms support the pattern
+optional:
+  statistical_strength  TEXT      -- 'preliminary_observation' | 'consistent_pattern' | 'strong_correlation' (honest framing; not statistical-significance overclaim)
+  consult_professional_recommended BOOLEAN  -- true if pattern warrants Rule 1 callout
+```
+
+#### Synthesized 10 — `pairing_rationale` *(per sweep #14 integration)*
+
+```
+required:
+  pairing_subject       TEXT      -- "garlic + thyme + roasted chicken" | "umami synergy: kombu + bonito" | etc.
+  pairing_tradition     TEXT      -- 'western_shared_compound' | 'japanese_umami_synergy' | etc.
+  rationale_text        TEXT      -- markdown; why these go together
+  rationale_text_format TEXT      -- always 'markdown'
+  scientific_basis_present BOOLEAN -- true if backed by peer-reviewed mechanistic literature
+optional:
+  scientific_citations  JSON_ARRAY  -- references to peer-reviewed sources where available
+  evidence_note         TEXT      -- 'tier_1_2_mechanistic' | 'practitioner_tradition_only' | 'contested_per_audit_as_education' per Q14 + audit-as-education
+```
+
+#### Synthesized 11 — `substitution_proposal`
+
+```
+required:
+  original_ingredient_id TEXT     -- FK to authority record
+  proposed_alternatives JSON_ARRAY -- ordered list of {ingredient_id, role_satisfied, rationale, constraint_compliant_against: []}
+  pairing_role_being_filled TEXT  -- per sweep #14 pairing-role taxonomy: 'acid' | 'umami' | 'aromatic' | 'pungent' | 'textural' | 'fat_vehicle' | etc.
+  combined_gate_status  TEXT      -- per D3 Q3.2: 'all_alternatives_pre_approved' | 'pre_approved_subset_pending_real_time' | 'no_pre_approved_real_time_required'
+optional:
+  user_pre_approved_rules_applied JSON  -- which user rules from D3 Q3.2 informed the proposal
+  active_constraints_checked JSON_ARRAY  -- which constraints (allergens, conditions) the proposal cleared
+```
+
+#### Synthesized 12 — `stretch_recipe_disclosure` *(per Tension #7)*
+
+```
+required:
+  recipe_id             TEXT      -- FK to recipe being disclosed
+  user_subject_id       TEXT      -- per-user context (per Tension #7 honest disclosure is per-user)
+  novelty_skill_count   INTEGER   -- new-skill count relative to THIS user's mastered set
+  novelty_skill_names   JSON_ARRAY  -- specific new skills the recipe introduces for this user
+  failure_cost_tags     JSON_ARRAY  -- high-failure-cost techniques in this recipe
+  disclosure_text       TEXT      -- markdown; the actual disclosure shown to user
+  disclosure_text_format TEXT     -- always 'markdown'
+optional:
+  alternative_lower_stretch_options JSON_ARRAY  -- recipe IDs of less-stretch alternatives offered alongside
+```
+
+#### Synthesized 13 — `audit_as_education_content` *(per evidence-tiers.md)*
+
+```
+required:
+  topic_subject         TEXT      -- "microbiome-targeted personalization" | "aroma-compound-overlap pairing hypothesis" | etc.
+  evidence_tier_assessment INTEGER -- 1-4
+  audit_summary_text    TEXT      -- markdown; what's claimed + what evidence shows + why system does/doesn't drive behavior
+  audit_summary_text_format TEXT  -- always 'markdown'
+  contested_status      TEXT      -- 'consensus' | 'mainstream_with_dissent' | 'contested' | 'fringe' per audit-as-education pattern
+optional:
+  citations             JSON_ARRAY  -- supporting + opposing references
+  consult_professional_recommended BOOLEAN  -- true per Rule 1 if the topic is clinical-adjacent
+```
+
+#### Synthesized 14 — `dietary_pattern_assessment`
+
+```
+required:
+  pattern_instrument    TEXT      -- 'MEDAS' | 'HEI' | 'AHEI' | 'DASH' | etc.
+  pattern_version       TEXT      -- per E1 + B3 versioning
+  adherence_score       REAL
+  adherence_interpretation TEXT   -- per-instrument tiers
+  observation_period_start TEXT   -- ISO 8601 UTC
+  observation_period_end   TEXT   -- ISO 8601 UTC
+  source_atom_count     INTEGER   -- atoms feeding the assessment
+optional:
+  per_component_scores  JSON      -- sub-scores within the instrument (e.g., per-food-group HEI components)
+  data_completeness_note TEXT     -- partial-intake honesty per C3 Q3.3
+```
+
+⚠ **F6 reminder:** B4 F6 flagged whether `dietary_pattern_assessment` should merge with `screener_result`. Currently separate; F6 still open for schema-design final pass.
+
+#### Synthesized 15 — `stretch_readiness_signal` *(per C4 refinement)*
+
+```
+required:
+  user_subject_id       TEXT
+  context_dimensions    JSON      -- per C4 refinement: NOT a scalar score; multi-dimensional context-conditional
+                                  -- structure: {
+                                  --   demonstrated_skill_level: { skill_name: confidence_score, ... },
+                                  --   picked_in_context: { context_key: { skill_name: pick_frequency, ... } },
+                                  --     -- context_key examples: 'weekday_evening' | 'weekend_morning' | 'high_stress_period' | 'normal'
+                                  --   demonstrated_vs_picked_divergence: { skill_name: divergence_score, ... }
+                                  -- }
+  observation_period_start TEXT   -- ISO 8601 UTC
+  observation_period_end   TEXT   -- ISO 8601 UTC
+optional:
+  prior_signal_id       TEXT      -- FK to prior stretch_readiness_signal that this supersedes
+  pattern_recognition_method TEXT -- 'rule_based_aggregation' | 'llm_pattern_inference' | 'hybrid'
+```
+
+#### Synthesized 16 — `audit_log_entry`
+
+```
+required:
+  operation_type        TEXT      -- 'phi_crossing' | 'data_write' | 'data_read' | 'consent_change' | 'license_change' | 'publication_event' | 'inference_computed' | etc.
+  actor                 TEXT      -- 'user' | 'system' | 'agent_id' | etc.
+  operation_result      TEXT      -- 'success' | 'failure' | 'partial' | 'declined'
+  log_subject_summary   TEXT      -- short summary; full detail in payload
+optional:
+  request_id            TEXT      -- correlation to other audit entries from the same operation
+  declined_reason       TEXT      -- if declined, why
+  user_visible_in_audit_view BOOLEAN -- true for entries surfaced in C5 Q5.4 dedicated audit view
+```
+
+⚠ **F6 reminder:** B4 F6 also flagged `audit_as_education_content` ↔ `educational_recommendation` merge. Currently separate; F6 still open.
+
+### Per-type confidence breakdown
+
+**Higher confidence (~80-85%):**
+- `dietary_constraint`, `abstracted_constraint`, `nutrient_intake_estimate` — clear referents, clean field sets
+- `pairing_rationale`, `substitution_proposal`, `stretch_recipe_disclosure` — directly map to sweep #14 / Tension #7 + D3 design choices
+- `audit_log_entry` — operationally-driven, well-bounded
+
+**Moderate confidence (~65-75%):**
+- `meal_recommendation` — addresses M4 flags (state machine for cooked/skipped, household_eater_targets handles guests, reorient_constraint_snapshot captures what changed); but introduces new design surface that's untested
+- `meal_plan` — depends on `meal_recommendation` shape stabilizing
+- `recipe_match` — clear shape but actual scoring fields will refine in implementation
+- `educational_recommendation` — depends on educational corpus structure (S9-related)
+- `stretch_readiness_signal` — context_dimensions JSON shape captures C4 refinement intent but is a meaningful design choice
+
+**Lower confidence (~50-65%):**
+- `inference` — F5 reminder; generic catch-all is intentionally smelly
+- `inferred_pattern` — distinction from `inference` is subtle; might collapse
+- `audit_as_education_content` vs. `educational_recommendation` — F6 reminder; might merge
+- `dietary_pattern_assessment` vs. `screener_result` — F6 reminder; might merge
+
+### S2 closure summary
+
+S2 complete: 18 atom + 8 molecule + 16 synthesized = **42 type schemas** specified.
+
+Active flags at S2 close, all tracked for S3 + later resolution:
+
+- **Atom batch:** none open (closed at high confidence)
+- **Molecule batch:** M3, M4, M7, M8 (4 confidence flags)
+- **Synthesized batch:** F5, F6 reminders (carried forward from B4); 4 lower-confidence types flagged for S3 + downstream refinement
+
+### Sources
+
+User direction (2026-05-03) on synthesized payload schemas batch closing S2.
+
+---
+
+*S3 (B4 lower-confidence flags F1–F8 resolution) is next.*
