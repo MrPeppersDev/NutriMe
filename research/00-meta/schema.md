@@ -892,4 +892,88 @@ User direction (2026-05-03) on synthesized payload schemas batch closing S2.
 
 ---
 
-*S3 (B4 lower-confidence flags F1–F8 resolution) is next.*
+## S3 — B4 lower-confidence flags F1–F8 resolution
+
+> Resolved 2026-05-04 — all 8 flags closed with concrete schema impacts.
+
+Per B4 architecture-level decision, eight flags were explicitly deferred to schema-design phase. With S1 + S2 schemas now concrete, these resolve.
+
+### F1 — Asynchrony / temporal state model
+
+**Resolved partly by S2 already** (`meal_recommendation.recommendation_state` state machine replaced M4 separate `cooked` + `skipped` booleans). Remaining items closed:
+
+- **F1.a state set for `meal_recommendation.recommendation_state`:** add `'reorient_pending'` between `'proposed'` and `'scheduled'` for the C5 Q5.5 reorient affordance flow. Final set: `'proposed' | 'accepted' | 'scheduled' | 'reorient_pending' | 'cooking' | 'cooked' | 'skipped'`.
+- **F1.b state machines on other types:** add `'declined_for_now'` to `educational_recommendation.delivery_state` (distinct from `'dismissed'` — declined-for-now means user might engage later; dismissed means hard-no). All other existing state-machine fields (`meal_plan.plan_status`, `grocery_order.fulfillment_status`, `intake_session.session_closed_at` as nullable timestamp) stand as proposed.
+- **F1.c M3 + M8 resolution:** **`wearable_daily_aggregate` and `week_of_meal_events` are demoted from molecules to query views**. Same-day wearable atoms and same-week meal_event molecules don't have substantive co-belonging like `lab_panel` atoms do (one blood draw); metadata they would carry (`data_completeness`, `weekly_pattern_summary`) is computable at query time; storing them creates state-sync issues if backing atoms change. **Molecule count drops from 8 to 6.**
+
+### F2 — Household vs. user-level subject boundary
+
+**`member_subset` represented as inline JSON array of user IDs** when `subject_type = 'member_subset'`. No separate subset entity table — at household scale (2–4 members), separate table is overhead without payoff. Inline JSON keeps subject reference co-located with the data.
+
+Final base column semantics:
+- `subject_type = 'user'` → `subject_id` is a user ID
+- `subject_type = 'household'` → `subject_id` is a household ID
+- `subject_type = 'member_subset'` → `subject_id` is JSON array of user IDs (e.g., `'["usr-...", "usr-..."]'`)
+
+### F3 — Corpus vs. substrate boundary for shareable content
+
+**No 4th storage layer.** `pairing_rationale` (and similar cross-user-applicable synthesized content) **stays in substrate as a synthesized type with `subject_id NULL`** when the rationale is genuinely cross-user-applicable. Per-user variants populate `subject_id`.
+
+This generalizes: any synthesized type can have `subject_id NULL` to indicate "applicable to any user." The existing schema accommodates this without new layers.
+
+### F4 — User-correction handling
+
+**Resolved by S1's `retraction_reason` field.** When a user corrects a prior inference ("no, that wasn't lactose intolerance — it was a one-off"):
+
+1. New `clinical_disclosure` atom written that supersedes the prior
+2. Prior atom's `valid_until` populated + `retraction_reason = 'retracted_user_correction'`
+3. `Supersedes` relationship links new atom to prior
+
+No new atom type needed. Confidence ~80%.
+
+### F5 — Generic `inference` catch-all type
+
+**Keep as catch-all with the smell flag — ongoing-monitoring item, not a one-time resolution.** If during build half of all inferences cluster as `nutrient_inference` or `behavioral_inference` or `cuisine_inference`, promote those to specific types and shrink the catch-all. F5 stays open as a build-phase monitoring concern.
+
+### F6 — Possible type merges
+
+- **MERGE: `dietary_pattern_assessment` into `screener_result`** with `instrument_category ∈ {'dietary_pattern', 'clinical_screener'}` discriminator. Both have instrument/version/score/interpretation/per_item_responses; the differences (subject + scoring methodology) are slight and discriminator-friendly. **Synthesized count drops from 16 to 15.**
+- **DON'T MERGE: `audit_as_education_content` and `educational_recommendation` stay separate.** They serve different roles — `educational_recommendation` is delivery-targeted (this concept should be delivered to this user, in this surface, at this time); `audit_as_education_content` is the actual content body with evidence-tier framing. An `educational_recommendation` can point to an `audit_as_education_content` via DerivedFrom or relationship.
+
+### F7 — `provenance_chain` as relationship vs. computed view
+
+**Computed view via recursive `DerivedFrom` traversal.** No new stored relationship type. Substrate already stores immediate-parent `DerivedFrom` per the LC pattern adopted in A4; recursive traversal yields the full chain. Confidence ~85%.
+
+### F8 — Possibly-overengineered atoms reconsideration
+
+Atoms stay folded:
+
+- **`emotional_state_atom`** — folded into `meal_feedback_body_response` (mood_rating + freetext_response). ~80% confident.
+- **`goal_atom`** — **add `'goal'` to `preference_statement.preference_type` enum** rather than splitting into a new atom type. ~75% confident.
+- **`schedule_atom`** — folded into `meal_recommendation.planned_for_date` + `meal_slot`. Calendar concerns out of MVP scope. ~85% confident.
+
+### Schema impact summary
+
+After F1–F8 resolution:
+
+- **Molecule count: 8 → 6** (M3 wearable_daily_aggregate + M8 week_of_meal_events demoted to query views)
+- **Synthesized count: 16 → 15** (dietary_pattern_assessment merged into screener_result)
+- **State machine additions:** `'reorient_pending'` (meal_recommendation), `'declined_for_now'` (educational_recommendation)
+- **Enum additions:** `'goal'` (preference_statement.preference_type), `instrument_category ∈ {'dietary_pattern', 'clinical_screener'}` (screener_result)
+- **Subject-id semantics:** `NULL` indicates cross-user-applicable synthesized content
+- **Member-subset semantics:** inline JSON array of user IDs
+
+### Active flags after S3
+
+- **F5** stays open as build-phase monitoring item (catch-all-smell ongoing concern)
+- **M4 + M7** still flagged for revisit during S9 (corpus markdown frontmatter contract)
+
+S3 closed; M3, M8, F1, F2, F3, F4, F6, F7, F8 resolved.
+
+### Sources
+
+User direction (2026-05-04) on F1–F8 resolution batch.
+
+---
+
+*S4 (typed relationships table + indexes) is next.*
