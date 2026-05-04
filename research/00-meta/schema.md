@@ -1081,4 +1081,167 @@ User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-04); user prompted
 
 ---
 
-*S5 (embedding tables — embeddings_voyage_* + embeddings_local_* layout per B1 Q1.3) is next.*
+## S5 — Embedding tables
+
+> Resolved 2026-05-04 across five sub-decisions Q5.1–Q5.5 plus Q5.2.1 (PHI defense-in-depth).
+
+### Decision
+
+**Single embeddings table per provider** (`embeddings_voyage` + `embeddings_local`) with `content_role` discriminator covering all embeddable content types; **defense-in-depth PHI marker** at the schema layer (`source_phi_categories` column + CHECK constraint on `embeddings_voyage` rejecting any non-empty PHI categories); **status-column staleness representation** (not bitemporal) with partial unique index per current-row + `state_changed_at` for cleanup; **loose polymorphic reference** (subject_id + subject_type, application-layer resolver) consistent with S4; **`vec0` virtual table per (provider, dimension) combination** holding vectors with sqlite-vec ANN index, joined to main metadata table via `id`.
+
+### Q5.1 — Single embeddings table per provider
+
+One `embeddings_voyage` + one `embeddings_local` table, each carrying a `content_role` discriminator (`'recipe_description' | 'recipe_ingredient_list' | 'corpus_chunk' | 'screener_item' | 'authority_canonical_name' | 'atom_payload' | ...`).
+
+- Mirrors S1 single-table-per-layer + JSON payload pattern + S4 single-relationships-table pattern
+- Adding new content-types = new discriminator value, not new table + migration
+- sqlite-vec's index efficiency is per-column not per-table at our scale; partitioning into many small tables doesn't pay off until orders of magnitude more vectors
+- Single `vec0` virtual table per (provider, dimension) for ANN search; partitioning by content-type would force per-content-type ANN indexes that complicate cross-content retrieval
+- Per-content-role partial indexes addable later as optimization without schema churn
+
+### Q5.2 — Embeddings table schema
+
+```sql
+CREATE TABLE embeddings_voyage (
+  id                       TEXT PRIMARY KEY,            -- emb-{uuidv7}
+  subject_id               TEXT NOT NULL,               -- ID of source entity (loose polymorphic ref per Q5.5)
+  subject_type             TEXT NOT NULL,               -- 'atom' | 'molecule' | 'synthesized' | 'recipe' | 'corpus_chunk' | 'authority_record'
+  content_role             TEXT NOT NULL,               -- discriminator; validated via schema-of-schemas (per S2 Q2.5), not CHECK
+  source_text_hash         TEXT NOT NULL,               -- SHA-256 of input text; enables stale detection per Q5.4
+  source_phi_categories    TEXT NOT NULL,               -- JSON array; defense-in-depth per Q5.2.1
+  embedding_model          TEXT NOT NULL,               -- 'voyage-3-large' | 'voyage-2' | etc.
+  embedding_dimension      INTEGER NOT NULL,            -- 1024 / 1536 / etc.; selects the vec0 table to join
+  status                   TEXT NOT NULL DEFAULT 'current',  -- per Q5.4 staleness lifecycle
+  state_changed_at         TEXT NOT NULL,               -- ISO 8601 UTC; when status last transitioned
+  recorded_at              TEXT NOT NULL,               -- ISO 8601 UTC
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,               -- embedding pipeline version (chunking, normalization)
+  publication_eligible     INTEGER NOT NULL DEFAULT 1,
+  CHECK (subject_type IN ('atom','molecule','synthesized','recipe','corpus_chunk','authority_record')),
+  CHECK (status IN ('current','stale_pending_reembed','retired')),
+  CHECK (source_phi_categories = '[]')                  -- defense-in-depth: voyage table accepts NO PHI content
+);
+
+-- Partial unique index per Q5.4: exactly one current embedding per subject+role+model
+CREATE UNIQUE INDEX idx_emb_voy_subject_current
+  ON embeddings_voyage(subject_id, content_role, embedding_model)
+  WHERE status = 'current';
+
+CREATE INDEX idx_emb_voy_role           ON embeddings_voyage(content_role, subject_type);
+CREATE INDEX idx_emb_voy_hash           ON embeddings_voyage(source_text_hash);
+CREATE INDEX idx_emb_voy_status         ON embeddings_voyage(status, state_changed_at);
+
+-- vec0 virtual table per (provider, dimension); main table joins via id
+CREATE VIRTUAL TABLE vec_voyage_1024 USING vec0(
+  embedding_id TEXT PRIMARY KEY,
+  embedding FLOAT[1024]
+);
+```
+
+`embeddings_local` table = identical structure **except** the PHI CHECK constraint is removed (local embedder accepts both PHI and non-PHI content):
+
+```sql
+-- embeddings_local schema differs only in:
+-- 1. No CHECK on source_phi_categories (local accepts any PHI category set)
+-- 2. Separate vec_local_<dim> virtual tables per local model dimension
+```
+
+Schema rationale (the *why* per non-obvious column):
+
+- **`source_text_hash`** — stale-detection trigger per Q5.4(i); also fast "is this text already embedded somewhere?" lookup via `idx_emb_voy_hash`
+- **`source_phi_categories`** — defense-in-depth per Q5.2.1; copied from source atom at embedding time; CHECK constraint on `embeddings_voyage` is the schema-level fail-closed guard against PHI leak through a routing bug
+- **`embedding_model` + `embedding_dimension`** — supports model upgrades; old model rows stay queryable until re-embedded; dimension selects the right `vec0` table to join
+- **`status` + `state_changed_at`** — Q5.4 staleness lifecycle; status column over bitemporal because we don't need point-in-time historical embedding queries
+- **`recorded_at` + version columns** — reproducibility for publication targets (per E1)
+- **`publication_eligible`** — embeddings publication-relevance is non-trivial: Voyage embeddings aren't reproducible without API access; local model embeddings are. Publication-prep queries this directly.
+- **No `payload_schema_version`** — embedding shape fully determined by `embedding_model` + `embedding_dimension`; the model identifier *is* the schema version
+- **No `payload`** — embeddings table is pure retrieval infrastructure; actual content lives in source tables (per B1 "embed-as-index, deliver source")
+- **No `provenance` / `evidence_tier` / `system_confidence` / `user_facing_certainty`** — embeddings are derived index, not facts; provenance lives on source content
+- **Vectors only in `vec0`, not duplicated in main table** — saves ~50% on embedding storage; the join is cheap; main table stays a pure metadata index
+- **`vec0` per (provider, dimension)** — Voyage has voyage-3-large (1024) + voyage-3-lite (512); local candidates have varying dims (mxbai 1024 / BGE-M3 1024 / nomic 768). One `vec0` per dimension within each provider
+
+### Q5.2.1 — PHI defense-in-depth (schema-level enforcement)
+
+Per [phi-handling.md](phi-handling.md) double-layer enforcement: schema rejects PHI content from being written to `embeddings_voyage` (not just trust application-layer routing).
+
+Implementation: `source_phi_categories TEXT NOT NULL` column on both tables (copied from source atom at embedding time) + `CHECK (source_phi_categories = '[]')` on `embeddings_voyage` only. `embeddings_local` has no constraint (accepts both PHI and non-PHI).
+
+Per the C1 double-layer-enforcement pattern + phi-handling.md "fails closed" principle. Cost: one extra column + one CHECK; benefit: hard schema-level guard against PHI leak through a routing bug.
+
+### Q5.3 — Local embedding model: single table with discriminator
+
+**Single `embeddings_local` table** with `embedding_model` discriminator (vs. one table per local model). Same reasoning as Q5.1 — discriminator pattern beats per-model tables for our scale.
+
+During a model migration (e.g., mxbai → BGE-M3), both old and new model rows coexist in the same table; partial unique index per Q5.4 (`WHERE status = 'current'`) prevents duplicates while permitting transition. If old + new model share dimension, they share one `vec_local_<dim>` virtual table; if dimensions differ, separate `vec_local_768` + `vec_local_1024` tables already accommodated by per-(provider,dimension) `vec0` pattern.
+
+**Build-time validation flag (ζ):** sqlite-vec's auxiliary metadata column support potentially enables collapsing main table + `vec0` into a single virtual table holding both metadata + vectors. Build-time validation needed: confirm CHECK constraints + partial indexes + S11 FK semantics work on virtual tables. If yes, application surface unaffected by physical-layout swap (resolver per Q5.5 doesn't care). Tracked in roadmap.
+
+### Q5.4 — Re-embedding triggers + status-column staleness
+
+Three triggers for re-embedding:
+
+- (i) **Source-text change** — `source_text_hash` mismatch
+- (ii) **Model upgrade** — `embedding_model` version change (Voyage v2 → v3, or local model swap)
+- (iii) **Component-version change** — pre-embedding text-prep pipeline change (chunking, normalization), detected via `component_version` mismatch
+
+Staleness representation: **status column** (not bitemporal). Status values: `'current' | 'stale_pending_reembed' | 'retired'`. Operational semantics:
+
+- Re-embed pipeline polls `WHERE status = 'stale_pending_reembed'`
+- Retrieval queries filter `WHERE status IN ('current','stale_pending_reembed')` — stale rows stay serveable until new ones land
+- Cleanup job archives `WHERE status = 'retired' AND state_changed_at < threshold`
+- Atomic swap: write new row with `status='current'`; in same transaction, update old row from `'current'` to `'retired'`
+
+Bitemporal pattern rejected because we don't need point-in-time historical embedding queries ("what did this text embed to in March?"); we need "current embedding for this subject."
+
+**Partial unique index** (replaces Q5.2's full unique index):
+
+```sql
+CREATE UNIQUE INDEX idx_emb_voy_subject_current
+  ON embeddings_voyage(subject_id, content_role, embedding_model)
+  WHERE status = 'current';
+```
+
+The invariant is "exactly one current embedding per subject+role+model" — partial index expresses it precisely without constraining retired rows.
+
+### Q5.5 — Loose polymorphic reference + application-layer resolver
+
+`subject_id` + `subject_type` is a loose polymorphic reference (no SQL FK). Application-layer resolver maps `subject_type` → source table and queries.
+
+- Mirrors S4 relationships table pattern — consistent across substrate
+- SQLite native polymorphic FK gymnastics (separate nullable FK columns per subject_type, conditional CHECKs) cost more in schema noise than they buy in safety
+- Application-layer resolver is the natural place to enforce "deliver source" rule (per B1) — it's where retrieval orchestration lives
+- S11 (foreign keys + referential integrity) will revisit; if S11 lands a polymorphic-FK pattern (subject_registry lookup table), embeddings adopt without schema break
+
+**Orphan-prevention (operational, S8 territory):**
+
+- (1) **Application-layer cascade-on-retire** — when source atom/molecule/synthesized retires, application layer marks corresponding embedding rows `status='retired'` via Q5.4 lifecycle
+- (2) **Periodic orphan-sweep job** — background job finds embedding rows where `subject_id` no longer resolves and retires them; catches race conditions + crashed mid-delete operations
+
+Both: defense-in-depth. Tracked for S8.
+
+### Schema impact summary
+
+After S5:
+
+- **2 main tables** (`embeddings_voyage` + `embeddings_local`) — identical schema except `source_phi_categories` CHECK constraint
+- **Variable `vec0` virtual tables per (provider, dimension)** — currently `vec_voyage_1024` + `vec_local_<dim>` based on candidate model selection
+- **Status-column lifecycle** with partial unique index keying off `status='current'`
+- **Defense-in-depth PHI marker** at schema layer
+- **Application-layer resolver** for polymorphic reference (consistent with S4)
+
+### Out of scope at S5 (deferred)
+
+- Local model final choice (`mxbai-embed-large` / `BGE-M3` / `nomic-embed-text`) — build-time decision per roadmap
+- Voyage model selection (`voyage-3-large` vs. `voyage-3-lite`) — build-time decision; depends on dimension/quality/cost tradeoff at adoption
+- Orphan-prevention operational mechanics (cascade + sweep job) — S8
+- FK + referential-integrity revisit — S11
+- Voyage-vs-open-source publication-reproducibility re-embedding pipeline — tracked in roadmap; lands when publication target #4 ships data
+- (ζ) build-time validation: collapse main table + `vec0` into single virtual table with auxiliary metadata columns — roadmap
+
+### Sources
+
+User direction throughout the Q5.1 → Q5.5 + Q5.2.1 dialogue (2026-05-04); user prompted Q5.2 critical re-look (surfaced silent adjustments + the genuine PHI defense-in-depth question Q5.2.1) + Q5.3 cleaner-way challenge (surfaced and rejected (γ)/(δ)/(ε)/(ζ) alternatives, with (ζ) flagged for build-time validation only).
+
+---
+
+*S6 (authority table + ingredient identity resolution operational nuance per D4 deferred) is next.*
