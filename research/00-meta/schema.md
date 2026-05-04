@@ -112,4 +112,62 @@ User direction throughout the Q1.1 → Q1.5 dialogue (2026-05-03); user pushed b
 
 ---
 
-*Future schema-design decisions will be added as resolved.*
+## S2 — Atom + molecule + synthesized type tables (payload-shape principles)
+
+> Resolved 2026-05-03 across five sub-decisions Q2.1–Q2.5. Per-type payload schemas (17 atom + 8 molecule + 16 synthesized) follow in subsequent batches within this sub-block.
+
+### Decision
+
+**Flat unless nesting is genuinely useful** for payload structure; **explicit required vs. optional discipline with explicit-null for absent optionals**; **no reserved keys at payload root** (premature for MVP); **snake_case throughout**; **units always in field names** (e.g. `glucose_mg_dl`, `cooking_time_minutes`, `weight_kg`); **per-type judgment for plain-text vs. markdown free-text fields**; **hybrid schema-of-schemas** (canonical declarative file + per-type modules that import + extend with runtime-specific concerns).
+
+### Q2.1 — Payload-shape principles
+
+- **Flat unless nesting is genuinely useful.** Most atom payloads are simple single observations; some molecule + synthesized payloads need nesting for genuinely-structured content (sub-scores in screener_result, multi-part inferences in synthesized entries).
+- **Required vs. optional explicit per type** with explicit-null discipline for optional fields (rather than absent fields).
+- **No reserved keys at payload root** at MVP. Premature optimization. If a cross-type pattern emerges (free-text user notes attached to any entry, etc.), elevate to a base column or typed sub-table later.
+
+### Q2.2 — snake_case throughout
+
+Standard for SQLite + JSON-in-SQLite + Python. Matches base column naming. Per-publication reproducibility benefits from convention consistency.
+
+### Q2.3 — Units always in field names
+
+Examples: `glucose_mg_dl`, `cooking_time_minutes`, `weight_kg`, `hrv_ms`, `sleep_duration_min`.
+
+- Eliminates ambiguity (kg vs. lb; mg/dL vs. mmol/L for glucose)
+- Self-documenting at query time
+- Aligns with publication-reproducibility discipline
+- Per-publication-target consumers can convert if they want different units; source data has unambiguous units
+
+### Q2.4 — Per-type judgment for plain-text vs. markdown free-text
+
+Atom-types like `meal_feedback_body_response` (per [C5 split](architecture.md#c5--daily-cadence-interaction-model)) get plain-text fields — the user said *"I felt sluggish around 8pm"*; no markdown semantics needed.
+
+Atom-types like `corpus_extracted_claim` get markdown fields — preserves source structure (lists, emphasis, etc. from the original document).
+
+Per-type schema declares which fields are plain vs. markdown; the rendering layer handles accordingly.
+
+### Q2.5 — Hybrid schema-of-schemas
+
+**Canonical declarative schema file** at top level lists every type + its base schema. **Per-type modules** import from the canonical file and extend with runtime-specific concerns:
+
+- **Canonical file** (`payload_schemas.json` or equivalent declarative format) — source-of-truth; every atom/molecule/synthesized type listed; schema declared in declarative format (field names, types, required/optional, units, validation rules)
+- **Per-type modules** (`atoms/intake_response.py`, `atoms/lab_analyte_value.py`, etc.) — import their schema from canonical file, layer on type-specific business logic (write helpers, transformation, type-aware error messages)
+- **CHECK-constraint generator** reads canonical file → emits SQL CHECK clauses for the substrate DB per [S1 Q1.5 dual validation](#s1--base-table-architecture)
+- **Publication-target reproducers** can read the canonical file directly without parsing application code
+
+Better than pure-canonical-only because per-type modules add type-aware error messages + transformation without the canonical file becoming a junk drawer. Better than pure-per-type-only because the audit + reproducibility surface stays single-file-readable.
+
+### Out of scope at S2 principles (next batches within this sub-block)
+
+- Per-atom-type payload schemas (17 types) — atoms batch
+- Per-molecule-type payload schemas (8 types) — molecules batch
+- Per-synthesized-type payload schemas (16 types + C5 meal-feedback split + C4 stretch_readiness_signal context-conditional refinement) — synthesized batch
+
+### Sources
+
+User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-03); user picked hybrid on Q2.5 (sharper than my pure-canonical lean).
+
+---
+
+*Per-type payload schema batches follow within this sub-block.*
