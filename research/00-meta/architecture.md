@@ -1462,4 +1462,77 @@ User direction throughout the Q2.1 → Q2.5 dialogue (2026-05-03).
 
 ---
 
+## E3 — License decisions per publication target
+
+> Resolved 2026-05-03 across five sub-decisions Q3.1–Q3.5.
+
+### Decision
+
+**Apache 2.0 for publishable architectural / methodological code** (MIT acceptable for small reusable utilities; AGPL not adopted); **CC-BY 4.0 for documentation**; **CC-BY 4.0 for aggregate data publications**; **license recorded at consent time, bound to consent record per E2**; **standard license requirements + recommended citation format published alongside each artifact**.
+
+### Q3.1 — Apache 2.0 for publishable architectural / methodological code
+
+**Apache 2.0** for publishable architectural / methodological code (publication targets #1 + #2 + #3 software releases). Reasons:
+
+- Explicit patent grant matters in the rapidly-evolving LLM-agent patent landscape — insulates downstream adopters
+- Permissive enough for adoption; not copyleft
+- Established convention in the community for backend / library code
+- Low operational overhead — single `LICENSE` file at repo root + license header comments in source files; no annual filings, certifications, audits, or fees
+
+**MIT acceptable for small reusable utilities** that are clearly outside the NutriMe-specific architecture (one-off helpers that don't carry the patent-grant relevance).
+
+**AGPL not adopted** — copyleft is overkill for personal-use-primary distribution + would deter adoption of architectural patterns we want others to use.
+
+**Operational requirements (one-time setup):**
+- `LICENSE` file at repo root (~10 KB, copy from apache.org/licenses/LICENSE-2.0.txt)
+- `NOTICE` file at repo root (conventional, ~5 lines)
+- License header comments at top of source files (~5 lines per file, IDE-autoinsertable)
+- GitHub auto-detects + displays "Apache-2.0" in repo header
+- CLA pattern when first community contribution arrives (not a setup task)
+
+### Q3.2 — CC-BY 4.0 for documentation
+
+**CC-BY 4.0** — attribution required, otherwise free reuse. Matches NutriMe's own attribution discipline per [sweep #11](../11-recipe-sourcing/scope.md) + [Rule 8](constitutional-rules.md#rule-8--epistemic-trail-of-honesty).
+
+CC-BY-SA (share-alike) rejected — discourages reuse where derivative works prefer different licensing (textbook authors, medical reference apps, etc.). Public domain (CC0) rejected — loses the attribution signal we want to maintain.
+
+### Q3.3 — CC-BY 4.0 for aggregate data publications
+
+For data publication targets #4 (recipe time-feedback aggregate data) + #5 (cooking-state changes pairings flavor-science aggregate data), use **CC-BY 4.0**.
+
+- Consistent with documentation license
+- Attribution maintains the citation-trail discipline
+- Doesn't impose share-alike copyleft on downstream analysis (which would deter use)
+- ODbL is more database-purist but less adopted; CC-BY is the workhorse for publishable aggregate data in this space
+
+### Q3.4 — License recorded at consent time, bound to consent record
+
+License decisions live in the user's consent record per [E2 tiered-consent + per-publication-target granularity](#e2--anonymization--consent-infrastructure):
+
+- When user grants standing consent for a target, the license for that target is **part of the consent record**
+- If license ever changes for a target, that's a **consent change requiring re-confirmation** per E2
+- User knew CC-BY was the deal; we can't unilaterally switch to ODbL without re-confirming
+- Cleanest enforcement boundary — user consent IS license consent
+
+### Q3.5 — Standard license requirements + recommended citation format
+
+Both:
+
+- **Standard license requirements** — whatever Apache 2.0 / CC-BY 4.0 require (attribution, license text retained, etc.) is the legal floor
+- **Recommended citation format** published alongside each artifact — we provide a citation template (*"Cite as: ..."*) to make attribution easy + consistent
+
+Lower friction for downstream attribution; respects that academic / industry attribution patterns vary. Same discipline as Cochrane PLS, GRADE, PROMIS — they all publish citation templates alongside artifacts.
+
+### Updates to apply
+
+- [stage3-plan.md](stage3-plan.md) — E3 marked resolved; E4 (update cadence + corpus refresh design) becomes the next decision
+- [roadmap.md](roadmap.md) — Stage 3 architecture decisions table updated
+- [publication-ambitions.md](publication-ambitions.md) — license + attribution clarity section refined with E3 specific decisions (Apache 2.0 / CC-BY 4.0 / CC-BY 4.0 split + consent-bound license + dual standard-requirements + citation template)
+
+### Sources
+
+User direction throughout the Q3.1 → Q3.5 dialogue (2026-05-03); user flagged uncertainty about Apache 2.0 operational requirements, addressed inline before confirmation.
+
+---
+
 *Future architecture decisions will be added as resolved.*

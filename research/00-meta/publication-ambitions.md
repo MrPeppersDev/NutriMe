@@ -80,9 +80,16 @@ Per [architecture.md E2](architecture.md#e2--anonymization--consent-infrastructu
 
 ### License + attribution clarity from the start
 
-- License decisions documented at architecture phase (likely candidates: MIT or Apache 2.0 for code, CC-BY for documentation, AGPL considered for derivatives that should stay open — final call deferred)
+Per [architecture.md E3](architecture.md#e3--license-decisions-per-publication-target), license decisions are settled:
+
+- **Apache 2.0** for publishable architectural / methodological code (publication targets #1 + #2 + #3) — explicit patent grant matters in LLM-agent patent landscape; permissive; established for backend / library code
+- **MIT** acceptable for small reusable utilities outside NutriMe-specific architecture
+- **AGPL not adopted** — copyleft overkill for personal-use-primary distribution
+- **CC-BY 4.0** for documentation — attribution required, otherwise free reuse
+- **CC-BY 4.0** for aggregate data publications (#4 + #5) — consistent with documentation; attribution maintains citation-trail discipline; no share-alike copyleft to deter downstream use
+- **License recorded at consent time** per E2 — license is part of the user's consent record; license change requires re-confirmation
+- **Standard license requirements + recommended citation format** published alongside each artifact (Cochrane / GRADE / PROMIS pattern)
 - Attribution pipelines preserved through transformations (per [sweep #11 attribution architecture](../11-recipe-sourcing/scope.md))
-- Citation style applied to NutriMe's own outputs as a courtesy to derivative work
 
 ### Publication-grade documentation discipline
 
