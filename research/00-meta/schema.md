@@ -976,4 +976,109 @@ User direction (2026-05-04) on F1–F8 resolution batch.
 
 ---
 
-*S4 (typed relationships table + indexes) is next.*
+## S4 — Typed relationships table + indexes
+
+> Resolved 2026-05-04 across five sub-decisions Q4.1–Q4.5.
+
+### Decision
+
+**Single `relationships` table** with a `relationship_type` discriminator covering the 7 typed relationship types (DerivedFrom, Contradicts, Supersedes, Tension, EnrichedBy, MemberOf, RetractedBy); **bitemporal + provenance-bearing schema** that inherits the relevant subset of S1 base columns so the epistemic trail can answer "when was this relationship asserted, by whom, with what confidence, and was it ever retracted"; **MemberOf retained alongside atom's `composition_id` FK** (both representations: FK for O(1) parent lookup + relationship for uniform graph traversal); **per-type metadata schemas** declared in the canonical schema-of-schemas (per S2 Q2.5); **trust SQLite recursive CTE** for provenance-chain traversal at personal-use scale.
+
+### Q4.1 — Single relationships table
+
+One `relationships` table with `relationship_type` discriminator (vs. one table per type or hybrid).
+
+- Uniform queries for "all relationships touching atom X"
+- Single index strategy covers all 7 types
+- Adding new relationship types = new discriminator value, not new table + migration
+- Per-type validation handled at the schema-of-schemas layer (per S2 Q2.5)
+
+### Q4.2 — Schema
+
+```sql
+CREATE TABLE relationships (
+  id                      TEXT PRIMARY KEY,            -- rel-{uuidv7}
+  source_id               TEXT NOT NULL,
+  source_type             TEXT NOT NULL,               -- 'atom' | 'molecule' | 'synthesized'
+  target_id               TEXT NOT NULL,
+  target_type             TEXT NOT NULL,
+  relationship_type       TEXT NOT NULL,
+  provenance              TEXT NOT NULL,               -- JSON: how this relationship was established (LLM extraction, rule, user assertion)
+  evidence_tier           INTEGER,                     -- relevant when LLM-detected (e.g., Tier 4 contradiction)
+  system_confidence       REAL,                        -- 0.0-1.0
+  valid_from              TEXT NOT NULL,               -- ISO 8601 UTC
+  valid_until             TEXT,                        -- ISO 8601 UTC; NULL = currently valid
+  recorded_at             TEXT NOT NULL,               -- ISO 8601 UTC
+  retraction_reason       TEXT,                        -- NULL | 'superseded' | 'retracted_user_correction' | 'retracted_source_revision' | 'retracted_validation_failure' | 'retracted_consent_withdrawn'
+  system_version          TEXT NOT NULL,
+  component_version       TEXT NOT NULL,
+  payload_schema_version  TEXT NOT NULL,
+  publication_eligible    INTEGER NOT NULL DEFAULT 1,
+  metadata                TEXT,                        -- JSON; per-type schema declared in schema-of-schemas
+  CHECK (source_type IN ('atom','molecule','synthesized')),
+  CHECK (target_type IN ('atom','molecule','synthesized')),
+  CHECK (relationship_type IN ('DerivedFrom','Contradicts','Supersedes','Tension','EnrichedBy','MemberOf','RetractedBy')),
+  CHECK (source_id != target_id)
+);
+
+CREATE UNIQUE INDEX idx_rel_unique  ON relationships(source_id, relationship_type, target_id, valid_from);
+CREATE INDEX idx_rel_forward        ON relationships(source_id, relationship_type, target_id) WHERE valid_until IS NULL;
+CREATE INDEX idx_rel_reverse        ON relationships(target_id, relationship_type, source_id) WHERE valid_until IS NULL;
+CREATE INDEX idx_rel_typed          ON relationships(relationship_type, source_type) WHERE valid_until IS NULL;
+```
+
+Subset of S1 base columns inherited (intentional choices):
+- **Inherited:** `provenance`, `evidence_tier`, `system_confidence`, `valid_from`, `valid_until`, `recorded_at`, `retraction_reason`, `system_version`, `component_version`, `payload_schema_version`, `publication_eligible`, `metadata` (analog of `payload`)
+- **Skipped:** `user_facing_certainty` (relationships are infrastructure, not user-facing facts), `consent_record_id` + `phi_categories` (components carry PHI markers; relationships are structural), `source_identity` + `authority_resolution_status` (N/A — those describe atom-level subject identity)
+- **Replaced:** `subject_id` / `subject_type` → `source_id`/`source_type` + `target_id`/`target_type` (relationships have two endpoints, not one subject)
+
+Index strategy:
+- **Forward + reverse partial indexes** with `WHERE valid_until IS NULL` keep the common "current relationships" query lean
+- **Typed partial index** for type-filtered queries (e.g., "all current Contradicts relationships originating from atoms")
+- **Unique index on `(source_id, relationship_type, target_id, valid_from)`** prevents duplicate active assertions while permitting historical re-assertions across bitemporal windows
+- **`CHECK (source_id != target_id)`** sanity guard — none of the 7 relationship types has a meaningful self-referential case
+
+### Q4.3 — `MemberOf` AND atom's `composition_id` FK both retained
+
+Atoms in a molecule are referenced two ways:
+
+- **Atom's `composition_id` FK** to its parent molecule — O(1) lookup of "what molecule does this atom belong to" without joining the relationships table
+- **`MemberOf` row in `relationships` table** — uniform graph traversal (all relationships are queryable the same way) + supports the case of an atom being referenced by multiple molecules over time
+
+Slight denormalization cost; consistent with the LC pattern adopted in A4.
+
+### Q4.4 — Per-type metadata schemas
+
+Declared in the canonical schema-of-schemas (per S2 Q2.5 hybrid). Per-relationship-type metadata:
+
+- **DerivedFrom** — `derivation_depth` (int), `derivation_method` (enum: `extraction` | `inference` | `aggregation` | `LLM_synthesis`)
+- **Contradicts** — `contradiction_dimension` (enum: `factual` | `methodological` | `scope` | `tier`), `severity` (enum: `minor` | `moderate` | `major`)
+- **Supersedes** — `supersession_reason` (enum: `newer_evidence` | `retraction` | `scope_correction` | `source_update`)
+- **Tension** — `tension_dimension` (enum: `evidence_conflict` | `guideline_conflict` | `source_disagreement`), `resolution_strategy` (enum: `surface_to_user` | `weighted_blend` | `tier_priority` | `unresolved`)
+- **EnrichedBy** — `enrichment_type` (enum: `causal_explanation` | `mechanism` | `example` | `contraindication`)
+- **MemberOf** — typically empty `{}`; reserved for future use (e.g., `member_role` if ordered membership becomes relevant)
+- **RetractedBy** — typically empty `{}`; reason carried on the target's `retraction_reason` column instead
+
+The "who/what extracted this relationship" concern is handled by the first-class `provenance` column, not metadata.
+
+### Q4.5 — Recursive provenance-chain traversal
+
+**SQLite recursive CTE.** At personal-use scale (chain depth ≤10), recursive CTEs are well-optimized; query latency stays below perception threshold. Materialized views and cached `provenance_chain` columns introduce invalidation complexity that doesn't pay off until orders of magnitude more relationships.
+
+Per F7 (already resolved in S3): `provenance_chain` is computed-on-demand via recursive `DerivedFrom` traversal, not a stored relationship type.
+
+### Out of scope at S4
+
+- Embedding tables — S5
+- Authority table — S6
+- Verification rule-set (referenced via `provenance` JSON shape) — S7
+- Operational DB tables (audit log + epistemic-trail event log) — S8
+- Foreign keys + referential integrity — S11
+
+### Sources
+
+User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-04); user prompted Q4.2 rethink which surfaced 9 additions (bitemporal columns, first-class provenance, evidence_tier + system_confidence, retraction_reason, version columns, publication_eligible flag, sanity CHECK, partial-index optimization, bitemporal-aware unique index).
+
+---
+
+*S5 (embedding tables — embeddings_voyage_* + embeddings_local_* layout per B1 Q1.3) is next.*
