@@ -447,4 +447,165 @@ User direction (2026-05-03) on Atom payload schemas batch 1.
 
 ---
 
-*Molecule + synthesized batches follow within this sub-block.*
+### S2 — Molecule payload schemas (Batch 2: 8 molecule types)
+
+> Resolved 2026-05-03 with explicit lower-confidence flags on 4 items. Overall confidence ~70%; same hybrid-A-and-C pattern from B4: land at schema-design level with confidence flags + revisit during S3 F1 (asynchrony / temporal state model) + after synthesized batch lands.
+
+Per A4 + B4: molecules are compositions of co-belonging atoms. They aggregate atoms via membership (atom's `composition_id` FK) but also carry composition-level metadata (when the composition started, when it closed, who/what created it, composition-level summaries).
+
+#### Molecule 1 — `intake_session` *(~85% confident)*
+
+```
+required:
+  session_started_at    TEXT      -- ISO 8601 UTC
+  session_closed_at     TEXT      -- ISO 8601 UTC; null if still in progress
+  session_purpose       TEXT      -- 'initial_intake' | 'periodic_check_in' | 'condition_disclosure_followup' | 'custom'
+  total_questions_asked INTEGER   -- count for completion tracking
+  total_questions_answered INTEGER
+optional:
+  pause_resume_count    INTEGER   -- per C3 Q3.3 pause-anywhere; 0 if completed in one sitting
+  user_initiated_resume_at JSON_ARRAY  -- timestamps of resume events
+  intake_agent_version  TEXT      -- per E1 component_version; specific agent used
+```
+
+#### Molecule 2 — `lab_panel` *(~85% confident)*
+
+```
+required:
+  lab_provider          TEXT      -- 'labcorp' | 'quest' | etc.
+  collection_date       TEXT      -- ISO 8601; date of blood draw
+  panel_name            TEXT      -- 'CBC + CMP + Lipid' | 'thyroid_panel' | 'micronutrient_panel' | etc.
+  ingestion_path        TEXT      -- 'apple_health_records' | 'epic_mychart_api' | 'manual_pdf_upload' per D2 Q2.1
+optional:
+  ordering_provider     TEXT      -- doctor/clinic that ordered the panel
+  panel_id_at_provider  TEXT      -- the lab's own panel ID for reference
+  panel_status          TEXT      -- 'final' | 'preliminary' | 'amended'
+  retraction_propagated BOOLEAN   -- per F4 retraction-propagation; true if retraction triggered downstream re-derivation
+```
+
+#### Molecule 3 — `wearable_daily_aggregate` *(⚠ ~55% confident — flagged for revisit)*
+
+```
+required:
+  observation_date      TEXT      -- ISO 8601 date (no time); the day this aggregate represents
+  source_devices        JSON_ARRAY -- list of devices contributing aggregates this day
+  signal_type_count     INTEGER   -- how many distinct signal types this day's aggregate covers
+optional:
+  data_completeness     TEXT      -- 'full' | 'partial' | 'sparse' based on expected vs. actual signals
+```
+
+**⚠ Confidence flag M3:** Is this meaningfully a molecule, or is it a query view? Same-day wearable atoms don't have the substantive co-belonging that lab_panel atoms do (same blood draw). Argument for keeping: stable join target + day-level metadata like `data_completeness`. Argument against: reducible to a query over wearable_signal_aggregate atoms by date. Revisit during S3 F1.
+
+#### Molecule 4 — `meal_event` *(⚠ ~60% confident — flagged for field-set revisit)*
+
+```
+required:
+  meal_recommendation_id TEXT     -- FK to the synthesized meal_recommendation that suggested this; null if user-initiated cooking
+  recipe_id             TEXT      -- FK to recipe in corpus
+  recipe_version        TEXT
+  meal_slot             TEXT      -- 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'special_occasion'
+  planned_for_date      TEXT      -- ISO 8601 date
+  household_eaters      JSON_ARRAY -- member IDs of who ate this; per Tension #5 abstracted-constraint-layer
+  cooked                BOOLEAN   -- true if cook_confirmation atom present
+optional:
+  reorient_event        BOOLEAN   -- per C5 Q5.5; true if user invoked "reorient tonight's meal"
+  reorient_reason       TEXT      -- 'time_constraint' | 'equipment' | 'ingredient_unavailable' | 'energy' | 'household_change' | 'other'
+  skipped               BOOLEAN   -- true if explicitly skipped (vs. just not yet cooked)
+  skip_reason           TEXT      -- if skipped
+```
+
+**⚠ Confidence flag M4:**
+- `meal_recommendation_id` is FK to a synthesized type that gets defined in the synthesized batch — circular dependency-ish; needs resolution
+- `household_eaters` only captures household members; doesn't accommodate guests / non-household eaters per [user-decision-framework.md "recipes may target household members or guests"](user-decision-framework.md). Schema may need a richer eater representation.
+- `cooked` + `skipped` as separate booleans might be better as a state-machine field per F1 (asynchrony / temporal state model: scheduled → cooking → cooked → skipped lifecycle)
+- Reorient_event is captured but **what changed** isn't — no field for the new constraint set the reorient applied. May need reorient_constraint_snapshot field.
+
+Revisit during S3 F1 + after synthesized batch lands.
+
+#### Molecule 5 — `document_upload` *(~85% confident)*
+
+```
+required:
+  primary_document_event_id TEXT  -- FK to document_upload_event atom (the upload event itself)
+  upload_purpose        TEXT      -- 'clinical_lab_results' | 'doctor_note' | 'recipe_to_ingest' | 'nutrition_reference' | 'other'
+  extraction_status     TEXT      -- 'pending' | 'in_progress' | 'completed' | 'failed' | 'partial'
+optional:
+  total_claims_extracted INTEGER  -- count of corpus_extracted_claim atoms produced
+  extraction_completed_at TEXT    -- ISO 8601 UTC
+  user_review_required  BOOLEAN   -- true if extraction surfaced low-confidence claims needing user review
+```
+
+#### Molecule 6 — `grocery_order` *(~85% confident)*
+
+```
+required:
+  retailer              TEXT      -- 'instacart_safeway' | 'kroger' | 'amazon_fresh' | 'manual_list_export' | etc.
+  ordered_at            TEXT      -- ISO 8601 UTC
+  delivery_window_start TEXT      -- ISO 8601 UTC
+  delivery_window_end   TEXT      -- ISO 8601 UTC
+  fulfillment_status    TEXT      -- 'placed' | 'shopping' | 'in_transit' | 'delivered' | 'cancelled' | 'failed'
+  cart_construction_method TEXT   -- 'recipe_link_handoff' | 'list_export_only' | 'manual' per D3 Q3.3
+optional:
+  retailer_order_id     TEXT      -- the retailer's own order ID for reference
+  scheduled_trip_id     TEXT      -- per D3 Q3.1 user-controlled cadence; null for ad-hoc orders
+  trip_part_of_split    INTEGER   -- 1 of N for multi-cart split per D3 Q3.1; null if single-cart
+  total_items_ordered   INTEGER
+  delivery_confirmed_at TEXT      -- ISO 8601 UTC
+```
+
+#### Molecule 7 — `recipe_document` *(⚠ ~65% confident — flagged for field-set revisit)*
+
+```
+required:
+  recipe_id             TEXT      -- canonical recipe ID; matches corpus markdown filename
+  attribution_record_id TEXT      -- FK to recipe_attribution_record atom
+  canonical_format      TEXT      -- 'cooklang' per D4 Q4.2
+  cuisine_tradition_tags JSON_ARRAY -- per D4 sweep #14 integration: ['western_shared_compound'] | ['japanese_umami_synergy'] | ['indian_masala_with_tadka'] | etc.
+  modality_availability JSON_ARRAY -- ['video' | 'structured_text' | 'cookbook_prose' | 'illustrated']; per C4 Q4.1
+optional:
+  ingredient_resolution_summary JSON  -- per D4 Q4.3: {fully_resolved: N, partial: N, unresolved: N}
+  novelty_skill_count   INTEGER   -- per Tension #7 honest disclosure metadata
+  failure_cost_tags     JSON_ARRAY -- ['deep_frying' | 'lamination' | 'fermentation' | etc.]
+  estimated_active_time_min INTEGER
+  estimated_total_time_min  INTEGER
+```
+
+**⚠ Confidence flag M7:**
+- `cuisine_tradition_tags` and `modality_availability` are duplicated between substrate molecule and corpus markdown frontmatter (S9). Need to decide which is source-of-truth.
+- `novelty_skill_count` and `failure_cost_tags` are user-context-conditional per Tension #7 honest disclosure — they only have meaning relative to a user's mastered-skills set. Storing them on the recipe molecule means precomputing for some default user profile; they likely belong in per-user `stretch_recipe_disclosure` synthesized entries (not on the recipe molecule itself).
+- The boundary between `recipe_document` molecule (substrate side) and corpus markdown file (corpus side) needs clearer delineation — both represent the same recipe.
+
+Revisit after S9 (corpus markdown frontmatter contract) lands + after synthesized batch lands.
+
+#### Molecule 8 — `week_of_meal_events` *(⚠ ~60% confident — flagged for revisit)*
+
+```
+required:
+  week_starting_date    TEXT      -- ISO 8601 date; Monday of the week
+  meal_event_count      INTEGER   -- total meal events in this week
+  cooked_count          INTEGER   -- meal events with cook_confirmation present
+optional:
+  weekly_pattern_summary JSON     -- aggregate signals: avg cooking_experience ratings, common feel-responses, etc.
+  household_meal_count  INTEGER   -- meal events shared by 2+ household eaters
+  individual_meal_count INTEGER   -- meal events for single household member
+```
+
+**⚠ Confidence flag M8:** Same fundamental question as M3 — is this a stored composition or a query view? Argument for storing: weekly-pattern-summary is meaningful aggregate metadata + horizon-broadening pacing might query frequently. Argument against: reducible to a query over meal_event molecules grouped by week. F1 (asynchrony / temporal state model) covers adjacent territory.
+
+### Lower-confidence flag summary
+
+Four molecules flagged for explicit revisit:
+- **M3** `wearable_daily_aggregate` — molecule vs. query view
+- **M4** `meal_event` — meal_recommendation_id circular dep, household_eaters guest gap, cooked/skipped vs. state machine, reorient_constraint_snapshot missing
+- **M7** `recipe_document` — substrate-vs-corpus duplication, user-context-conditional fields wrong layer, substrate/corpus boundary
+- **M8** `week_of_meal_events` — molecule vs. query view
+
+Schema-design phase tracks all four for revisit during S3 F1 (asynchrony / temporal state model) + after S9 (corpus markdown frontmatter contract) + after synthesized batch.
+
+### Sources
+
+User direction (2026-05-03) on molecule payload schemas batch with hybrid-A-and-C pattern: land all 8 with confidence flags rather than defer.
+
+---
+
+*Synthesized batch follows within this sub-block.*
