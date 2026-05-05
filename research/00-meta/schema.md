@@ -1244,4 +1244,194 @@ User direction throughout the Q5.1 → Q5.5 + Q5.2.1 dialogue (2026-05-04); user
 
 ---
 
-*S6 (authority table + ingredient identity resolution operational nuance per D4 deferred) is next.*
+## S6 — Authority table + ingredient identity resolution
+
+> Resolved 2026-05-04 across five sub-decisions Q6.1–Q6.5 (with sub-questions Q6.2.1, Q6.3.a/b/c, Q6.5.a/b.i/b.ii).
+
+### Decision
+
+**Single `authority_records` table** with `authority_namespace` discriminator + JSON payload for namespace-specific fields (consistent with S1/S4/S5 single-table-plus-discriminator pattern); **separate `authority_resolution_review_queue` table** for failed/ambiguous resolution attempts (per Q6.3.c) with PHI defense-in-depth marker; **hybrid trigram + embedding rerank** fuzzy match algorithm leveraging S5 embeddings layer; **two-threshold tier** confidence semantics mapping directly to S1 `authority_resolution_status` enum (`'fully_resolved' | 'partial' | 'unresolved_pending_review'`); **eager seed for small/internal namespaces** (cuisine, cooking_technique, pairing_role, nutrient) + **lazy seed on demand for vast vocabularies** (ingredient subset, clinical_code) with **selective DRE auto-trigger** per namespace; **DRE-created records stay at `'auto_resolved_high_confidence'`** tier until human review.
+
+### Q6.1 — Single authority_records table
+
+One `authority_records` table with `authority_namespace` discriminator (`'ingredient' | 'nutrient' | 'clinical_code' | 'cuisine' | 'cooking_technique' | 'pairing_role'`).
+
+- Mirrors the consistent pattern across S1/S4/S5 — single table + discriminator + JSON payload
+- `authority_resolution_status` from S1 references "an authority record" generically; type-uniform table simplifies FK semantics (atom rows reference authority via single table regardless of namespace)
+- Hybrid (c) was the genuine alternative (separate `authority_ingredients` table for the dominant-volume namespace) — rejected for consistency-first; per-namespace partial indexes addable later as optimization without schema churn
+
+### Q6.2 — Authority records schema
+
+```sql
+CREATE TABLE authority_records (
+  id                        TEXT PRIMARY KEY,            -- aut-{uuidv7}
+  authority_namespace       TEXT NOT NULL,               -- 'ingredient' | 'nutrient' | 'clinical_code' | 'cuisine' | 'cooking_technique' | 'pairing_role'
+  canonical_name            TEXT NOT NULL,               -- canonical English name
+  canonical_name_normalized TEXT NOT NULL,               -- lowercased + diacritic-stripped + whitespace-normalized for fuzzy match (computed at write time)
+  external_identifiers      TEXT NOT NULL,               -- JSON object: {"usda_fdc_id": "11215", "icd10": "I10", "snomed": "59621000", ...}
+  parent_authority_id       TEXT,                        -- FK to authority_records.id; NULL for root entries; supports hierarchies
+  aliases                   TEXT NOT NULL,               -- JSON array of alternate names + transliterations
+  display_metadata          TEXT,                        -- JSON; namespace-specific display hints (preferred unit for nutrients, common-pairing tags for ingredients)
+  payload                   TEXT NOT NULL,               -- JSON; namespace-specific authoritative fields per schema-of-schemas (per S2 Q2.5)
+  resolution_status         TEXT NOT NULL DEFAULT 'verified',  -- 'verified' | 'auto_resolved_high_confidence' | 'pending_review' | 'deprecated'
+  state_changed_at          TEXT NOT NULL,               -- ISO 8601 UTC
+  source_origin             TEXT NOT NULL,               -- JSON: which authoritative source(s) seeded this record (for publication-reproducibility + epistemic trail)
+  recorded_at               TEXT NOT NULL,               -- ISO 8601 UTC
+  valid_from                TEXT NOT NULL,               -- ISO 8601 UTC; bitemporal — authority records change over time
+  valid_until               TEXT,                        -- ISO 8601 UTC; NULL = currently valid
+  retraction_reason         TEXT,                        -- NULL | 'superseded' | 'merged_into_other' | 'deprecated_by_source'
+  superseded_by_id          TEXT,                        -- FK to authority_records.id; populated when this record was merged or superseded
+  system_version            TEXT NOT NULL,
+  component_version         TEXT NOT NULL,
+  payload_schema_version    TEXT NOT NULL,
+  publication_eligible      INTEGER NOT NULL DEFAULT 1,
+  CHECK (authority_namespace IN ('ingredient','nutrient','clinical_code','cuisine','cooking_technique','pairing_role')),
+  CHECK (resolution_status IN ('verified','auto_resolved_high_confidence','pending_review','deprecated'))
+);
+
+CREATE INDEX idx_aut_namespace_normname ON authority_records(authority_namespace, canonical_name_normalized) WHERE valid_until IS NULL;
+CREATE INDEX idx_aut_canonical_name      ON authority_records(canonical_name) WHERE valid_until IS NULL;
+CREATE INDEX idx_aut_parent              ON authority_records(parent_authority_id) WHERE valid_until IS NULL;
+```
+
+Schema rationale (the *why* per non-obvious column):
+
+- **`canonical_name_normalized`** — separate from `canonical_name` so the hot-path fuzzy-match index doesn't pay normalization cost per query
+- **`external_identifiers`** as JSON object — open-ended cross-DB mapping; avoids N×M join tables; queryable via `json_extract`
+- **`parent_authority_id`** — supports hierarchies (cantonese → chinese; gala_apple → apple; tadka → tempering); recursive CTE for traversal consistent with S4 Q4.5 + F7
+- **`aliases`** as JSON array — alternate names + spellings + transliterations; informs fuzzy-match candidate generation; internationalization-aware
+- **`display_metadata`** vs. **`payload`** — display-side hints separate from canonical authoritative data; display side may evolve faster
+- **`resolution_status`** 4-state lifecycle — `'verified'` (human-curated or seeded from authoritative source) / `'auto_resolved_high_confidence'` (DRE or LLM-resolved with confidence above threshold per D4) / `'pending_review'` / `'deprecated'`
+- **Bitemporal** (`valid_from`, `valid_until`) + **`superseded_by_id`** — authority records change over time (ICD-10 codes deprecated, ingredient definitions revised, cuisines re-categorized); bitemporal pattern lets old references stay resolvable; `superseded_by_id` redirects cleanly
+- **`source_origin`** — which authoritative source(s) seeded this record; critical for publication-reproducibility + epistemic trail (per E1)
+- **No `subject_id` / `subject_type`** — authority records aren't *about* a subject; they *are* the subject for other records to reference
+
+### Q6.2.1 — JSON-path index on external_identifiers (deferred to S11/S12)
+
+Hot-path lookup "find authority record by USDA FDC ID 11215" requires JSON-path index (via generated column) or full table scan. **Deferred to S11/S12** — generate columns added when actual query patterns prove out. We don't yet know the query mix (ingredient resolution dominant; clinical-code lookup may be cold path; pairing-role lookups tiny). Premature optimization at S6.
+
+### Q6.3 — Fuzzy match resolution algorithm + confidence semantics
+
+Operational pipeline: incoming text → resolver → authority record. Three stages:
+1. **Exact match on `canonical_name_normalized`** — instant; binds with confidence 1.0
+2. **Alias match** — query `aliases` JSON array; binds with confidence 0.95
+3. **Fuzzy match** — algorithm per Q6.3.a; binds at threshold per Q6.3.b; queues below threshold per Q6.3.c
+
+#### Q6.3.a — Hybrid trigram + embedding rerank (chosen)
+
+- **Trigram first-pass** via SQLite FTS5 trigram tokenizer (built-in; essentially free at our scale); eliminates obvious matches fast
+- **Embedding rerank** for ambiguous cases (3+ candidates within trigram-score band) — uses S5 embeddings layer; bounded cost
+- Authority records embedded under `subject_type='authority_record'` per S5 — operational dependency: every new authority record must be embedded (one-time + ongoing cost; meaningful for ingredient namespace at 100k+ records)
+- Rejected: pure trigram (weaker on semantic synonyms), pure Levenshtein (weaker on word-order), pure embedding (pays embedding-lookup cost per resolution; trigram first-pass keeps common case fast)
+
+#### Q6.3.b — Two-threshold tier (chosen)
+
+Maps directly to S1 `authority_resolution_status` enum:
+
+- **Above 0.90** → `'fully_resolved'` (auto-resolve)
+- **Between 0.75 and 0.90** → `'partial'` (resolved-but-flagged for opportunistic review)
+- **Below 0.75** → `'unresolved_pending_review'` (queue entry per Q6.3.c)
+
+Aggressive enough to keep user-review queue manageable + conservative enough to surface true ambiguity.
+
+#### Q6.3.c — Failed + ambiguous resolution attempts only (chosen)
+
+Successful auto-resolutions don't get audit-trail records (mostly noise; trillions of typical "garlic" → "garlic" cases). Failed/ambiguous attempts get recorded in `authority_resolution_review_queue` table per Q6.4 — feeds user-review UX, lets us improve the resolver over time, gives publication-reproducibility data on resolution accuracy.
+
+### Q6.4 — Authority resolution review queue
+
+```sql
+CREATE TABLE authority_resolution_review_queue (
+  id                          TEXT PRIMARY KEY,            -- arq-{uuidv7}
+  input_text                  TEXT NOT NULL,               -- as-received text that needed resolution
+  input_text_normalized       TEXT NOT NULL,               -- normalized form used in fuzzy match
+  authority_namespace         TEXT NOT NULL,
+  source_atom_id              TEXT NOT NULL,               -- loose polymorphic ref consistent with S4/S5
+  source_atom_type            TEXT NOT NULL,               -- 'atom' | 'molecule' | 'synthesized'
+  source_field_path           TEXT NOT NULL,               -- which field on the source held the unresolved text
+  phi_categories              TEXT NOT NULL,               -- JSON array; defense-in-depth per S5 Q5.2.1 pattern (queue entries can carry PHI)
+  candidate_authority_ids     TEXT NOT NULL,               -- JSON array of {authority_id, confidence_score, match_method}; AUDIT SNAPSHOT at attempt time; user-review UI re-runs resolution for fresh candidates
+  resolution_method_attempted TEXT NOT NULL,               -- 'trigram' | 'embedding_rerank' | 'hybrid'
+  triggered_by                TEXT NOT NULL,               -- 'recipe_ingest' | 'grocery_order' | 'intake_response' | 'corpus_extraction' | 'dynamic_research_expansion' | etc.
+  status                      TEXT NOT NULL DEFAULT 'pending',
+  state_changed_at            TEXT NOT NULL,
+  resolved_authority_id       TEXT,                        -- FK to authority_records.id when resolved
+  resolution_metadata         TEXT,                        -- JSON; flexible audit trail
+  recorded_at                 TEXT NOT NULL,
+  system_version              TEXT NOT NULL,
+  component_version           TEXT NOT NULL,               -- resolver pipeline version
+  CHECK (source_atom_type IN ('atom','molecule','synthesized')),
+  CHECK (status IN ('pending','resolved_by_user','resolved_by_system_update','created_new_authority','declined_unresolvable')),
+  CHECK (resolution_method_attempted IN ('trigram','embedding_rerank','hybrid'))
+);
+
+CREATE INDEX idx_arq_status_changed   ON authority_resolution_review_queue(status, state_changed_at) WHERE status = 'pending';
+CREATE INDEX idx_arq_source_atom      ON authority_resolution_review_queue(source_atom_id, source_atom_type);
+CREATE INDEX idx_arq_namespace        ON authority_resolution_review_queue(authority_namespace, status);
+```
+
+Status state machine (5 states):
+- `'pending'` — awaiting user action
+- `'resolved_by_user'` — user picked one of the candidates or created new
+- `'resolved_by_system_update'` — authority record was updated/added since queue entry; resolver re-attempted and now binds with high confidence (S8 operational dependency: replay job)
+- `'created_new_authority'` — user signaled "this is a new thing"; new authority record created and bound
+- `'declined_unresolvable'` — user signaled "this can't be resolved"; leave unresolved on source atom
+
+PHI defense-in-depth: `phi_categories` column carries the PHI marker copied from source atom at queue-entry write time. Unlike S5 there's no CHECK constraint (queue accepts any PHI category set; PHI-aware not PHI-restricted), but the column documents the routing concern + lets queue retention + cleanup + future cloud-bound resolution-improvement pipeline filter PHI entries deterministically.
+
+### Q6.5 — Seeding strategy + dynamic-research-expansion integration
+
+#### Q6.5.a — Eager seed for small/internal + lazy seed for vast vocabularies
+
+**Eager-seeded namespaces** (shipped with MVP DB; static-ish; fully populated):
+- **`nutrient`** — IOM/NAM DRI tables + WHO/FAO + INFOODS tagnames (~50-150 records)
+- **`cuisine`** — internal taxonomy from sweep #12 (~50-100 records)
+- **`cooking_technique`** — internal taxonomy from sweep #12 + sweep #14 (~100-200 records)
+- **`pairing_role`** — internal taxonomy from sweep #14 (~20-30 records)
+
+**Lazy-seeded namespaces** (seed minimally + expand on demand):
+- **`ingredient`** — seed "common pantry" subset (~5-10k records covering top ingredients in seeded recipes per sweep #11) at MVP; expand via DRE when resolution falls below threshold
+- **`clinical_code`** — seed nothing at MVP; populate on demand when `clinical_disclosure` references one and resolution succeeds against external source
+
+#### Q6.5.b.i — Selective DRE auto-trigger per namespace
+
+Per-namespace policy in resolver config:
+- **Auto-trigger DRE** for namespaces with well-documented authoritative APIs + high resolution success rates (`ingredient`, `clinical_code`)
+- **User-trigger DRE only** for namespaces without canonical external APIs (`cuisine`, `cooking_technique`, `pairing_role`) — auto-triggering would mostly fail
+
+#### Q6.5.b.ii — DRE-created records stay at 'auto_resolved_high_confidence'
+
+When DRE creates a new authority record from external API:
+- `resolution_status` defaults to `'auto_resolved_high_confidence'` (NOT `'verified'`)
+- Promotion to `'verified'` requires human review
+- Keeps the verification tier honest — `'verified'` is reserved for human-curated or seeded-from-authoritative-source records
+
+`source_origin` JSON records the DRE fetch + API source + epistemic-trail verification chain.
+
+### Out of scope at S6 (deferred)
+
+- **Authority-record dedup-suggestion job** — periodic scan for fuzzy-similar authority records within same namespace; surfaces merge candidates for human review (S8). Schema accommodates merges via `superseded_by_id` + `valid_until` columns.
+- **Queue replay-on-update job** — when authority records change, replay pending queue entries to see if any now resolve at high confidence; supports `'resolved_by_system_update'` status (S8)
+- **JSON-path index on `external_identifiers`** — generate columns + indexes per common identifier system; deferred to S11/S12 once query patterns prove out
+- **Authority-record embedding pipeline cost** — embedding ~10k+ ingredients at MVP + ongoing per DRE expansion; operational planning lands in S8
+
+### Schema impact summary
+
+After S6:
+
+- **2 new tables** — `authority_records` + `authority_resolution_review_queue`
+- **6 authority namespaces** — ingredient, nutrient, clinical_code, cuisine, cooking_technique, pairing_role
+- **Hot-path index** — `(authority_namespace, canonical_name_normalized)` partial on `valid_until IS NULL`
+- **Two-threshold tier** mapping resolver confidence → S1 `authority_resolution_status` enum
+- **Hybrid trigram + embedding rerank** algorithm leveraging S5 embeddings layer
+- **PHI defense-in-depth** on review queue (column carrying marker, no CHECK)
+- **Eager + lazy seeding** with selective DRE auto-trigger per namespace
+- **Three S8 operational dependencies flagged:** dedup-suggestion job, queue replay-on-update job, authority-record embedding pipeline cost
+
+### Sources
+
+User direction throughout the Q6.1 → Q6.5 dialogue (2026-05-04); user prompted Q6.4 critical re-look (surfaced PHI marker omission as significant adjustment + slimmed `resolution_method_attempted` enum + clarified `candidate_authority_ids` audit-snapshot semantics).
+
+---
+
+*S7 (verification rule-set per B2 epistemic trail verification) is next.*
