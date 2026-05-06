@@ -16,7 +16,7 @@ Stage 3.5 is the schema-design phase that resolves the deferred refinements coll
 
 ### Decision
 
-**Single-table-per-layer + JSON payload** (three tables: `atom`, `molecule`, `synthesized_entry`); **15 shared base columns** spanning provenance, evidence, confidence, bitemporal lifecycle, retraction, versioning, consent, PHI, authority resolution; **typed prefix + UUIDv7** for IDs (`atm-...`, `mol-...`, `syn-...`); **UTC always** for all timestamps; **dual JSON schema validation** (application code primary + SQLite CHECK constraints as safety net).
+**Single-table-per-layer + JSON payload** (three tables: `atom`, `molecule`, `synthesized_entry`); **15 shared base columns at S1, expanded to 24 after S7** spanning provenance, evidence, confidence, bitemporal lifecycle, retraction, versioning, consent, PHI, authority resolution, and verification status (S7 adds `verification_status` + `last_verified_at` + `verification_summary`); **typed prefix + UUIDv7** for IDs (`atm-...`, `mol-...`, `syn-...`); **UTC always** for all timestamps; **dual JSON schema validation** (application code primary + SQLite CHECK constraints as safety net).
 
 ### Q1.1 — Single-table-per-layer + JSON payload
 
@@ -1434,4 +1434,194 @@ User direction throughout the Q6.1 → Q6.5 dialogue (2026-05-04); user prompted
 
 ---
 
-*S7 (verification rule-set per B2 epistemic trail verification) is next.*
+## S7 — Verification rule-set per B2 epistemic trail verification
+
+> Resolved 2026-05-05 across five sub-decisions Q7.1–Q7.5 (with sub-questions Q7.3.a/b, Q7.4.a/b, Q7.5.a/b).
+
+### Decision
+
+**Hybrid code-plus-data verification rules** (code defines rule kinds + execution machinery; data defines rule instances + parameters); **two new tables** — `verification_rules` (rule definitions) + `verification_results` (per-(record, rule, run) audit trail) — plus **inline summary columns added to S1 base column set** (verification_status + last_verified_at + verification_summary growing the base set from 21 to 24 columns); **hybrid write-time-for-critical-rules + async-default execution** with `runs_at_write_time` column flagging which rules block writes; **hybrid targeted reverse-index + low-frequency full-sweep re-verification triggers**; **fails + warnings surface by default** in epistemic trail UX; **conditional manual re-verify with soft rate-limit + transparent messaging** per anti-paternalism + epistemic-honesty pattern.
+
+### Q7.1 — Hybrid code-plus-data rules
+
+Pure code makes rule additions/changes require code releases; pure data forces complex execution machinery into the substrate (interpreters, DSL evaluators) and can't fully accommodate LLM-causal-explanation rules. Hybrid maps naturally onto rule categories — range/reference/cross-field checks are highly parameterizable + data-friendly; LLM-causal-explanation is inherently code-driven.
+
+Likely rule kinds at MVP: `'range_check'` | `'reference_resolves'` | `'unit_valid'` | `'cross_field_consistency'` | `'derivation_math_check'` | `'authority_namespace_match'` | `'llm_causal_explanation'`. Adding a new kind requires both code (executor) + data (rule instances) work — manageable but means rule-kind set evolves slowly.
+
+Maps onto S2 schema-of-schemas pattern (Q2.5) — canonical declarative file + per-type modules.
+
+### Q7.2 — verification_rules table schema
+
+```sql
+CREATE TABLE verification_rules (
+  id                       TEXT PRIMARY KEY,            -- vrl-{uuidv7}
+  rule_kind                TEXT NOT NULL,
+  applies_to_type          TEXT NOT NULL,               -- target type discriminator (e.g., 'lab_analyte_value', 'inference', '*' for type-agnostic)
+  applies_to_layer         TEXT NOT NULL,               -- 'atom' | 'molecule' | 'synthesized' | 'relationship' | '*'
+  applies_to_field_path    TEXT,                        -- JSON path within payload the rule targets; NULL for whole-record rules
+  rule_payload             TEXT NOT NULL,               -- JSON; rule-kind-specific parameters
+  rule_severity            TEXT NOT NULL DEFAULT 'blocking',  -- 'blocking' | 'warning' | 'advisory'
+  runs_at_write_time       INTEGER NOT NULL DEFAULT 0,  -- per Q7.4.a: 1 = write-time blocking; 0 = async post-write
+  rule_description         TEXT NOT NULL,               -- markdown; user-facing in epistemic trail drill-in
+  rule_description_format  TEXT NOT NULL DEFAULT 'markdown',
+  source_origin            TEXT NOT NULL,               -- JSON: where rule came from (manual_seed, sweep_<n>, dre_authority_update, regulatory_source, etc.)
+  evidence_tier            INTEGER,                     -- when rule grounded in literature (e.g., biological-plausibility ranges from clinical guidelines)
+  active                   INTEGER NOT NULL DEFAULT 1,
+  recorded_at              TEXT NOT NULL,
+  valid_from               TEXT NOT NULL,
+  valid_until              TEXT,                        -- bitemporal — rules deprecate as authority sources update
+  retraction_reason        TEXT,
+  superseded_by_id         TEXT,                        -- FK to verification_rules.id when rule was revised
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,               -- rule executor version (rule_kind machinery changes)
+  payload_schema_version   TEXT NOT NULL,               -- rule_payload schema version
+  publication_eligible     INTEGER NOT NULL DEFAULT 1,
+  CHECK (rule_kind IN ('range_check','reference_resolves','unit_valid','cross_field_consistency','derivation_math_check','authority_namespace_match','llm_causal_explanation')),
+  CHECK (applies_to_layer IN ('atom','molecule','synthesized','relationship','*')),
+  CHECK (rule_severity IN ('blocking','warning','advisory')),
+  CHECK (runs_at_write_time IN (0,1))
+);
+
+CREATE INDEX idx_vrl_target          ON verification_rules(applies_to_layer, applies_to_type, active) WHERE valid_until IS NULL;
+CREATE INDEX idx_vrl_kind            ON verification_rules(rule_kind, active) WHERE valid_until IS NULL;
+CREATE INDEX idx_vrl_writetime       ON verification_rules(runs_at_write_time, active) WHERE valid_until IS NULL;
+```
+
+Schema rationale per non-obvious column:
+
+- **`applies_to_type` + `applies_to_layer` + `applies_to_field_path`** — three-part target spec; wildcards (`'*'`) for type-agnostic rules
+- **`rule_payload`** examples by kind:
+  - `range_check`: `{"min": 0, "max": 200, "unit": "ng_mL", "applies_when": {"$.analyte_canonical_id": "aut-vitamin-d"}}`
+  - `reference_resolves`: `{"reference_path": "$.analyte_canonical_id", "must_exist_in": "authority_records", "namespace": "nutrient"}`
+  - `cross_field_consistency`: `{"fields": ["$.measurement_period_start", "$.measurement_period_end"], "constraint": "start_before_end"}`
+  - `llm_causal_explanation`: `{"prompt_template_id": "...", "expected_inference_pattern": "..."}`
+- **`rule_severity`** three tiers — `'blocking'` prevents the record from being written/marked-verified; `'warning'` flags but doesn't block; `'advisory'` logs but doesn't surface to user
+- **`runs_at_write_time`** flag (per Q7.4.a) — write-time-blocking rules typically: all `reference_resolves` (otherwise we write atoms with broken FKs), all `unit_valid` (cheap; structural), all blocking-severity `range_check` (cheap; user-protection). Async-only: `cross_field_consistency` (some non-trivial), `derivation_math_check` (some need DB context), all `llm_causal_explanation` (cost-prohibitive at write time)
+- **Bitemporal columns** — rules deprecate; bitemporal lets old verification results stay interpretable against the rule version that ran them
+- **`component_version`** distinct from `payload_schema_version` — executor machinery may change independently of rule payload schema; both matter for reproducibility
+
+**Rule-count expectation at MVP:** with 18 atom + 6 molecule + 15 synthesized = 39 type schemas, and likely 3-10 rules per type, rule count lands ~150-400 records. Manageable; seeding strategy needs care (deliberately authored, not boilerplate auto-generated).
+
+### Q7.3 — Verification results storage (hybrid summary + detail)
+
+#### Q7.3.a — Hybrid: inline summary + separate detail table
+
+Inline summary on the verified record (status access is hot path — every UX surface that drills into epistemic trail asks "is this verified?" first); full detail in separate `verification_results` table for audit-grade queries.
+
+Pure inline-only forces every record's payload to carry result history (bloats records that get re-verified frequently); pure separate-only loses fast status access (forces a join + aggregation for every status check).
+
+#### Q7.3.b — verification_results table schema
+
+```sql
+CREATE TABLE verification_results (
+  id                            TEXT PRIMARY KEY,            -- vrs-{uuidv7}
+  rule_id                       TEXT NOT NULL,               -- FK to verification_rules.id
+  rule_version_at_run           TEXT NOT NULL,               -- snapshot of verification_rules.component_version at run time
+  subject_id                    TEXT NOT NULL,               -- record being verified (loose polymorphic per S4/S5/S6)
+  subject_type                  TEXT NOT NULL,               -- 'atom' | 'molecule' | 'synthesized' | 'relationship'
+  subject_layer_record_version  TEXT,                        -- snapshot of subject's component_version + payload_schema_version at run time
+  outcome                       TEXT NOT NULL,               -- 'pass' | 'warning' | 'fail' | 'error_executor' | 'skipped_inapplicable'
+  outcome_detail                TEXT,                        -- markdown; for warnings/fails, what specifically went wrong + which field path
+  outcome_detail_format         TEXT NOT NULL DEFAULT 'markdown',
+  rule_kind_at_run              TEXT NOT NULL,               -- snapshot of rule_kind at run time
+  evidence_observed             TEXT,                        -- JSON; for cross-field/range/causal-explanation rules, actual values observed
+  llm_provider                  TEXT,                        -- for rule_kind = 'llm_causal_explanation' only
+  llm_model                     TEXT,                        -- for rule_kind = 'llm_causal_explanation' only
+  llm_request_id                TEXT,                        -- correlation to operational event log (S8) for LLM-based verifications
+  ran_at                        TEXT NOT NULL,
+  ran_by                        TEXT NOT NULL,               -- 'system_pipeline' | 'manual_user_trigger' | 'dre_post_authority_update' | etc.
+  recorded_at                   TEXT NOT NULL,
+  system_version                TEXT NOT NULL,
+  component_version             TEXT NOT NULL,               -- verification executor pipeline version
+  CHECK (subject_type IN ('atom','molecule','synthesized','relationship')),
+  CHECK (outcome IN ('pass','warning','fail','error_executor','skipped_inapplicable'))
+);
+
+CREATE INDEX idx_vrs_subject       ON verification_results(subject_id, subject_type, ran_at DESC);
+CREATE INDEX idx_vrs_outcome       ON verification_results(outcome, ran_at) WHERE outcome IN ('warning','fail','error_executor');
+CREATE INDEX idx_vrs_rule          ON verification_results(rule_id, ran_at);
+```
+
+Schema rationale per non-obvious column:
+
+- **`rule_version_at_run` + `subject_layer_record_version`** — both snapshots needed because rules and records both evolve; results must remain interpretable against the versions that produced them. Without these, re-verification triggers (rule updated → re-verify; subject mutated → re-verify) can't tell whether a stored result is stale
+- **`outcome` 5-state enum** distinguishes:
+  - `'pass'` — rule passed
+  - `'warning'` — rule failed at warning severity
+  - `'fail'` — rule failed at blocking severity
+  - `'error_executor'` — rule didn't execute properly (LLM call failed, malformed rule_payload, etc.); distinct from rule semantics
+  - `'skipped_inapplicable'` — rule's `applies_when` clause didn't match this record; recorded for completeness
+- **`outcome_detail`** as markdown — user-facing surface in epistemic trail audit view (per B2 + C5)
+- **`evidence_observed`** as JSON — for range/cross-field/causal-explanation rules, the actual values; lets audit reconstruct *why* the rule failed without re-fetching the record at result-display time
+- **`llm_*` columns** populated only for `llm_causal_explanation` kind — lets audit reproduce + trace LLM-based verification calls; `llm_request_id` correlates to operational event log (S8)
+- **`ran_by`** — provenance: who triggered the verification run (pipeline scheduled, user manual trigger, DRE post-authority-update job)
+
+#### S1 base column expansion (21 → 24 columns)
+
+Three new columns added to the canonical S1 base column set across all atom/molecule/synthesized/relationship layers:
+
+```sql
+verification_status      TEXT,                          -- NULL | 'verified' | 'verified_with_warnings' | 'verification_failed' | 'verification_pending' | 'verification_inapplicable'
+last_verified_at         TEXT,                          -- ISO 8601 UTC; latest verification run
+verification_summary     TEXT                           -- JSON: {pass: N, warning: N, fail: N, error: N, skipped: N}
+```
+
+Reason for inline-summary cost (3 columns × every record on every layer): status access is hot path for every UX surface that drills into epistemic trail. Without inline summary, every status check forces a join to `verification_results` + aggregation. Per Q7.3.a hybrid pattern.
+
+### Q7.4 — Verification triggers + cadence
+
+#### Q7.4.a — Hybrid write-time-for-critical + async-default
+
+`verification_rules.runs_at_write_time` column (added to Q7.2 schema) flags which rules block writes:
+
+- **Write-time blocking** (default for): all `reference_resolves` rules (otherwise atoms with broken FKs land in substrate), all `unit_valid` rules (cheap; structural), all blocking-severity `range_check` rules (cheap; user-protection)
+- **Async post-write** (default for): `cross_field_consistency` rules (some non-trivial), `derivation_math_check` rules (some need DB context), all `llm_causal_explanation` rules (cost-prohibitive at write time — adding 2-5 seconds per inference write breaks C5 daily-cadence interaction model)
+
+Pure write-time would protect correctness but break interaction model under LLM-causal-explanation overhead; pure async would write objectively-broken records (broken FKs, invalid units). Hybrid keeps writes fast for the common case while preserving structural integrity.
+
+#### Q7.4.b — Hybrid targeted reverse-index + low-frequency full sweep
+
+- **Targeted reverse-index** at change time — when authority records or rules change, query substrate for records that referenced the changed authority/rule; enqueue them. Reverse-lookup indexes already exist for the reference relationships (per S4 + S6 patterns)
+- **Low-frequency full sweep** (weekly/monthly) — background job runs all rules against all records; catches drift cases (results stored against old rule versions, LLM-causal-explanation drift, edge-case re-verification missed by targeted invalidation)
+
+S8 territory for the operational details of both pipelines.
+
+### Q7.5 — Verification surface in epistemic trail UX
+
+#### Q7.5.a — Fails + warnings surface by default
+
+`outcome IN ('fail', 'error_executor', 'warning')` surfaces by default in inline drill-in; advisory hidden until user opts to see them. Aligns with `rule_severity` enum where `'advisory'` was defined as "log but don't surface" (Q7.2). Honest about meaningful issues without noise from advisory-tier checks.
+
+#### Q7.5.b — Conditional manual re-verify with soft rate-limit
+
+Per [C5 Q5.4 dedicated audit view](architecture.md#c5--daily-cadence-interaction-model): "re-verify now" button surfaces conditionally — only when `last_verified_at` is older than threshold OR when current `verification_status = 'verification_pending'`. Anti-noise (don't show button when verification just ran); user-empowering (surface when staleness is plausible). Per [user-decision-framework.md](user-decision-framework.md) "surface + let user decide" pattern.
+
+**Soft rate-limit on manual re-verification:** if user re-verifies a record N times in a window (e.g., 3 in an hour), surface transparent message: *"You've re-verified this 3 times in the last hour; verification re-runs the same logic and the result is unlikely to change unless source data changed."* Friction, not block — per anti-paternalism (sweep #14/Tension #7) + cost transparency (LLM-causal-explanation re-verifications hit cloud LLM with real cost).
+
+### Out of scope at S7 (deferred)
+
+- **Targeted re-verification queue mechanics + low-frequency full-sweep job** — operational pipeline lands in S8
+- **Per-rule seeding from sweep findings** — the actual rule instances at MVP (vitamin D plausibility ranges from sweep #1 DRI tables, ingredient-resolution rules from sweep #11 corpus, etc.) are content-not-schema; tracked for build phase
+- **Soft rate-limit window + thresholds** — UX details (3 per hour? 10 per session?); build-phase decision
+- **`evidence_observed` JSON shape per rule kind** — declared in canonical schema-of-schemas (per S2 Q2.5); concrete shapes land alongside per-rule-kind executors at build time
+
+### Schema impact summary
+
+After S7:
+
+- **2 new tables** — `verification_rules` + `verification_results`
+- **S1 base column set grows from 21 to 24 columns** — `verification_status` + `last_verified_at` + `verification_summary` added across all atom/molecule/synthesized/relationship layers
+- **7 verification rule kinds** — range_check, reference_resolves, unit_valid, cross_field_consistency, derivation_math_check, authority_namespace_match, llm_causal_explanation
+- **3 rule severities** — blocking, warning, advisory
+- **5 verification outcomes** — pass, warning, fail, error_executor, skipped_inapplicable
+- **6 verification-status states on records** — verified, verified_with_warnings, verification_failed, verification_pending, verification_inapplicable, NULL
+- **`runs_at_write_time` flag on rules** — separates synchronous (block-on-write) from asynchronous (post-write) verification per Q7.4.a
+- **Two S8 operational dependencies flagged from S7:** targeted re-verification queue mechanics, low-frequency full-sweep job
+
+### Sources
+
+User direction throughout the Q7.1 → Q7.5 dialogue (2026-05-04 → 2026-05-05); user prompted explicit confirmation on the S1 base column expansion since adding 3 columns to the canonical base set across all layers is non-trivial.
+
+---
+
+*S8 (operational DB tables — audit log + epistemic-trail event log + PHI crossing records + session state + cycle-state for B3+E4) is next.*
