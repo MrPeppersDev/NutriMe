@@ -2264,4 +2264,144 @@ User direction throughout the Q10.1 → Q10.3 dialogue (2026-05-06); user prompt
 
 ---
 
-*S11 (foreign keys + referential integrity) is next.*
+## S11 — Foreign keys + referential integrity
+
+> Resolved 2026-05-06 across five sub-decisions Q11.1–Q11.5 (with sub-questions Q11.5.a/b).
+
+### Decision
+
+**SQLite-enforced FOREIGN KEY constraints** for tight single-table references with per-FK ON DELETE semantics matched to bitemporal pattern (most "deletes" are `valid_until` updates, not hard deletes); **application-layer enforcement + orphan-sweep job** for loose polymorphic references (consistent with S5 Q5.5 / S6 / S8 patterns; build-time (ζ) revisit flag for `subject_registry` alternative); **hybrid validate-on-write/validate-on-read** for cross-DB substrate↔corpus references with manifest snapshot stored in existing `op_corpus_refresh_cycle_state` table; **application-layer policy parameter** for bitemporal-aware reference resolution (current_only / point_in_time / latest_version) with single global default `'current_only'` + explicit overrides; **daily lightweight + weekly comprehensive integrity sweeps** with surface + auto-remediation pattern (γ) consistent with user-decision-framework.
+
+### Q11.1 — SQLite FOREIGN KEY enforcement on tight single-table FKs
+
+`PRAGMA foreign_keys = ON` for the substrate + operational DBs. SQLite's FK enforcement is mature + cheap at our scale; defense-in-depth catches application-layer bugs that would otherwise corrupt the substrate.
+
+Per-FK ON DELETE semantics:
+
+| Reference | ON DELETE clause | Rationale |
+|---|---|---|
+| `atom.composition_id → molecule.id` | `SET NULL` | Atom may exist without molecule per S2 + S3 F1; molecule deletion shouldn't cascade-delete atoms |
+| `authority_resolution_review_queue.resolved_authority_id → authority_records.id` | `SET NULL` | Review entry preserved as historical record; authority might be merged via `superseded_by_id` |
+| `authority_records.parent_authority_id → authority_records.id` | `SET NULL` | Hierarchy reorganization shouldn't cascade-delete children |
+| `authority_records.superseded_by_id → authority_records.id` | `SET NULL` | Supersession chain may revise; don't cascade |
+| `verification_rules.superseded_by_id → verification_rules.id` | `SET NULL` | Same reasoning |
+| `verification_results.rule_id → verification_rules.id` | `RESTRICT` | Don't allow deleting a rule that has historical results; deprecate via `valid_until` |
+| `relationships.superseded_by_id → relationships.id` (via `Supersedes` semantics, not FK column) | N/A | Handled at relationship-type level, not FK |
+| `op_job_execution_log.job_id → op_job_queue.id` | `CASCADE` | Operational tables; pruning a job prunes its execution logs |
+
+**Bitemporal pattern + FK interaction:** most "deletes" in the substrate are `valid_until` updates, not hard deletes. FKs reference by `id`, so a referenced row with `valid_until` populated is still SQL-valid. References stay resolvable to historical versions per the bitemporal pattern. Hard deletes are reserved for the rare case of consent withdrawal per E2 right-to-withdraw.
+
+### Q11.2 — Loose polymorphic reference integrity (application-layer + orphan-sweep)
+
+SQL FKs can't enforce loose polymorphic references (subject_id + subject_type → one of N tables). Four patterns considered:
+- (a) application-layer enforcement only — chosen
+- (b) `subject_registry` lookup table — adds write to every substrate row + transactional complexity across tables
+- (c) per-type CHECK constraint with subquery — not supported by SQLite for cross-table refs
+- (d) trigger-based enforcement — silent execution; hard to debug; loses schema-as-documentation benefit
+
+**Chosen: (a) application-layer enforcement + orphan-sweep** consistent with S5 Q5.5 / S6 / S8 patterns. Orphan-sweep job already in scope for S8 — single `op_job_queue` `job_kind = 'orphan_sweep_polymorphic_refs'` handles all polymorphic-ref sites, not separate jobs per site.
+
+**Build-time (ζ) revisit flag (per S5 Q5.3):** if sqlite-vec virtual tables and broader S11 polymorphic-FK exploration prove `subject_registry` (b) viable at build time, application-layer surface (resolver per Q5.5) doesn't change. Tracked in roadmap.
+
+### Q11.3 — Cross-DB references (substrate ↔ markdown corpus)
+
+Per S9, corpus content lives in markdown files; substrate references corpus via canonical_id strings. SQL FK can't enforce filesystem references.
+
+Three patterns considered:
+- (a) all-write-time validation against corpus manifest
+- (b) validate-on-read only with graceful degradation
+- (c) hybrid validate-on-write for tight refs + validate-on-read for soft refs — chosen
+
+**Chosen: (c) hybrid mapping to actual use case:**
+- **Atom-level refs** (cook_confirmation.recipe_id, meal_event.recipe_id): validated on write — broken refs at write time are bugs
+- **Synthesized-level refs** (recommendation rationale that mentions a corpus concept_id): validated on read — synthesized records may intentionally reference removed content as historical context
+
+**Manifest mechanism:**
+- Corpus-side `manifest.json` enumerated by content_type, listing `(canonical_id, content_type, last_modified_at)` tuples
+- Generated by the same hybrid sync pipeline from Q9.4.b (synchronous validation step generates/updates manifest as part of corpus changes)
+- Substrate's atom-level write code reads manifest at validation time
+- **Manifest snapshot stored in existing `op_corpus_refresh_cycle_state` table** (S8) via `payload` JSON — reuses existing operational table; no new schema; refreshed by `corpus_index_sync` job per Q9.4.b
+
+Filesystem queries from substrate-write code rejected — slow + filesystem-coupling concerns (read-side and write-side processes might see different snapshots). Operational-DB snapshot is cleaner.
+
+### Q11.4 — Bitemporal-aware FK semantics
+
+Three reference-resolution policies per call-site context:
+- **`current_only`** — resolver returns NULL if target's `valid_until IS NOT NULL`; for live UX surfaces
+- **`point_in_time`** — resolver returns target as it existed at specified timestamp; for historical reconstruction
+- **`latest_version`** — resolver follows `superseded_by_id` chain to current replacement; for canonical-version queries
+
+These aren't mutually exclusive — different call sites need different policies.
+
+**Chosen: (a) application-layer policy parameter + (i) single global default `'current_only'` with explicit overrides.**
+
+```python
+resolver.resolve(subject_id, subject_type, policy='current_only')
+resolver.resolve(subject_id, subject_type, policy='point_in_time', as_of=timestamp)
+resolver.resolve(subject_id, subject_type, policy='latest_version')
+```
+
+Default policy when not specified: `'current_only'` (safe-for-UX default).
+
+Rejected alternatives:
+- (b) denormalized cache columns per policy — column count explosion + sync complexity
+- (c) per-context default registry — adds machinery for what's really a per-call-site decision
+
+**Audit-surface call sites must explicitly pass `policy='point_in_time'`** per epistemic-trail UX requirements (B2 + C5). Discipline rather than per-context default registry.
+
+### Q11.5 — Periodic referential integrity verification
+
+Three integrity layers established:
+- **Continuous (write-time):** SQLite FKs (Q11.1) + application-layer validation (Q11.2, Q11.3)
+- **Targeted (event-driven):** orphan-sweep job runs when retire/delete events happen
+- **Periodic (low-frequency full sweep):** comprehensive integrity check across all reference types
+
+#### Q11.5.a — Daily lightweight + weekly comprehensive cadence
+
+Two new `op_job_queue` `job_kind` values:
+- **`'integrity_sweep_lightweight'`** — daily; runs aggregate orphan counts per polymorphic-ref site; logs deltas. Catches trending issues fast (orphan count spike means recent operational regression).
+- **`'integrity_sweep_comprehensive'`** — weekly; iterates every reference; logs every orphan/broken-ref found; populates user-visible audit trail per C5 Q5.4. Catches edge cases that aggregate counts miss.
+
+#### Q11.5.b — Surface + auto-remediation pattern (γ)
+
+Auto-remediation policy per reference type:
+
+| Issue | Auto-remediation | Surface |
+|---|---|---|
+| Orphan embedding rows (subject no longer resolves) | Auto-retire via S5 `status='retired'` | Logged to `op_event_log` |
+| Orphan verification_results rows (subject or rule no longer resolves) | Auto-retire | Logged to `op_event_log` |
+| Orphan `op_event_log` rows (subject no longer resolves) | Leave in place | N/A — append-only audit trail; not load-bearing |
+| Broken cross-DB refs (substrate references missing corpus) | Surface for review; never auto-delete substrate rows since they may still be downstream-referenced | Audit view per C5 Q5.4 |
+| Other inconsistencies surfaced by sweep | Surface for review | Audit view per C5 Q5.4 |
+
+Consistent with user-decision-framework "surface + let user decide" pattern: auto-remediates the safe cases + surfaces the unsafe ones for human review.
+
+**Auto-remediation transparency:** every auto-remediation logs to `op_event_log` with `event_kind = 'system'` + `event_subkind = 'auto_remediation'` so the audit view can surface "the system retired N orphan embeddings on date X" per epistemic-trail.md transparency principle.
+
+### Out of scope at S11 (deferred)
+
+- **Specific orphan-sweep query implementations** per polymorphic-ref site — build-time concern
+- **Sweep scheduling specifics** (which time of day, etc.) — operational tuning
+- **Manifest cache TTL + invalidation** within `op_corpus_refresh_cycle_state` — operational tuning
+- **Resolver implementation language/library** — build-time decision
+- **(ζ) `subject_registry` alternative for loose polymorphic refs** — build-time validation per S5 Q5.3 cleanup pass; if sqlite-vec virtual tables prove FK-friendly, the broader (ζ) collapse may include polymorphic-ref handling refactor
+
+### Schema impact summary
+
+After S11:
+
+- **`PRAGMA foreign_keys = ON`** + per-FK ON DELETE clauses (SET NULL / RESTRICT / CASCADE)
+- **Application-layer enforcement + orphan-sweep** for all loose polymorphic references; consistent with S5/S6/S8 patterns
+- **Hybrid cross-DB validation** with manifest snapshot in `op_corpus_refresh_cycle_state` (no new operational table)
+- **Three reference-resolution policies** at application surface (`current_only` / `point_in_time` / `latest_version`); single global default + explicit overrides
+- **Two new `op_job_queue` job_kind values:** `'integrity_sweep_lightweight'` (daily) + `'integrity_sweep_comprehensive'` (weekly)
+- **Surface + auto-remediation pattern** with per-reference-type auto-remediation policy + transparency logging via `op_event_log`
+- **Build-time (ζ) revisit flag** for `subject_registry` alternative in roadmap
+
+### Sources
+
+User direction throughout the Q11.1 → Q11.5 dialogue (2026-05-06); critical re-look items surfaced bitemporal-pattern interaction with FK semantics (Q11.1), reuse of existing operational table for manifest snapshot rather than new table (Q11.3), audit-trail call-site discipline for `point_in_time` policy (Q11.4), auto-remediation transparency logging (Q11.5.b).
+
+---
+
+*S12 (migration strategy) is next — final sub-block of Stage 3.5.*
