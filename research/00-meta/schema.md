@@ -1624,4 +1624,295 @@ User direction throughout the Q7.1 → Q7.5 dialogue (2026-05-04 → 2026-05-05)
 
 ---
 
-*S8 (operational DB tables — audit log + epistemic-trail event log + PHI crossing records + session state + cycle-state for B3+E4) is next.*
+## S8 — Operational DB tables
+
+> Resolved 2026-05-05 across three sub-decisions Q8.1–Q8.3 (with sub-questions Q8.2.a-e).
+
+### Decision
+
+**Knowledge/infrastructure boundary** as load-bearing criterion separating substrate (what the system knows) from operational (how the system worked); **two-layer pattern** of substrate-atom + heavy operational-counterpart correlated via `request_id` (e.g., S2 Atom 18 `phi_crossing_event` substrate ↔ `op_llm_request_log` operational); **8 operational tables at MVP** spanning event log + session/state + cycle-state + job queue families; **`op_event_log` collapses audit + epistemic-trail + system events** into single table with `event_kind` discriminator (consistent with S4-S6 single-table-plus-discriminator pattern); **single `op_job_queue`** with `job_kind` discriminator covering the 5 S6+S7 operational dependencies; **generic-payload pattern** for build-time-heavy tables (`op_agent_orchestration_state`, `op_dre_cycle_state`, `op_corpus_refresh_cycle_state`) — schema stable, payload shape build-time-determined; **PHI defense-in-depth on `op_llm_request_log`** (`phi_categories TEXT NOT NULL` + `CHECK (phi_categories = '[]')` — same pattern as S5 Q5.2.1 / S6 Q6.4); `op_user_session` dropped as speculative (UI session state is client-side concern at A1+A2 deployment model).
+
+### Q8.1 — Knowledge/infrastructure boundary + two-layer pattern
+
+The substrate-vs-operational decision rule: ask "does this represent something the system *knows*, or how the system *worked*?"
+
+- **Substrate**: atoms, molecules, synthesized, relationships, authority records, verification rules + results (verification *outcomes* are knowledge about a record's trustworthiness)
+- **Operational**: HTTP/LLM call logs, session state, intake-session in-progress state, job queue entries
+
+**Two-layer pattern:** operational tables are the heavy/transient counterpart to lighter substrate atoms that reference them. Substrate `audit_log_entry` (S2 Synthesized 16) is a knowledge-record about the operation; operational `op_event_log` is the heavy detail. Substrate `phi_crossing_event` (S2 Atom 18) carries *what crossed*; operational `op_llm_request_log` carries the full request/response payload + timing + retry state. Correlation via shared `request_id`.
+
+Three framings hold in alignment but knowledge/infrastructure (b) is the load-bearing one:
+- (a) mutable/immutable is mostly a consequence of (b) — knowledge gets supersession discipline because facts evolve via new evidence; infrastructure mutates because work-in-flight changes constantly
+- (c) reproducibility is also a consequence — you reproduce knowledge, not the operational pipeline
+
+### Q8.2 — Operational table set enumeration (8 tables)
+
+#### Q8.2.a — Table set after collapse
+
+**Event log family:**
+1. `op_llm_request_log` — every LLM API call: provider + model + payloads (or hashes) + tokens + latency + retry state. Correlates to substrate `phi_crossing_event` + `verification_results.llm_request_id`
+2. `op_event_log` — collapsed audit + epistemic-trail + system events (single table, `event_kind` discriminator)
+
+**Session + state family:**
+3. `op_intake_session_state` — per C3 pause-anywhere intake; resumable in-progress state
+4. `op_agent_orchestration_state` — per C1 hybrid orchestrator + bounded sub-agents; in-flight orchestration state (generic-payload per Q8.2.d)
+
+**Cycle-state family** (per Q8.2.d generic-payload pattern):
+5. `op_dre_cycle_state` — per B3 cascade-failure with partial-success rebuild
+6. `op_corpus_refresh_cycle_state` — per E4 hybrid trickle + scheduled batch
+
+**Job queue family:**
+7. `op_job_queue` — single table covering 5 S6+S7 operational dependencies (per Q8.2.b)
+8. `op_job_execution_log` — audit trail for the queue
+
+#### Q8.2.b — Single `op_job_queue` table with `job_kind` discriminator
+
+Same single-table-plus-discriminator pattern as S4-S7. Covers the 5 operational dependencies flagged from S6+S7: authority dedup-suggestion, queue replay-on-update, authority-record embedding, targeted re-verification, low-frequency full-sweep verification. Adding new job kinds = new discriminator value, not new table.
+
+#### Q8.2.c — Dropped `op_user_session`
+
+UI session state is client-side concern at A1+A2 deployment model (native macOS app + localhost web). Speculative table; can add later if a real persistence need surfaces.
+
+#### Q8.2.d — Generic-payload pattern for build-time-heavy tables
+
+`op_agent_orchestration_state`, `op_dre_cycle_state`, `op_corpus_refresh_cycle_state` get spec'd at minimal-shape level only at S8: `(id, kind, status, correlation_id, payload JSON, created_at, updated_at, completed_at)` + relevant per-table fields. Payload shape flagged for build-time refinement when underlying machinery (orchestration framework, DRE pipeline, refresh pipeline) is concrete.
+
+Same pattern S5 used for local-model-choice deferral. Keeps tables present in schema (so application code can write to them from day 1) without committing to payload shapes that will likely be wrong without the framework choice.
+
+#### Q8.2.e — PHI defense-in-depth on `op_llm_request_log`
+
+`phi_categories TEXT NOT NULL` column + `CHECK (phi_categories = '[]')` constraint — same pattern as S5 Q5.2.1 / S6 Q6.4. Per phi-handling.md cloud LLM calls go through PHI decomposition; request payloads sent to cloud providers should never contain PHI by routing rule. CHECK constraint is the schema-level fail-closed guard.
+
+### Q8.3 — Operational table schemas
+
+#### Event log family
+
+```sql
+-- 1. LLM request log
+CREATE TABLE op_llm_request_log (
+  id                       TEXT PRIMARY KEY,            -- llr-{uuidv7}
+  request_id               TEXT NOT NULL,               -- correlates to substrate phi_crossing_event.request_id + verification_results.llm_request_id
+  llm_provider             TEXT NOT NULL,
+  llm_model                TEXT NOT NULL,
+  request_payload_hash     TEXT NOT NULL,               -- SHA-256 of full request payload
+  request_payload          TEXT,                        -- full payload if under size threshold; NULL if hash-only (build-time threshold)
+  response_payload         TEXT,
+  response_payload_hash    TEXT NOT NULL,
+  prompt_tokens            INTEGER,
+  completion_tokens        INTEGER,
+  total_cost_usd           REAL,                        -- approximate; informs cost transparency per Q7.5.b
+  latency_ms               INTEGER,
+  retry_attempts           INTEGER NOT NULL DEFAULT 0,
+  outcome                  TEXT NOT NULL,
+  error_detail             TEXT,
+  phi_categories           TEXT NOT NULL,               -- per Q8.2.e defense-in-depth
+  caller_context           TEXT NOT NULL,               -- 'intake_agent' | 'verification' | 'inference_synthesis' | 'dre_extraction' | etc.
+  started_at               TEXT NOT NULL,
+  completed_at             TEXT,
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (outcome IN ('success','error_provider','error_timeout','error_rate_limit','error_validation')),
+  CHECK (phi_categories = '[]')                          -- defense-in-depth: cloud LLM calls never carry PHI
+);
+
+CREATE INDEX idx_llr_request_id    ON op_llm_request_log(request_id);
+CREATE INDEX idx_llr_caller_time   ON op_llm_request_log(caller_context, started_at DESC);
+CREATE INDEX idx_llr_outcome       ON op_llm_request_log(outcome, started_at) WHERE outcome != 'success';
+CREATE INDEX idx_llr_provider_time ON op_llm_request_log(llm_provider, started_at DESC);
+
+-- 2. Collapsed event log (audit + epistemic-trail + system events)
+CREATE TABLE op_event_log (
+  id                       TEXT PRIMARY KEY,            -- evt-{uuidv7}
+  event_kind               TEXT NOT NULL,               -- 'audit' | 'epistemic_trail' | 'system'
+  event_subkind            TEXT,                        -- per-kind discriminator (e.g., 'data_write', 'consent_change', 'reasoning_step', 'orchestration_handoff')
+  request_id               TEXT,                        -- correlation to op_llm_request_log + substrate audit_log_entry
+  parent_event_id          TEXT,                        -- FK to op_event_log.id; lets epistemic-trail chains form trees
+  subject_id               TEXT,                        -- substrate record this event is about (loose polymorphic per S4/S5/S6)
+  subject_type             TEXT,                        -- 'atom' | 'molecule' | 'synthesized' | 'relationship' | NULL for non-record events
+  actor                    TEXT NOT NULL,               -- 'user' | 'system' | 'agent_id' | 'job_id' | etc.
+  payload                  TEXT NOT NULL,               -- JSON; event-kind/subkind-specific shape per schema-of-schemas
+  phi_categories           TEXT NOT NULL,               -- documents routing concern; no CHECK (events legitimately carry PHI when about PHI-bearing records)
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (event_kind IN ('audit','epistemic_trail','system')),
+  CHECK (subject_type IN ('atom','molecule','synthesized','relationship') OR subject_type IS NULL)
+);
+
+CREATE INDEX idx_evt_request_id    ON op_event_log(request_id);
+CREATE INDEX idx_evt_subject       ON op_event_log(subject_id, subject_type, recorded_at DESC);
+CREATE INDEX idx_evt_kind_time     ON op_event_log(event_kind, recorded_at DESC);
+CREATE INDEX idx_evt_parent        ON op_event_log(parent_event_id) WHERE parent_event_id IS NOT NULL;
+```
+
+#### Session + state family
+
+```sql
+-- 3. Intake session resumable state (per C3 pause-anywhere)
+CREATE TABLE op_intake_session_state (
+  id                       TEXT PRIMARY KEY,            -- iss-{uuidv7}
+  intake_session_id        TEXT NOT NULL,               -- correlates to substrate intake_session molecule
+  current_question_position TEXT,                       -- JSON: {item_bank_id, position_index, last_administered_item_id, ...}
+  partial_responses        TEXT NOT NULL,               -- JSON: response staging; flushed to substrate atoms on commit checkpoint or session close (build-time semantics)
+  last_paused_at           TEXT,
+  resume_count             INTEGER NOT NULL DEFAULT 0,
+  agent_state_snapshot     TEXT,                        -- JSON; resume context for agent that was running
+  status                   TEXT NOT NULL DEFAULT 'active',
+  state_changed_at         TEXT NOT NULL,
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (status IN ('active','paused','committed','abandoned'))
+);
+
+CREATE INDEX idx_iss_session_id    ON op_intake_session_state(intake_session_id);
+CREATE INDEX idx_iss_status        ON op_intake_session_state(status, state_changed_at) WHERE status IN ('active','paused');
+
+-- 4. Agent orchestration state (generic-payload per Q8.2.d)
+CREATE TABLE op_agent_orchestration_state (
+  id                       TEXT PRIMARY KEY,            -- aos-{uuidv7}
+  orchestration_kind       TEXT NOT NULL,               -- 'intake' | 'recipe_match' | 'inference_synthesis' | 'dre_expansion' | etc.
+  status                   TEXT NOT NULL,
+  correlation_id           TEXT NOT NULL,               -- group related orchestrations (session_id, request_id)
+  payload                  TEXT NOT NULL,               -- JSON; orchestration-kind-specific shape (build-time-determined)
+  payload_schema_version   TEXT NOT NULL,
+  created_at               TEXT NOT NULL,
+  updated_at               TEXT NOT NULL,
+  completed_at             TEXT,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (status IN ('in_progress','completed','failed','cancelled'))
+);
+
+CREATE INDEX idx_aos_status        ON op_agent_orchestration_state(status, updated_at) WHERE status = 'in_progress';
+CREATE INDEX idx_aos_correlation   ON op_agent_orchestration_state(correlation_id);
+```
+
+#### Cycle-state family (generic-payload per Q8.2.d)
+
+```sql
+-- 5. DRE cycle state (per B3 cascade-failure with partial-success rebuild)
+CREATE TABLE op_dre_cycle_state (
+  id                       TEXT PRIMARY KEY,            -- drc-{uuidv7}
+  cycle_kind               TEXT NOT NULL,               -- 'gap_detection_reactive' | 'proactive_refresh' | 'authority_expansion' | etc.
+  trigger_context          TEXT NOT NULL,
+  status                   TEXT NOT NULL,
+  payload                  TEXT NOT NULL,               -- JSON; per Q8.2.d generic-payload (atom-level success/fail tracking, retry state)
+  payload_schema_version   TEXT NOT NULL,
+  cycle_started_at         TEXT NOT NULL,
+  cycle_ended_at           TEXT,
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (status IN ('in_progress','partial_success','completed','failed','cancelled'))
+);
+
+CREATE INDEX idx_drc_status        ON op_dre_cycle_state(status, cycle_started_at) WHERE status IN ('in_progress','partial_success');
+
+-- 6. Corpus refresh cycle state (per E4 hybrid trickle + scheduled batch)
+CREATE TABLE op_corpus_refresh_cycle_state (
+  id                       TEXT PRIMARY KEY,            -- crc-{uuidv7}
+  source_identifier        TEXT NOT NULL,               -- 'usda_fdc' | 'icd10_cms' | 'themealdb' | etc.
+  refresh_mode             TEXT NOT NULL,               -- 'trickle' | 'scheduled_batch' | 'manual'
+  status                   TEXT NOT NULL,
+  last_successful_check_at TEXT,
+  last_successful_fetch_at TEXT,
+  content_hash_at_check    TEXT,
+  payload                  TEXT NOT NULL,               -- JSON; per-source state (per Q8.2.d generic-payload)
+  payload_schema_version   TEXT NOT NULL,
+  cycle_started_at         TEXT NOT NULL,
+  cycle_ended_at           TEXT,
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (refresh_mode IN ('trickle','scheduled_batch','manual')),
+  CHECK (status IN ('in_progress','partial_success','completed','failed','no_changes'))
+);
+
+CREATE INDEX idx_crc_source_status ON op_corpus_refresh_cycle_state(source_identifier, status, cycle_started_at DESC);
+CREATE INDEX idx_crc_status        ON op_corpus_refresh_cycle_state(status, cycle_started_at) WHERE status IN ('in_progress','partial_success');
+```
+
+#### Job queue family
+
+```sql
+-- 7. Job queue (single table per Q8.2.b)
+CREATE TABLE op_job_queue (
+  id                       TEXT PRIMARY KEY,            -- job-{uuidv7}
+  job_kind                 TEXT NOT NULL,               -- 'authority_dedup_suggest' | 'authority_queue_replay_on_update' | 'authority_record_embed' | 'reverify_targeted' | 'reverify_full_sweep' | etc.
+  priority                 INTEGER NOT NULL DEFAULT 5,  -- 1 (highest) to 10 (lowest)
+  status                   TEXT NOT NULL DEFAULT 'pending',
+  payload                  TEXT NOT NULL,               -- JSON; job-kind-specific input
+  payload_schema_version   TEXT NOT NULL,
+  scheduled_for            TEXT NOT NULL,               -- ISO 8601 UTC; when job is eligible to run
+  attempts                 INTEGER NOT NULL DEFAULT 0,
+  max_attempts             INTEGER NOT NULL DEFAULT 3,
+  last_attempted_at        TEXT,
+  last_error               TEXT,                        -- markdown
+  triggered_by             TEXT NOT NULL,
+  recorded_at              TEXT NOT NULL,
+  state_changed_at         TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (status IN ('pending','in_progress','completed','failed','cancelled','deferred'))
+);
+
+CREATE INDEX idx_job_pending_priority ON op_job_queue(priority, scheduled_for) WHERE status = 'pending' AND scheduled_for <= datetime('now');
+CREATE INDEX idx_job_status_changed   ON op_job_queue(status, state_changed_at);
+CREATE INDEX idx_job_kind_status      ON op_job_queue(job_kind, status);
+
+-- 8. Job execution log
+CREATE TABLE op_job_execution_log (
+  id                       TEXT PRIMARY KEY,            -- jex-{uuidv7}
+  job_id                   TEXT NOT NULL,
+  job_kind                 TEXT NOT NULL,               -- denormalized for fast filter without join
+  attempt_number           INTEGER NOT NULL,
+  outcome                  TEXT NOT NULL,
+  outputs_summary          TEXT,                        -- markdown; what the job produced
+  outputs_summary_format   TEXT NOT NULL DEFAULT 'markdown',
+  side_effects_summary     TEXT,                        -- JSON: structured side-effect tracking (atom IDs created, jobs enqueued, authority records updated)
+  error_detail             TEXT,
+  duration_ms              INTEGER NOT NULL,
+  started_at               TEXT NOT NULL,
+  completed_at             TEXT NOT NULL,
+  recorded_at              TEXT NOT NULL,
+  system_version           TEXT NOT NULL,
+  component_version        TEXT NOT NULL,
+  CHECK (outcome IN ('success','failure','timeout','cancelled'))
+);
+
+CREATE INDEX idx_jex_job_id      ON op_job_execution_log(job_id, attempt_number);
+CREATE INDEX idx_jex_kind_time   ON op_job_execution_log(job_kind, started_at DESC);
+CREATE INDEX idx_jex_outcome     ON op_job_execution_log(outcome, started_at) WHERE outcome != 'success';
+```
+
+### Out of scope at S8 (deferred)
+
+- **Operational DB retention policy** — event logs grow huge fast; retention is operationally critical but not a schema concern. Build/post-MVP.
+- **`op_event_log.payload` shape per (event_kind, event_subkind)** — canonical schema-of-schemas territory; concrete shapes land alongside B2 + C5 implementations
+- **`op_llm_request_log.request_payload` size threshold for hash-only-vs-full-storage** — depends on cost/storage tradeoffs at build time
+- **`op_intake_session_state.partial_responses` flush-to-substrate semantics** — when in-progress responses migrate from operational to substrate (commit checkpoint? session close? per response?). Build-time decision.
+- **`op_agent_orchestration_state` / `op_dre_cycle_state` / `op_corpus_refresh_cycle_state` payload shapes** — per Q8.2.d generic-payload pattern; refinement at build time when framework/pipeline machinery is concrete
+- **Performance + diagnostic tables** (`op_query_performance_log` etc.) — defer to post-MVP unless build phase surfaces query bottlenecks
+- **`op_user_session`** — dropped at Q8.2.c; UI session state client-side at A1+A2
+
+### Schema impact summary
+
+After S8:
+
+- **8 new operational tables** across 4 families (event log, session/state, cycle-state, job queue)
+- **Two-layer pattern** formalized: substrate-atom + heavy operational-counterpart correlated via `request_id`
+- **Single `op_event_log`** collapses audit + epistemic-trail + system events
+- **Single `op_job_queue`** covers 5 S6+S7 operational dependencies
+- **PHI defense-in-depth** on `op_llm_request_log` (CHECK constraint at schema layer)
+- **Generic-payload pattern** adopted for 3 build-time-heavy tables; payload shape flagged for build-time refinement
+- **`op_user_session` dropped** as speculative
+
+### Sources
+
+User direction throughout the Q8.1 → Q8.3 dialogue (2026-05-05); user prompted Q8.2 critical re-look (surfaced 4 adjustments: collapse audit + epistemic-trail event logs, drop `op_user_session`, generic-payload pattern for build-time-heavy tables, PHI defense-in-depth on LLM request log).
+
+---
+
+*S9 (corpus markdown frontmatter contract — revisits M4, M7 flags + E4 source_status fields per preservation-layer.md) is next.*
