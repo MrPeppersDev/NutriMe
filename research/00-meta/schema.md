@@ -40,7 +40,7 @@ subject_type                TEXT                    -- per F2: 'user' | 'househo
 provenance                  TEXT NOT NULL           -- 'validated-instrument' | 'conversational-elicitation' | 'passive-observation'
 source_identity             TEXT                    -- structured per type; references originating event/document/utterance
 evidence_tier               INTEGER                 -- 1 | 2 | 3 | 4 | NULL (per evidence-tiers.md)
-system_confidence           REAL                    -- 0.0–1.0 (per B4 Q4.1)
+system_aggregate_quality_score REAL                 -- 0.0–1.0 (per B4 Q4.1; renamed from system_confidence per S10 Q10.1 — semantics are deterministic source-quality-aggregate, not probabilistic confidence)
 user_facing_certainty       TEXT                    -- 'strong' | 'moderate' | 'suggestive' | NULL (per Tension #8)
 valid_from                  TEXT NOT NULL           -- ISO 8601 UTC
 valid_until                 TEXT                    -- ISO 8601 UTC; NULL = currently valid
@@ -102,7 +102,7 @@ Per the publication-ambitions-from-day-one discipline + the "fails closed" PHI-h
 - Verification rule-set — S7
 - Consent record table layout — S8
 - Corpus markdown frontmatter contract — S9
-- system_confidence numeric mapping detail — S10
+- system_aggregate_quality_score numeric mapping detail — S10 (also renames the column from system_confidence)
 - Foreign keys + referential integrity — S11
 - Migration strategy — S12
 
@@ -1005,7 +1005,7 @@ CREATE TABLE relationships (
   relationship_type       TEXT NOT NULL,
   provenance              TEXT NOT NULL,               -- JSON: how this relationship was established (LLM extraction, rule, user assertion)
   evidence_tier           INTEGER,                     -- relevant when LLM-detected (e.g., Tier 4 contradiction)
-  system_confidence       REAL,                        -- 0.0-1.0
+  system_aggregate_quality_score REAL,                 -- 0.0-1.0 (renamed from system_confidence per S10 Q10.1)
   valid_from              TEXT NOT NULL,               -- ISO 8601 UTC
   valid_until             TEXT,                        -- ISO 8601 UTC; NULL = currently valid
   recorded_at             TEXT NOT NULL,               -- ISO 8601 UTC
@@ -1028,7 +1028,7 @@ CREATE INDEX idx_rel_typed          ON relationships(relationship_type, source_t
 ```
 
 Subset of S1 base columns inherited (intentional choices):
-- **Inherited:** `provenance`, `evidence_tier`, `system_confidence`, `valid_from`, `valid_until`, `recorded_at`, `retraction_reason`, `system_version`, `component_version`, `payload_schema_version`, `publication_eligible`, `metadata` (analog of `payload`)
+- **Inherited:** `provenance`, `evidence_tier`, `system_aggregate_quality_score` (renamed from `system_confidence` per S10 Q10.1), `valid_from`, `valid_until`, `recorded_at`, `retraction_reason`, `system_version`, `component_version`, `payload_schema_version`, `publication_eligible`, `metadata` (analog of `payload`)
 - **Skipped:** `user_facing_certainty` (relationships are infrastructure, not user-facing facts), `consent_record_id` + `phi_categories` (components carry PHI markers; relationships are structural), `source_identity` + `authority_resolution_status` (N/A — those describe atom-level subject identity)
 - **Replaced:** `subject_id` / `subject_type` → `source_id`/`source_type` + `target_id`/`target_type` (relationships have two endpoints, not one subject)
 
@@ -1077,7 +1077,7 @@ Per F7 (already resolved in S3): `provenance_chain` is computed-on-demand via re
 
 ### Sources
 
-User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-04); user prompted Q4.2 rethink which surfaced 9 additions (bitemporal columns, first-class provenance, evidence_tier + system_confidence, retraction_reason, version columns, publication_eligible flag, sanity CHECK, partial-index optimization, bitemporal-aware unique index).
+User direction throughout the Q4.1 → Q4.5 dialogue (2026-05-04); user prompted Q4.2 rethink which surfaced 9 additions (bitemporal columns, first-class provenance, evidence_tier + system_aggregate_quality_score (renamed from system_confidence per S10 Q10.1), retraction_reason, version columns, publication_eligible flag, sanity CHECK, partial-index optimization, bitemporal-aware unique index).
 
 ---
 
@@ -1156,7 +1156,7 @@ Schema rationale (the *why* per non-obvious column):
 - **`publication_eligible`** — embeddings publication-relevance is non-trivial: Voyage embeddings aren't reproducible without API access; local model embeddings are. Publication-prep queries this directly.
 - **No `payload_schema_version`** — embedding shape fully determined by `embedding_model` + `embedding_dimension`; the model identifier *is* the schema version
 - **No `payload`** — embeddings table is pure retrieval infrastructure; actual content lives in source tables (per B1 "embed-as-index, deliver source")
-- **No `provenance` / `evidence_tier` / `system_confidence` / `user_facing_certainty`** — embeddings are derived index, not facts; provenance lives on source content
+- **No `provenance` / `evidence_tier` / `system_aggregate_quality_score` / `user_facing_certainty`** — embeddings are derived index, not facts; provenance lives on source content
 - **Vectors only in `vec0`, not duplicated in main table** — saves ~50% on embedding storage; the join is cheap; main table stays a pure metadata index
 - **`vec0` per (provider, dimension)** — Voyage has voyage-3-large (1024) + voyage-3-lite (512); local candidates have varying dims (mxbai 1024 / BGE-M3 1024 / nomic 768). One `vec0` per dimension within each provider
 
@@ -2119,4 +2119,149 @@ User direction throughout the Q9.1 → Q9.4 dialogue (2026-05-05 → 2026-05-06)
 
 ---
 
-*S10 (three confidence concepts deterministic mapping detail per E1 + B4 Q4.1 numeric values) is next.*
+## S10 — Three confidence concepts deterministic mapping
+
+> Resolved 2026-05-06 across three sub-decisions Q10.1–Q10.3 (with sub-question Q10.3.a). Includes a column rename propagated retroactively through S1 + S4 + S5.
+
+### Decision
+
+**Source-quality-aggregate semantics** for the substrate-level numeric concept (NOT probabilistic confidence) — **column renamed from `system_confidence` to `system_aggregate_quality_score`** to match its actual semantics; **deterministic computation** from evidence_tier (weighted) × verification status (multiplier) × provenance type (multiplier); **joint mapping** from (`system_aggregate_quality_score`, `evidence_tier`) → `user_facing_certainty` with conservative cap (evidence tier sets ceiling on user-facing certainty; aggregate score modulates downward within ceiling); **`user_facing_certainty` as STORED generated column** with CHECK constraint (eliminates sync logic for the user-facing tier; SQLite handles recomputation when source columns update). **Deterministic propagation rules** for each concept across atom/molecule/synthesized layers; **NULL = not-yet-computed** semantics for `system_aggregate_quality_score` on substrate records.
+
+### Q10.1 — Source-quality-aggregate semantics + column rename
+
+Three semantic frames considered for the substrate numeric concept:
+- (a) probability-of-correctness — cleanest meaning but no calibrated way to estimate; making up numbers without probabilistic interpretation; AI-honesty problem at the core of [epistemic-trail.md](epistemic-trail.md)
+- (b) source-quality-aggregate — honest about what we *can* compute deterministically; weight evidence_tier of input atoms + verification status + provenance type into an aggregate
+- (c) inference-pipeline-self-report — honest but not actionable; LLM self-confidence is poorly calibrated
+
+**Chosen: (b) source-quality-aggregate.** Number isn't a probability claim; it's a "how strong are the foundations of this record" measure. Decomposable into evidence-tier + verification + provenance contributions.
+
+**Naming honesty: `system_confidence` semantically implied probabilistic confidence; (b) defines the value as deterministic source-quality-aggregate.** The mismatch is exactly the AI-honesty problem epistemic-trail.md guards against. **Column renamed to `system_aggregate_quality_score`** (per (ii) of the rename options). Stage 3.5 is the right time to fix this — later means propagating through running code. Rename propagated retroactively through S1 base columns, S4 relationships table, and inheritance documentation.
+
+Concrete computation sketch (build-time tunable):
+- **Input atoms** with their evidence_tiers contribute weighted average (Tier 1 = 1.0, Tier 2 = 0.85, Tier 3 = 0.6, Tier 4 = 0.3)
+- **Verification status** applies multiplier (`verified` = 1.0, `verified_with_warnings` = 0.85, `verification_pending` = 0.7, `verification_failed` = 0.0)
+- **Provenance type** applies multiplier (`validated-instrument` = 1.0, `conversational-elicitation` = 0.9, `passive-observation` = 0.85)
+- Components multiplied + clamped to [0, 1]
+
+**Tunable concerns flagged for build-time:**
+- Specific weight values (0.85, 0.6, 0.3 etc.) tunable without schema change
+- Verification-failed multiplier of 0.0 may be too strong (kills score entirely); 0.1 might be more honest
+- Deep inference chains compound multiplicative loss (0.85^4 ≈ 0.52); semantically correct but might create "everything's mediocre" effect
+
+**Operational dependency (S8 territory):** when input atom's `evidence_tier` changes (re-classification per evidence-tiers.md), `system_aggregate_quality_score` of every downstream synthesized record changes. Same operational dependency as verification re-runs (S7 Q7.4). New `op_job_queue` `job_kind = 'recompute_system_aggregate_quality_score_targeted'`.
+
+### Q10.2 — Joint mapping with conservative cap → user_facing_certainty
+
+Three mapping patterns considered:
+- (α) score-only — loses evidence-tier signal; high-score Tier 4 records would surface as Strong (overclaim)
+- (β) tier-only — loses verification + provenance signals; Tier 1 with verification failures would surface as Strong (overclaim)
+- (γ) joint — both contribute; evidence tier sets ceiling; score modulates within
+
+**Chosen: (γ) joint mapping with conservative cap.**
+
+| `evidence_tier` | Ceiling | Score modulation |
+|---|---|---|
+| 1 | Strong | ≥0.80 → Strong; 0.60-0.80 → Moderate; <0.60 → Suggestive |
+| 2 | Moderate | ≥0.80 → Moderate; <0.80 → Suggestive |
+| 3 | Suggestive | always Suggestive |
+| 4 | Suggestive | always Suggestive |
+| NULL | Suggestive | always Suggestive (operational records, not literature-grounded) |
+
+Result: Tier 1 evidence with strong score surfaces as Strong; Tier 1 with weak score (verification issues, etc.) drops to Moderate or Suggestive; Tier 2 caps at Moderate regardless of score; Tier 3-4 always Suggestive (consistent with [evidence-tiers.md](evidence-tiers.md) audit-as-education pattern).
+
+**Threshold values are tunable** — 0.80 / 0.60 are starting choices; build-time validation against actual record distribution can adjust.
+
+**Verification interactions:**
+- `verification_failed` → score 0 → Suggestive even at Tier 1 evidence; pairs with Q7.5.a fails-surface-by-default (record shown but flagged)
+- `verification_pending` → score ≈0.7 → Moderate at Tier 1 evidence; pending records don't surface as Strong until verified
+
+### Q10.3 — Provenance + assignment lifecycle
+
+#### `evidence_tier` propagation
+
+- **Atoms** — assigned at write time. Lookup rule: atom's `evidence_tier` ← corresponding methodology corpus content's `evidence_tier` (per S9 `methodology` content type with `methodology_kind = 'instrument_metadata'`). Per-source-type defaults:
+  - Validated-instrument atoms (PHQ-9 score) inherit instrument's literature-base tier
+  - Conversational-elicitation atoms inherit borrowed-methodology source tier
+  - Passive-observation atoms (wearable signals) inherit sensor-validation literature tier
+- **Molecules** — typically inherit weakest tier among constituent atoms; **flagged: weakest-tier heuristic may not always be right** (a `lab_panel` with one Tier 4 outlier shouldn't drag all its other Tier 1 `lab_analyte_value` atoms down). Query patterns may prefer joining to constituent atoms rather than relying on molecule-level value
+- **Synthesized** — **deterministic rule: weakest tier among input atoms** (max value since lower = stronger). Conservative + matches no-overclaiming pattern. LLM doesn't get to claim a higher tier than its weakest input
+- **Authority records** — assigned at seed time per source authority (USDA FDC = Tier 2 typically; sweep #14 mechanistic literature = Tier 1-2)
+- **Verification rules** — when literature-grounded, captures source's tier per S7 Q7.2
+
+#### `system_aggregate_quality_score` propagation
+
+- **Atoms** — computed from `evidence_tier` × provenance multiplier × verification multiplier at write time
+- **Molecules** — computed from constituent atoms' scores + composition-level provenance
+- **Synthesized** — computed from input atoms' scores × verification status (verification per S7 LLM-causal-explanation rule IS the assessment of whether the reasoning chain holds; "reasoning_chain quality" was hand-wavy and is dropped as separate input)
+- **Re-computation triggers** (per Q10.1 operational dependency):
+  - Input atom's `evidence_tier` changes
+  - Verification result transitions
+  - Constituent atom is superseded or retracted
+
+#### `user_facing_certainty` propagation
+
+- Computed deterministically per Q10.2 mapping function
+- **STORED generated column** per Q10.3.a (eliminates sync logic; SQLite auto-recomputes when source columns update)
+
+#### NULL semantics
+
+- **`system_aggregate_quality_score` NULL = not-yet-computed** on substrate records (record exists, recompute job hasn't run)
+- **Not-applicable records** (authority records, verification rules) simply don't have this column (already the case in S6 + S7 schemas — columns omitted by design)
+
+#### Re-computation cascade (S8 territory)
+
+When deep input chain re-cascades, recursion needs explicit termination + cycle detection. Not a schema concern; flagging for `op_job_queue` `job_kind = 'recompute_system_aggregate_quality_score_targeted'` job implementation.
+
+#### Q10.3.a — `user_facing_certainty` as STORED generated column
+
+```sql
+user_facing_certainty TEXT GENERATED ALWAYS AS (
+  CASE
+    WHEN evidence_tier = 1 AND system_aggregate_quality_score >= 0.80 THEN 'strong'
+    WHEN evidence_tier = 1 AND system_aggregate_quality_score >= 0.60 THEN 'moderate'
+    WHEN evidence_tier = 1 THEN 'suggestive'
+    WHEN evidence_tier = 2 AND system_aggregate_quality_score >= 0.80 THEN 'moderate'
+    WHEN evidence_tier = 2 THEN 'suggestive'
+    WHEN evidence_tier IN (3, 4) THEN 'suggestive'
+    ELSE 'suggestive'
+  END
+) STORED
+  CHECK (user_facing_certainty IN ('strong', 'moderate', 'suggestive'));
+
+CREATE INDEX idx_*_user_facing_certainty ON <table>(user_facing_certainty);
+```
+
+`STORED` (vs. `VIRTUAL`) so the value is materialized + indexable. CHECK constraint catches typos in build-time tuning.
+
+Eliminates sync logic for `user_facing_certainty` entirely — no `op_job_queue` job needed for this specific concern. SQLite recomputes on UPDATE of source columns.
+
+`system_aggregate_quality_score` still needs `op_job_queue` recompute (depends on input atoms' scores + verification status — not derivable from a pure function within the row), but `user_facing_certainty` becomes free.
+
+### Out of scope at S10 (deferred)
+
+- **Specific weight + threshold values** (Tier 1 = 1.0, ≥0.80 → Strong, etc.) — build-time tunable; calibrate against actual record distribution
+- **Verification-failed multiplier value** (0.0 vs. 0.1) — build-time tunable
+- **Deep-chain compounding behavior** — semantically correct but may need build-time observation; may motivate dampening factor in compound calculation
+- **`op_job_queue` cascade termination + cycle detection mechanics** — S8 territory at build time
+- **Build-time threshold migration mechanics** — adjusting CASE expression values is a SQLite ALTER TABLE concern (drop + re-add generated column); covered by S12
+
+### Schema impact summary
+
+After S10:
+
+- **Column renamed: `system_confidence` → `system_aggregate_quality_score`** propagated through S1 base columns + S4 relationships table + inheritance documentation
+- **`user_facing_certainty` becomes STORED generated column** with CHECK constraint (was stored TEXT in S1; recompute now SQLite-handled)
+- **Deterministic propagation rules formalized** for evidence_tier + system_aggregate_quality_score across atom/molecule/synthesized layers
+- **NULL semantics defined**: `system_aggregate_quality_score NULL` = not-yet-computed on substrate records; not-applicable records simply don't have the column
+- **One new `op_job_queue` job_kind**: `recompute_system_aggregate_quality_score_targeted`
+- **One flagged molecule-level concern**: weakest-tier heuristic for molecules may not always be right; query patterns may prefer per-atom joins
+- **Three build-time tuning concerns flagged** (weight values, failed-multiplier value, deep-chain compounding behavior)
+
+### Sources
+
+User direction throughout the Q10.1 → Q10.3 dialogue (2026-05-06); user prompted Q10.1 critical re-look ("if you don't see any immediate issues") which surfaced the column-rename naming-honesty concern + Q10.3 critical re-look ("anything you feel needs to be changed or added") which surfaced six items (three substantive: methodology-corpus-lookup explicit, deterministic synthesized-tier rule, drop hand-wavy reasoning_chain quality input; three flags: molecule weakest-tier heuristic, NULL semantics, cascade termination).
+
+---
+
+*S11 (foreign keys + referential integrity) is next.*
