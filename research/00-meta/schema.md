@@ -2404,4 +2404,194 @@ User direction throughout the Q11.1 → Q11.5 dialogue (2026-05-06); critical re
 
 ---
 
-*S12 (migration strategy) is next — final sub-block of Stage 3.5.*
+## S12 — Migration strategy
+
+> Resolved 2026-05-06 across four sub-decisions Q12.1–Q12.4 (with sub-questions Q12.2.a, Q12.4.a/b). Closes Stage 3.5.
+
+### Decision
+
+**Hybrid migration strategy** — linear numbered migrations for table-structure changes (table additions/removals, column additions/removals/renames on S1 base column set, index changes, CHECK constraints, FK relationships, generated column definitions); declarative schema-of-schemas-driven for per-type payload changes (versioned via `payload_schema_version`). **Custom Python migration runner** with forward-only semantics consistent with bitemporal pattern; **substrate + operational DBs each track their own migrations** independently; **paired numbered migrations** for cross-DB changes via naming convention (`0042_substrate__add_X.sql` + `0042_operational__add_Y.sql`). **Read-time migration on access** for substrate records carrying historical `payload_schema_version` values; **declarative migration chain via schema-of-schemas diffs** (rename/add/remove/default fields) with **code-escape-hatch for computational transformations**; **per-version PHI contracts** declared in schema-of-schemas so migration engine updates `phi_categories` deterministically. **Single monolithic 0001 baseline per DB** establishing all S1-S11 schema; **continuous cadence + peer-review-against-canonical-checklist** discipline gating each migration.
+
+### Q12.1 — Hybrid migration tracking + versioning
+
+**Linear numbered migrations** for:
+- Table additions/removals
+- Column additions/removals/renames on the S1 base column set
+- Index additions/removals/changes
+- CHECK constraint changes
+- FK relationship changes
+- Generated column definition changes (per S10 user_facing_certainty CASE expression tuning)
+
+**Declarative schema-of-schemas-driven** for:
+- Per-type payload field additions/removals/renames
+- Per-namespace authority record payload changes
+- Per-kind verification rule payload changes
+- Per-kind operational event payload changes
+- Per-kind corpus frontmatter field changes (per S9)
+
+The `payload_schema_version` column on substrate records (per S1) tracks which payload schema version a record was written against — declarative migrations don't rewrite historical records; they declare new schema versions and let application code handle multi-version reads (per Q12.3).
+
+Pure linear-numbered alone forces every per-type payload schema change into a numbered migration (noise — payload schemas are already declared in canonical schema-of-schemas per S2 Q2.5 + versioned via `payload_schema_version`). Pure declarative doesn't handle table-level changes well (generated columns, partial indexes, CHECK constraints, FK relationships need explicit ALTER TABLE).
+
+**Generated column ALTER TABLE limitation flag:** SQLite doesn't support `ALTER TABLE MODIFY COLUMN` for generated columns (per S10 user_facing_certainty STORED column with CASE expression). Changing the generated column definition requires ADD-new-column + verify + DROP-old + rename pattern (rename also unsupported directly; requires temp-table-copy). Operationally heavy. Implications:
+- Generated column tuning has higher migration cost than regular column changes
+- Threshold tuning per Q10.2 should be done deliberately, not iteratively
+
+### Q12.2 — Custom Python migration runner + forward-only
+
+Custom Python script reads numbered SQL files from `migrations/` directory + maintains `schema_migrations` tracking table + verifies each migration runs once. ~50-100 lines of Python; minimal complexity; full control.
+
+**Why not Alembic:** adopting Alembic effectively pre-commits to SQLAlchemy as the persistence layer, which we deliberately deferred at A4. SQLAlchemy non-commitment is load-bearing reason.
+
+**Why not yoyo-migrations or similar:** still a third-party dependency for code we'd write anyway; reproducibility-aware project benefits from minimal external surface.
+
+**Forward-only:** consistent with bitemporal pattern (we don't roll back time; we move forward). When we want to "undo" a schema change, author a forward migration that reverses it. Down-migrations valuable for distributed-system canary/rollback; we don't have those at A1+A2 deployment model (single device, single user).
+
+**Three silent adjustments from instinct re-look (per user prompt):**
+1. **Migration file naming convention** — simple sequential prefix (`0001_initial.sql`); timestamp-prefix is overkill at A1 deployment model where there's no collaborative-merge-conflict concern
+2. **Migration content format** — pure SQL when possible (declarative + readable + reproducible by external researchers); Python only when migration needs computation (e.g., backfilling derived columns from existing data)
+3. **Canonical schema-of-schemas file versioning** — version field inside the file itself (Git history + `version: 1.42.0` field at top); separate operational table is overhead; Git history is already source-of-truth for the canonical file's evolution
+
+#### Q12.2.a — Both DBs each track their own migrations
+
+Substrate and operational DBs evolve independently per the knowledge/infrastructure boundary from S8 Q8.1. Each DB has its own `schema_migrations` table tracking migrations that touch its tables.
+
+**Cross-DB migrations** (rare; e.g., a feature that adds tables to both): paired numbered migrations with naming convention linking them — `0042_substrate__add_X.sql` + `0042_operational__add_Y.sql`. SQLite doesn't natively support cross-DB transactions; pair migrations applied sequentially with each in its own transaction; if pair fails halfway, manual cleanup. Rare enough to be acceptable.
+
+### Q12.3 — Read-time migration on access + declarative migration chain
+
+**Architecture-disqualified alternatives** (rejected by upstream commitments, not just suboptimal):
+- (b) lazy persistent migration — rewrites historical records as new versions; violates publication-reproducibility commitment per E1 + bitemporal preservation
+- (c) eager bulk migration — same violation + reintroduces down-migration problem (what if bulk rewrite has bugs?)
+
+**Chosen pattern:** **(a) read-time migration on access** + **(e) declarative migration chain via schema-of-schemas diffs** + **code-escape-hatch for computational transformations**.
+
+Each `payload_schema_version` declares its diff from previous version (added/removed/renamed/defaulted fields) in the canonical schema-of-schemas; a single read-time migration engine consumes the diff chain mechanically. Computational transformations (a "weight" field that was kg in v1 and became "weight_kg" with unit-explicit in v2 — semantic change, not just rename) get a code-escape-hatch.
+
+Mirrors the hybrid-code-plus-data pattern from S7 Q7.1 (verification rules) — declarative for the simple case (rename/add/remove/default), code for the computational case.
+
+**Wins:**
+- Migration chain itself is declarative + inspectable (single source of truth)
+- Mirrors schema-of-schemas pattern from S2 Q2.5 + S9 Q9.4.a + Q12.1 declarative-side
+- External reproducers can reconstruct historical records from canonical schema-of-schemas alone (publication-reproducibility win)
+- Code escape-hatch covers genuinely complex cases without forcing all transformations through code
+- Engine applies diffs left-to-right; chain depth doesn't grow application complexity (collapses (i) per-version-readers concern)
+
+**PHI contract continuity:** per-version PHI contracts declared in schema-of-schemas. If a payload schema change involves PHI categorization (e.g., a field moves from non-PHI to PHI in v_(N+1)), the migration engine updates `phi_categories` deterministically per declared contract. PHI handling continuity is non-negotiable per phi-handling.md.
+
+### Q12.4 — Initial baseline + ongoing migration cadence
+
+#### Q12.4.a — Single monolithic 0001 baseline per DB
+
+`0001_substrate__initial.sql` + `0001_operational__initial.sql` create all tables + indexes + CHECK constraints + generated columns + FK relationships spec'd across S1-S11. One file per DB describing the world at MVP launch; subsequent migrations are explicit deltas.
+
+Phased baselines (0001-0010 split by family) rejected because they create artificial boundaries (e.g., where do FK constraints between substrate-types-baseline and authority-baseline live?). Schema-of-schemas-generated baseline rejected as premature — bootstrapping the schema from a tool we haven't implemented adds risk.
+
+The monolithic baseline is large but readable — it's the one place anyone can look to see "what does this system's data layer look like." Once schema-of-schemas tooling exists, future baselines (for fresh installs after schema has evolved over time) can be tooling-generated; the initial baseline stays SQL.
+
+#### Q12.4.b — Continuous cadence + peer-review checklist
+
+**Cadence: continuously as needed.** Personal-use system at A1 deployment model — no release-train cadence to coordinate with; migrations land when underlying schema needs to evolve. Batching by interval introduces artificial friction.
+
+**Review discipline: peer-review-against-canonical-checklist.** "Peer review" at personal-use scale = user explicitly reviewing each migration before it lands. Canonical checklist:
+- [ ] **Bitemporal preservation** — does this migration preserve historical records' interpretability against their original schema?
+- [ ] **PHI handling continuity** — does this migration handle PHI categorization updates if any field changes PHI status?
+- [ ] **FK semantics** — do new FKs declare appropriate ON DELETE clauses (per Q11.1)?
+- [ ] **Generated column changes** — per Q12.1 generated-column-migration-cost flag, is the operational cost worth it?
+- [ ] **Reproducibility** — can external reproducers apply this migration to a copy of a published dataset and arrive at the same state?
+- [ ] **Schema-of-schemas alignment** — does the canonical schema-of-schemas file reflect the migration's intent?
+
+Checklist lives alongside the migration tooling. Each migration's commit message references which checklist items were addressed.
+
+### Out of scope at S12 (deferred to build)
+
+- **Concrete schema-of-schemas declarative format** (JSON Schema vs. Pydantic vs. custom DSL) — build-time decision per S2 Q2.5
+- **Migration runner specific Python implementation** — build time
+- **Diff-engine implementation** for declarative migration chain — build time
+- **Code-escape-hatch transformer interface** — build time
+- **Migration testing / rehearsal infrastructure** (snapshot-based testing before applying to live DB) — build/post-MVP
+- **Specific monolithic 0001 SQL file authoring** — happens at build phase when tooling lands
+
+### Schema impact summary
+
+After S12:
+
+- **Hybrid migration strategy** — linear numbered for table-structure; declarative schema-of-schemas for per-type payload changes
+- **Custom Python migration runner** + forward-only + per-DB tracking + cross-DB paired migrations via naming convention
+- **Read-time migration on access** with declarative migration chain via schema-of-schemas diffs + code-escape-hatch
+- **Per-version PHI contracts** in schema-of-schemas drive automatic phi_categories updates
+- **Single monolithic 0001 baseline per DB** + continuous cadence + peer-review-against-canonical-checklist
+- **Three silent instinct-adjustments**: sequential file naming, pure-SQL-when-possible, version-field-inside-canonical-file
+- **Generated-column-migration-cost flagged** as build-time consideration
+
+### Sources
+
+User direction throughout the Q12.1 → Q12.4 dialogue (2026-05-06); user prompted "instinct?" check on Q12.2 (surfaced higher confidence + three silent instinct-adjustments) and Q12.3 (surfaced (e) declarative migration chain as cleaner alternative to (a) with pure-code transformers + collapsed (i) per-version-readers into the engine + ~88% confidence on PHI contract continuity).
+
+---
+
+## Stage 3.5 closure summary
+
+Stage 3.5 schema-design phase complete: **12 sub-blocks resolved 2026-05-03 → 2026-05-06.**
+
+### Substrate DB
+
+- **3 layered substrate tables** — `atom`, `molecule`, `synthesized_entry` — single-table-per-layer + JSON payload pattern (per S1 Q1.1)
+- **24 base columns** spanning provenance, evidence, confidence (renamed to `system_aggregate_quality_score` per S10), bitemporal lifecycle, retraction, versioning, consent, PHI, authority resolution, verification status (S7 added 3 columns)
+- **39 type schemas** — 18 atom + 6 molecule + 15 synthesized after S3 (M3+M8 demoted to query views; F6 merged dietary_pattern_assessment into screener_result via instrument_category discriminator)
+- **1 relationships table** with 7 typed relationship types + bitemporal-aware partial indexes (S4)
+- **2 embeddings tables** — `embeddings_voyage` + `embeddings_local` — with defense-in-depth PHI marker (CHECK constraint at schema layer); `vec0` virtual table per (provider, dimension); status-column staleness lifecycle (S5)
+- **2 authority tables** — `authority_records` + `authority_resolution_review_queue` — covering 6 authority namespaces; hybrid trigram + embedding rerank fuzzy match; two-threshold tier mapping (S6)
+- **2 verification tables** — `verification_rules` + `verification_results` — hybrid code-plus-data verification; 7 rule kinds + 3 severities + 5 outcomes; runs_at_write_time flag (S7)
+- **`user_facing_certainty` STORED GENERATED column** with CHECK constraint; deterministic mapping from `(system_aggregate_quality_score, evidence_tier)` (S10)
+
+### Operational DB
+
+- **8 operational tables** across 4 families (event log, session/state, cycle-state, job queue) — knowledge/infrastructure boundary per Q8.1; two-layer pattern (substrate atom + heavy operational counterpart correlated via request_id); collapsed `op_event_log`; single `op_job_queue` (S8)
+
+### Corpus
+
+- **Markdown-as-source-of-truth, substrate-as-index** for corpus content
+- **5 corpus content types** (recipe, education, nutrition_reference, source_document, methodology) sharing common base contract + per-type extension blocks
+- **Recipe markdown** = YAML frontmatter (23 required + 8 optional fields) + Cooklang body (S9)
+
+### Cross-cutting
+
+- **Canonical schema-of-schemas file** unifies substrate types + corpus content types + relationship types + verification rule kinds + operational event kinds + per-version PHI contracts
+- **PRAGMA foreign_keys = ON** + per-FK ON DELETE semantics matched to bitemporal pattern (S11)
+- **Application-layer + orphan-sweep** for loose polymorphic references; **hybrid validate-on-write/read** for cross-DB substrate↔corpus references; **3 reference-resolution policies** (current_only default + point_in_time + latest_version)
+- **Migration strategy**: hybrid linear-numbered + declarative schema-of-schemas; custom Python runner; forward-only; per-DB tracking; read-time migration on access via declarative migration chain + code-escape-hatch; per-version PHI contracts (S12)
+
+### Active flags carried forward to build
+
+- **F5** catch-all-smell on `inference` synthesized type (ongoing monitoring)
+- **Molecule-level weakest-tier heuristic** for `evidence_tier` may not always be right; query patterns may prefer per-atom joins
+- **Build-time (ζ) revisits**: collapsed sqlite-vec virtual table for embeddings (Q5.3); `subject_registry` alternative for loose polymorphic refs (Q11.2)
+- **Three S10 build-time tuning concerns**: weight values, verification-failed multiplier, deep-chain compounding
+
+### S8 operational dependencies cataloged from S6+S7+S10+S11
+
+`op_job_queue` job_kind values to implement at build:
+- `authority_dedup_suggest` (S6)
+- `authority_queue_replay_on_update` (S6)
+- `authority_record_embed` (S6)
+- `reverify_targeted` (S7)
+- `reverify_full_sweep` (S7)
+- `corpus_index_sync` (S9)
+- `recompute_system_aggregate_quality_score_targeted` (S10)
+- `orphan_sweep_polymorphic_refs` (S11)
+- `integrity_sweep_lightweight` (S11)
+- `integrity_sweep_comprehensive` (S11)
+
+### Counts
+
+- **Substrate tables:** 3 (atom/molecule/synthesized_entry) + 1 (relationships) + 2 (embeddings) + 2 (authority) + 2 (verification) = **10 tables**
+- **Operational tables:** 8 + 2 schema_migrations (one per DB) = **10 tables**
+- **Type schemas:** 39 (across atom/molecule/synthesized) + 7 (relationship types) + 7 (verification rule kinds) + 6 (authority namespaces) + 5 (corpus content types) + multiple operational event kinds = comprehensive declarative shape
+- **Total `op_job_queue` job_kind values planned:** 10
+
+### Path forward
+
+Stage 3.5 closes; next phase per [stage3-plan.md](stage3-plan.md) is build (Stage 4). Schema-of-schemas declarative format choice is the first build-time decision; everything downstream depends on it.
+
+---
