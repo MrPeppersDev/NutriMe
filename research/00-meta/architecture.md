@@ -75,6 +75,154 @@ User direction (2026-04-29):
 
 ---
 
+## Block A revision — 2026-06-29
+
+> A1, A2, A3 are **revised** as A1-v2 / A2-v2 / A3-v2 below. Originals above are preserved as the historical decision record. The revision is driven by new requirements (multi-tenant from day one, iPhone-first client, OSS-LLM-primary) and a fresh primary-source research sweep at [research/15-llm-revisit/](../15-llm-revisit/recommendation.md) (T1 food-LLM landscape; T2 OSS general-purpose landscape; T3 Apple Silicon inference; T4 capability fit). A4 is unchanged; one new schema axis (`tenant_id`, tracked as F9) is added to schema.md.
+
+### Why the revision
+
+Three forcing functions:
+
+1. **Multi-tenant from the start.** Family-of-4 baseline, eventual syndication to friends/family. "Single-device" no longer matches the household reality, and the schema has to support tenancy from day one or pay much higher migration cost later.
+2. **iPhone as the primary surface.** Day-to-day meal planning, intake, feedback happen on a phone. A native macOS app is at best a secondary admin/dev surface.
+3. **OSS LLM substrate is now viable.** June 2026 brings Apache-2.0 Qwen3-32B + MLX-backed Ollama 0.19 + Mac Mini M4 Pro 64 GB into a configuration that meets NutriMe's reasoning bar locally — closing the original "we can't run anything locally" justification for the cloud-primary posture.
+
+### Scope of what lands now (shape) vs. defers to build
+
+**Lands now (architecture shape):** multi-tenant boundary, client/server split, primary-substrate choice, hardcoded rule layer, schema axis for tenancy.
+
+**Defers to build (transport/implementation):** networking transport, authentication mechanism, exact iPhone↔server protocol, hardware migration triggers, fine-tune training stack, E3 (AGPL) license revisit.
+
+Per `feedback_engineering_calibration.md` — separate shape decisions (land at design time) from implementation/transport (defer to build).
+
+---
+
+## A1-v2 — Deployment model (multi-tenant home server)
+
+> Resolved 2026-06-29. Supersedes A1 above.
+
+### Decision
+
+**Multi-tenant local home server.** A Mac Mini in the home is the always-on backend. Tenants are household members (family-of-4 baseline; eventual syndication to friends/family is an out-of-MVP-scope graduation path).
+
+- **PHI never leaves the home network in steady state.** HIPAA-discipline posture preserved from A1; tightened from "single-device" to "single-network."
+- **The Mac Mini is the multi-tenant boundary.** Tenants do not share PHI by default; sharing is opt-in per the Tension #5 three-level model (strict / constraint-only / mutual-consent).
+- **Cloud crossings remain query-level and PHI-decomposed** per [phi-handling.md](phi-handling.md). The boundary discipline is unchanged.
+
+### Rationale
+
+The original A1 "single-device, no LAN exposure" framing predates the family-of-4 requirement. A home server that serves multiple household members is structurally LAN-exposed; the safety story has to live in the *authentication + tenant isolation + PHI-per-tenant* discipline, not in the absence-of-LAN-surface posture.
+
+The decision is also informed by [T3 Apple Silicon inference](../15-llm-revisit/T3-apple-silicon-inference.md) which confirms that a Mac Mini M4 Pro 64 GB can serve a 32B model to four concurrent household sessions inside an honest memory budget.
+
+### Updates to apply
+
+- [phi-handling.md](phi-handling.md) — tenant-isolation requirements added (cross-tenant PHI is a boundary crossing on par with cloud crossing)
+- [constitutional-rules.md](constitutional-rules.md) Rule 6 — "data stays local by default" expanded to "data stays inside the household network by default; cross-tenant access requires explicit consent"
+- [schema.md](schema.md) — new F9 flag opens (`tenant_id` axis on substrate + operational base columns + corpus markdown frontmatter)
+
+### Deferred to build
+
+- Specific networking transport (Tailscale / mDNS-Bonjour / local-LAN-only / Sign-In-with-Apple-server-side)
+- Authentication mechanism per tenant
+- Eventual-syndication scaling plan beyond a single Mac Mini envelope
+
+---
+
+## A2-v2 — Application shell (iPhone client + Mac home server)
+
+> Resolved 2026-06-29. Supersedes A2 above.
+
+### Decision
+
+**iPhone app as the primary client surface; Mac Mini as the always-on server.** Native macOS app demoted from "primary shell" to "optional admin/dev surface."
+
+- iPhone is where day-to-day intake, meal planning, feedback, and notifications live
+- The Mac Mini server hosts the SQLite substrate + operational DBs, the markdown corpus, the LLM inference daemon, and the orchestration logic
+- A native macOS app may exist as an admin/dev surface (corpus inspection, schema browsing) but is not the user-facing primary
+
+### Rationale
+
+The original A2 "native macOS app primary" predates the household-mobile reality. Cooking happens away from a laptop; the user has a phone in hand. Localhost-only-on-macOS shipped to the household isn't a usable shape.
+
+Apple platform security primitives originally cited under A2 (Keychain, App Sandbox, Hardened Runtime, codesigning) remain available on iOS — HealthKit in particular is iOS-native, which is a structural fit for D1 wearable integration.
+
+### Updates to apply
+
+- [phi-handling.md](phi-handling.md) — client-to-server transport added as a PHI-handling surface (alongside cloud-LLM crossings)
+- [knowledge-model.md](knowledge-model.md) — per-tenant boundary added (the knowledge model is per-user with household-level abstracted constraints — tenant_id at the row level is how that shape lands)
+
+### Deferred to build
+
+- Specific iPhone↔server protocol (REST-over-HTTPS-on-Bonjour, WebSocket, SSE)
+- Whether and how to serve the iPhone app outside the home network (Tailscale, NAT punch, never)
+- Whether a Mac admin surface ships at MVP or later
+
+---
+
+## A3-v2 — LLM provider + privacy posture (OSS local primary + narrow cloud fallback)
+
+> Resolved 2026-06-29. Supersedes A3 above.
+
+### Decision
+
+**OSS local LLM as the primary reasoning substrate, with a narrow cloud fallback.**
+
+- **Primary substrate.** Qwen3-32B (Apache 2.0) for MVP, served via Ollama 0.19+ with the MLX backend on a Mac Mini M4 Pro 64 GB. Graduation path: Qwen3-72B or GLM-5.2 (MIT) at the 128 GB hardware tier when adversarial-robustness or capability needs justify it.
+- **Cloud fallback (narrow).** Anthropic Claude Sonnet 4.x for three specific dimensions where T4 surfaced a material OSS gap:
+  1. Adversarial constitutional robustness on the hardest condition-gated queries
+  2. Long context above 64K tokens (epistemic trail loads that can't be summarized below 64K)
+  3. Low-resource cuisine language work outside Qwen3's top-10 coverage
+- **Gemini optional, not architectural.** No multi-provider PHI-decomposition assumption baked in.
+- **PHI-decomposition discipline preserved** for any cloud crossing per [phi-handling.md](phi-handling.md).
+
+### Explicit do-not-use
+
+**DeepSeek V3.x as the primary instruction-following / constitutional-rule-enforcement agent.** T4 surfaced a 95/104 instruction-following ranking on one comprehensive leaderboard — a structural risk for NutriMe's 10 non-negotiable constitutional rules. The R1-distill-32B variant is fine for math-heavy reasoning leaf tasks; the V3.x line should not own constitutional enforcement.
+
+### Hardcoded constitutional rule layer
+
+**Adversarial constitutional robustness does not close with parameter count alone.** T4's Gap 2 — it requires explicit adversarial fine-tuning that OSS providers haven't matched to Anthropic Constitutional AI or OpenAI deliberative alignment.
+
+The hardest non-negotiable rules — particularly condition-gating for clinical constraints (Rule 1 defer-to-clinician, Rule 7 peer-reviewed evidence floor) — should be enforced by **a deterministic rule layer outside the LLM**, not by trusting any LLM (OSS or cloud) to instruction-follow under adversarial pressure. The specific rule DSL and check ordering are build-time decisions.
+
+### Domain fine-tuning path
+
+[FoodyLLM (MIT, Llama-3-8B-Instruct + LoRA, 225K nutrition QA pairs)](../15-llm-revisit/T1-food-llms.md#12-foodyllm) is the reference recipe. A domain fine-tune reaches 0.91–0.97 nutrient-estimation accuracy vs. ~0.43 zero-shot baseline — **reversing the gap against frontier cloud models on its narrow surface.** NutriMe's nutrient-estimation, condition-gating, and food-entity-linking modules should be specialist fine-tunes, not parametric-knowledge calls to the primary orchestrator.
+
+### Rationale
+
+Three things changed since A3 (April 2026):
+
+1. **Hardware substrate caught up.** A Mac Mini M4 Pro 64 GB now runs Qwen3-32B at 4 concurrent sessions inside an honest memory budget (T3 §4).
+2. **License field opened.** Qwen3, Mistral Large 3, Gemma 4, Cohere Command A+, GLM-5.2 are all Apache-2.0 or MIT as of mid-2026 (T2 §3.1).
+3. **Capability gap on most dimensions closed at 32B/72B.** IFEval gap closed at 27B+. Tool use near-parity at 70B+. Reasoning competitive with closed frontier on multi-step dietary constraint problems (T4 §1, §4, §6).
+
+What remains in cloud-favor: adversarial robustness, true long-context above 64K, and edge-case multilingual. The architecture matches the gap shape: OSS handles the bulk, cloud handles the narrow.
+
+### Updates to apply
+
+- [phi-handling.md](phi-handling.md) — the primary substrate is now local; PHI does not leave the home network in the steady state. Cloud crossings are exceptions, not the default
+- [provider-abstraction.md](provider-abstraction.md) — capability-vector routing extended with the OSS-vs-cloud-fallback dimension
+- [constitutional-rules.md](constitutional-rules.md) Rule 1 / Rule 7 — note that hardest-gate enforcement is hardcoded outside the LLM, not LLM-instruction-followed
+
+### Deferred to build
+
+- Specific fine-tune training stack (Unsloth vs. axolotl vs. MLX-native)
+- Concrete cloud-fallback gating criteria (automated vs. user-explicit)
+- V1 graduation decision: vllm-mlx vs. continued Ollama+MLX vs. llama.cpp paged-attention Metal when it lands
+
+### Sources
+
+- [research/15-llm-revisit/recommendation.md](../15-llm-revisit/recommendation.md) — synthesis of T1–T4
+- [T1 food-LLM landscape](../15-llm-revisit/T1-food-llms.md) — FoodyLLM as the domain-fine-tune reference
+- [T2 OSS general-purpose landscape](../15-llm-revisit/T2-oss-landscape.md) — Qwen3 Apache 2.0 + Mac-Mini hardware feasibility
+- [T3 Apple Silicon inference](../15-llm-revisit/T3-apple-silicon-inference.md) — Mac Mini M4 Pro 64 GB serving four concurrent 8K sessions on Qwen3-32B Q4_K_M
+- [T4 capability fit](../15-llm-revisit/T4-capability-fit.md) — 30B minimum-viable; 70B+ full-stack; DeepSeek V3.x flag; hardcoded rule layer recommendation
+- User direction throughout the Block A revision dialogue (2026-06-29)
+
+---
+
 ## A4 — Data persistence + knowledge model storage
 
 > Resolved 2026-04-30 across four sub-decisions Q4.1–Q4.4.

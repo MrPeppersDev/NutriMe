@@ -2595,3 +2595,62 @@ Stage 3.5 schema-design phase complete: **12 sub-blocks resolved 2026-05-03 → 
 Stage 3.5 closes; next phase per [stage3-plan.md](stage3-plan.md) is build (Stage 4). Schema-of-schemas declarative format choice is the first build-time decision; everything downstream depends on it.
 
 ---
+
+## F9 — Multi-tenant `tenant_id` axis (post-Stage-3.5 open flag)
+
+> **Opened 2026-06-29** during Block A revision (see [architecture.md](architecture.md) → "Block A revision — 2026-06-29"). Resolution deferred — likely needs a small follow-up sweep (S13) before Stage 4 build begins.
+
+### Why this is new
+
+Stage 3.5 schema work assumed a single-tenant local-first deployment (one user, one Mac). A1-v2 revises the deployment shape to **multi-tenant home server from day one** (family-of-4 baseline) with **eventual syndication-grade isolation** (per-family tenants for friends/neighbors at distance). Every shared substrate table, every operational table, and every corpus markdown frontmatter contract now needs a tenant-axis declaration before build.
+
+### What changes (proposed shape — resolution still open)
+
+**Substrate tables** (`atom` / `molecule` / `synthesized_entry`):
+
+- Add `tenant_id TEXT NOT NULL` as a **new base column** alongside the existing `subject_type` / `subject_id` columns.
+- `tenant_id` is the **isolation boundary**: rows from tenant A are never visible to tenant B regardless of `subject_id` overlap.
+- `subject_id` retains its existing F2 semantics (user / household / member_subset *within a tenant*).
+- Cross-tenant-applicable synthesized content (the F3 `subject_id NULL` case for `pairing_rationale`-style entries) needs a parallel decision: is there a `tenant_id NULL` "global" tier, or does each tenant get its own copy?
+
+**Operational tables** (`op_job_queue` / `op_event_log` / etc., all 8 from S8):
+
+- Add `tenant_id TEXT NOT NULL` as a base column so jobs, events, and audit trails partition cleanly per tenant.
+- Background workers (reverify sweeps, embedding jobs, integrity sweeps from S7+S11) must scope by `tenant_id` to avoid cross-tenant data leak through job side effects.
+
+**Corpus markdown frontmatter** (S9 common contract):
+
+- Add `tenant_id` as a **new required base field** in the frontmatter common contract.
+- Open question: does the corpus filesystem **partition by tenant directory** (`corpus/{tenant_id}/...`) or stay flat with frontmatter scoping? Directory partition wins on filesystem-level isolation; flat layout wins on cross-tenant authoring of genuinely-shared content.
+
+**Reference-resolution policies** (S11):
+
+- All three policies (current_only / point_in_time / latest_version) must scope by `tenant_id` before applying the temporal logic.
+- Add a fourth implicit policy or filter: **never resolve across tenant boundaries** — this is a hard invariant, not a configurable option.
+
+### Open resolution questions (for S13)
+
+1. **Column vs. fold:** Is `tenant_id` its own dedicated column, or does it fold into `subject_id` via a composite key scheme (`tenant:family-smith/user:b.sayer`)? Dedicated column is cleaner for indexing + RLS-style query enforcement; composite fold is fewer schema changes but loses query-time enforcement.
+2. **Default tenant for solo deployments:** Does a single-Mac deployment use `tenant_id = 'default'` or stay tenant-less? Probably the former (uniform schema everywhere), but worth confirming.
+3. **Tenant lifecycle table:** Do we need a top-level `tenant` table (id / name / created_at / active) or is the tenant just an opaque identifier with metadata elsewhere?
+4. **Cross-tenant content** (F3 generalization): How does the `subject_id NULL` "cross-user-applicable" pattern interact with the new tenant axis? Likely needs `tenant_id NULL` for genuinely-global content (e.g., factual nutrition statements) and tenant-scoped duplication for everything else.
+5. **Migration path** (S12 implications): How do existing single-tenant migrations (forward-only, per-DB) become tenant-aware? Almost certainly the migration runner needs to apply per-tenant or carry a `tenant_id` parameter; this should be addressed in S13 before any migration-affecting schema changes land.
+6. **Embedding tables** (S5): The two embedding tables need `tenant_id` too, AND the sqlite-vec query patterns need to filter by tenant before ANN search — otherwise nearest-neighbor results bleed across tenants.
+
+### Schema impact (when resolved)
+
+- **All substrate tables:** +1 base column (`tenant_id`)
+- **All operational tables:** +1 base column (`tenant_id`)
+- **Corpus markdown frontmatter:** +1 required base field (`tenant_id`)
+- **All indexes:** add `tenant_id` as leading column (for query partition)
+- **All foreign keys (S11):** verify FK targets are tenant-scoped or globally-valid; reject cross-tenant FK paths
+- **All reference-resolution policies (S11):** prefix tenant-scope filter before temporal resolution
+- **Migration runner (S12):** tenant-aware execution semantics
+
+### Sources
+
+- [architecture.md](architecture.md) → "Block A revision — 2026-06-29" (A1-v2 multi-tenant home server)
+- [research/15-llm-revisit/recommendation.md](../15-llm-revisit/recommendation.md) → "Multi-tenant scope" section
+- F2 (household vs. user-level subject boundary) — informs but does not subsume `tenant_id`; F2 is *within-tenant* sharing semantics, F9 is *across-tenant* isolation
+
+---
