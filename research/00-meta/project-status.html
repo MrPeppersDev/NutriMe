@@ -459,9 +459,9 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
-  <div class="k">Last commit</div><div class="v"><code>e284620 stage4(S4-Q2): cloud-primary MVP-host PHI — three layers ship in MVP</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/e284620">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 resolved — 3 sub-questions remain)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q6 next (publication tracks during MVP, ~80%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Last commit</div><div class="v"><code>(pending) stage4(S4-Q6): no active publication push during MVP</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 + Q6 resolved — 2 sub-questions remain)</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q4 next (Stage 5 just-in-time verification, ~70%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -884,12 +884,16 @@ tbody tr:last-child td { border-bottom: none; }
         <td>~60% (lowest)</td>
         <td>Entire Stage 6 sequencing gets re-examined at Stage 6 entry. Current sequencing in <code>stage3-plan.md</code> is a sketch, not a contract.</td>
       </tr>
-      <tr>
-        <td class="id-col">Q6</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q6 <span class="badge status-done">Resolved 2026-06-30</span></td>
         <td class="decision-col">Publication tracks during MVP</td>
-        <td><strong>No active publication push during MVP.</strong> Keep data capture consent-clean (E2) + license-clean (E3) + reproducibility-aware (E1); defer publication apparatus (writeups, peer-review submission, dataset releases) to post-MVP. Three publication targets naturally enabled by MVP data capture (recipe time-feedback #4, cooking-state changes #5, architectural/methodological code).</td>
-        <td>~80%</td>
-        <td>If a publication opportunity surfaces unexpectedly mid-MVP (e.g., conference deadline matches data state), revisit.</td>
+        <td><strong>Resolved. No active publication push during MVP.</strong>
+          <p style="margin: 4px 0 0 0;"><strong>MVP does:</strong> consent-clean (E2 tiered standing consent + per-publication-confirmation on every data-capture surface); license-clean (Apache 2.0 / MIT / CC-BY 4.0 headers from day one per E3 — no license-cleanup project ever needed); reproducibility-aware (E1 universal-minimum metadata for every component, expanded for publication-eligible).</p>
+          <p style="margin: 4px 0 0 0;"><strong>MVP does NOT:</strong> writeups (papers, blog posts, white papers), peer-review submission, dataset releases (even anonymized aggregates), cross-pollination outreach (e.g., GLIM authors), conference deadline tracking.</p>
+          <p style="margin: 4px 0 0 0;">Three publication targets accumulate data <em>passively</em> via normal MVP use: recipe time-feedback (#4) via Q1 per-meal feedback surface, cooking-state changes (#5) via C5 cooking-experience/body-response split, architectural code via E3 default Apache 2.0.</p>
+        </td>
+        <td>~80% (resolved)</td>
+        <td>If a publication opportunity surfaces unexpectedly mid-MVP — conference CFP matches captured-data state, or a target author reaches out — revisit. Trigger is <strong>named opportunity, not calendar date</strong>.</td>
       </tr>
     </tbody>
   </table>
@@ -1051,6 +1055,24 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">S4-Q6 resolved — no active publication push during MVP; data capture stays consent/license/reproducibility-clean</div>
+    <div class="body">
+      Fourth Stage 4 sub-question landed. E1–E4 (Block E) committed to publication-aware data collection from day one — reproducibility schema (E1), tiered consent + three-layer anonymization (E2), Apache 2.0 code + CC-BY 4.0 docs/data (E3), quarterly re-verification (E4). Q6 decides whether MVP <em>also</em> runs active publication apparatus or just keeps the door open. <strong>Answer: keep the door open; defer the push.</strong>
+      <p style="margin: 6px 0;"><strong>Three forces drove the resolution:</strong></p>
+      <ol>
+        <li>MVP-host is the user's primary work machine — active publication apparatus splits attention from shipping the thing the user will use</li>
+        <li>Data quality isn't there yet — recipe time-feedback (#4) needs months of real-use observation; GLIM screener (#1) needs validated MVP intake first. Pushing publication now means writeup-as-hypothesis, not writeup-as-findings</li>
+        <li>Three publication targets accumulate publication-ready data <em>passively</em> through normal MVP use — recipe time-feedback (#4) via the Q1 per-meal feedback surface, cooking-state changes pairings (#5) via the C5 cooking-experience/body-response split, architectural/methodological code via E3 default Apache 2.0. No active push needed during MVP for data to mature.</li>
+      </ol>
+      <p style="margin: 6px 0;"><strong>What MVP does:</strong> consent-clean (E2 standing consent + per-publication-confirmation on every data-capture surface), license-clean (Apache 2.0 / MIT / CC-BY 4.0 headers from day one per E3 — no license-cleanup project ever needed), reproducibility-aware (E1 universal-minimum metadata for every component, expanded metadata for publication-eligible).</p>
+      <p style="margin: 6px 0;"><strong>What MVP does NOT do:</strong> writeups (paper drafts, blog posts, white papers), peer-review submission to any of the four targets, dataset releases (even anonymized aggregates), cross-pollination outreach (e.g., contacting GLIM authors), conference deadline tracking.</p>
+      <p style="margin: 6px 0;"><strong>Build-time trigger:</strong> revisit if a publication opportunity surfaces unexpectedly — conference CFP matches captured-data state, or a target author reaches out. The trigger is <strong>named opportunity, not calendar date</strong>. Default stance: "data ready, push deferred."</p>
+      Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (Q6 marked resolved + MVP defers list updated to reflect "design-aware no-push" with named trigger), <a href="roadmap.md">roadmap.md</a> Stage 4 row, this doc's six-question table (Q6 row marked resolved), status bar, changelog. Next: <strong>S4-Q4 Stage 5 just-in-time verification (~70%)</strong>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
