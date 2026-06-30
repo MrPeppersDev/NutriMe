@@ -23,6 +23,7 @@ from nutrime.paths import (
     default_operational_migrations_dir,
     default_substrate_migrations_dir,
 )
+from nutrime.rules import RuleEngine, default_rule_engine
 from nutrime.tenancy import bootstrap_tenant
 
 
@@ -32,6 +33,7 @@ class Application:
     operational: sqlite3.Connection
     tenant_id: str
     data_dir: Path
+    rule_engine: RuleEngine
 
 
 def initialize(
@@ -40,6 +42,7 @@ def initialize(
     substrate_migrations: Path | None = None,
     operational_migrations: Path | None = None,
     tenant_name: str = "Default Household",
+    rule_engine: RuleEngine | None = None,
 ) -> Application:
     data_dir = data_dir or default_data_dir()
     substrate_migrations = substrate_migrations or default_substrate_migrations_dir()
@@ -62,4 +65,5 @@ def initialize(
         operational=operational,
         tenant_id=tenant_id,
         data_dir=data_dir,
+        rule_engine=rule_engine or default_rule_engine(),
     )

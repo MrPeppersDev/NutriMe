@@ -67,6 +67,17 @@ def test_initialize_tracks_operational_migrations_independently(
     assert op_table is not None
 
 
+def test_initialize_carries_default_rule_engine(data_dir: Path) -> None:
+    app = initialize(
+        data_dir=data_dir,
+        substrate_migrations=SUBSTRATE_MIGRATIONS,
+        operational_migrations=OPERATIONAL_MIGRATIONS,
+    )
+
+    names = {r.name for r in app.rule_engine.rules}
+    assert "prompt-injection-guard" in names
+
+
 def test_initialize_is_idempotent(data_dir: Path) -> None:
     first = initialize(
         data_dir=data_dir,
