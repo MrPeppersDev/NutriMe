@@ -13,7 +13,14 @@ classifiers = [
     "Operating System :: MacOS",
     "Private :: Do Not Upload",
 ]
-dependencies = []
+dependencies = [
+    "sqlite-vec>=0.1.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]
