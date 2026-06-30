@@ -156,10 +156,14 @@ Each sub-question gets its own focused dialogue + per-resolution commit (per wor
   3. **UI layer — hide tenant context at MVP.** No tenant switcher, no household-name labels, no "switch tenant" affordance. The schema + helper + `tenant` row exist; the interface stays single-context. UI surfaces multi-tenancy at v0.2+ when the family-of-4 migration happens; data layer doesn't change at that point.
 - **Land-but-revisit-during-build trigger:** none expected. F9 closure already documented all three judgment-call alternatives (Q3 event-sourcing for tenant lifecycle, Q4 NULL-semantics for `is_global`, Q6 per-tenant `vec0` at ~10+ tenants) inline in [schema.md F9](schema.md). If any specific MVP-build pattern surfaces a real problem, the alternative is already pre-researched — no fresh sweep needed.
 
-**S4-Q4: How does Stage 5 (pre-build verification) sequence against Stage 6 (build)?** *(confidence ~70%)*
-- **Tension:** Stage 5 is the wave-1/2/3 verification pass. Run all of it before any Stage 6 code (clean cut), or just-in-time per component (less wasted verification on components we don't end up building)?
-- **Proposed answer:** **per-component verification just-in-time.** Each Stage 6 step starts with its slice of Stage 5 verification (e.g., "before recipe sourcing step starts, re-verify recipe IP law + TheMealDB API state"). Universal pre-flight wastes time on components MVP may scope down. The wave-structure in roadmap.md becomes a checklist applied at each component-entry point, not a sequenced phase.
-- **Revisit-during-build trigger:** if just-in-time verification surfaces a foundational fact change (e.g., DRI publication revision) that retroactively invalidates earlier-built components, swap to upfront pre-flight for the remaining steps.
+**S4-Q4: How does Stage 5 (pre-build verification) sequence against Stage 6 (build)?** *(resolved 2026-06-30 — confidence was ~70%)*
+- **Tension:** Stage 5 is the wave-1/2/3 freshness check. Run all of it before any Stage 6 code (universal pre-flight) or just-in-time per Stage 6 component (per-component checklist)?
+- **Resolution: per-component verification just-in-time as the default, with two named upfront exceptions for cross-cutting facts.**
+  - **Default — per-component just-in-time.** Each Stage 6 step starts with its slice of Stage 5 verification. The wave-1/2/3 structure in roadmap.md becomes a **per-component checklist applied at component-entry**, not a sequenced phase. Example: before "recipe sourcing" step, re-verify (a) recipe IP law currency reference, (b) TheMealDB free-tier API state, (c) Project Gutenberg PD historical-recipe availability. Before "intake" step, re-verify PHQ-2 + GAD-2 + Hunger Vital Sign psychometric figures only — Q1 already eliminated PSQI/AUDIT-C/CCSS from MVP, so their verification doesn't run at MVP.
+  - **Exception 1 — recipe IP law (verify once upfront at Stage 5 entry).** Affects recipe sourcing, corpus build, and publication track #4. One upfront check; only re-verify per-component if the upfront check surfaces a recent change (e.g., new circuit court ruling since the Stage 1 sweep).
+  - **Exception 2 — DRI publication versions (verify once upfront at Stage 5 entry).** Affects intake, meal-plan generation, nutrition guidance display, and the abstracted-constraint-layer. Foundational data that propagates across multiple components; one upfront check beats N re-verifications.
+- **Sequencing implication:** Stage 5 "starts" with the two upfront exceptions, then becomes a per-component checklist for the rest. **No clean "Stage 5 done → Stage 6 start" boundary** — Stage 5 and Stage 6 interleave. The wave-1/2/3 framing in roadmap.md stays as the inventory, but the runtime pattern is interleaved-per-component, not sequenced-phase.
+- **Land-but-revisit-during-build trigger:** if just-in-time verification at component-entry surfaces a foundational fact change that **retroactively invalidates earlier-built components** (e.g., DRI re-issue mid-Stage-6 forces re-work on already-built intake), swap to upfront pre-flight for the remaining Stage 6 steps. Trigger is **retroactive invalidation**, not just freshness drift. Also: if more cross-cutting items surface during Stage 6 entry (beyond recipe IP + DRI), add them to the upfront exception set rather than verifying them per-component.
 
 **S4-Q5: How does Stage 6 (build) sequence internally?** *(confidence ~60% — most uncertain)*
 - **Tension:** Current Stage 6 sequencing (in this doc, below) has eight steps. Two issues:
@@ -191,13 +195,21 @@ Per working-style memory: each sub-question gets its own commit (`stage4(S4-Q1):
 
 ## Stage 5 — Pre-corpus-build verification pass
 
-Run the wave-1/2/3 verification work tracked in roadmap.md once live web tools are available. Re-fetches:
+**Runtime pattern (per S4-Q4 resolved 2026-06-30): per-component just-in-time, with two upfront exceptions for cross-cutting facts.** Stage 5 and Stage 6 interleave — there is no clean "Stage 5 done → Stage 6 start" boundary.
 
-- Wave 1: DRI publication versions, food composition database current state, vendor APIs current state, recipe IP law currency
-- Wave 2: validated-instrument sensitivity/specificity figures, OSS repo states, post-2024 AI-credibility literature, latest Cochrane PLS templates
-- Wave 3: NIH NPH program updates, meal-kit behavior-shift literature, regulatory guidance updates, Instacart IDP indie-tier status, all `VERIFY-AT-ADOPTION` items
+**Stage 5 entry (run once upfront before any Stage 6 code):**
+- **Recipe IP law currency** — affects recipe sourcing, corpus build, publication track #4
+- **DRI publication versions** — affects intake, meal-plan generation, nutrition guidance, abstracted-constraint-layer
 
-**Not a re-do of the sweeps** — the framework, source identification, and analytical structure stand. Just a freshness check on time-sensitive details before corpus build kicks off.
+**Per-component just-in-time (run at each Stage 6 step entry):** the wave-1/2/3 inventory below becomes a checklist applied at component-entry, not a sequenced phase. Q1 already eliminated some items from MVP scope (e.g., Instacart IDP indie-tier verification waits for v0.2; PSQI/AUDIT-C/CCSS psychometric refresh waits for v0.2 re-add).
+
+**Wave-1/2/3 inventory (re-fetches tracked in roadmap.md, run when corresponding Stage 6 component starts):**
+
+- **Wave 1:** DRI publication versions *(upfront — see above)*, food composition database current state, vendor APIs current state, recipe IP law currency *(upfront — see above)*
+- **Wave 2:** validated-instrument sensitivity/specificity figures *(MVP trio only)*, OSS repo states, post-2024 AI-credibility literature, latest Cochrane PLS templates
+- **Wave 3:** NIH NPH program updates, meal-kit behavior-shift literature, regulatory guidance updates, Instacart IDP indie-tier status *(v0.2)*, all `VERIFY-AT-ADOPTION` items
+
+**Not a re-do of the sweeps** — the framework, source identification, and analytical structure stand. Just a freshness check on time-sensitive details. **Trigger to swap to universal pre-flight for remaining steps:** if just-in-time surfaces a foundational fact change that retroactively invalidates earlier-built components (not just freshness drift).
 
 ---
 

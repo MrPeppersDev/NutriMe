@@ -459,9 +459,9 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
-  <div class="k">Last commit</div><div class="v"><code>43f9bce stage4(S4-Q6): no active publication push during MVP; data capture stays clean</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/43f9bce">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 + Q6 resolved — 2 sub-questions remain)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q4 next (Stage 5 just-in-time verification, ~70%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Last commit</div><div class="v"><code>(pending) stage4(S4-Q4): Stage 5 per-component just-in-time + two upfront exceptions</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 + Q6 + Q4 resolved — 1 sub-question remains)</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q5 last (Stage 6 internal sequencing, ~60% — lowest-confidence)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -870,12 +870,16 @@ tbody tr:last-child td { border-bottom: none; }
         <td>~90% (resolved)</td>
         <td>None expected. F9 closure pre-documented Q3 event-sourcing / Q4 NULL-<code>is_global</code> / Q6 per-tenant <code>vec0</code> alternatives inline in <a href="schema.md">schema.md F9</a> — no fresh research needed if a build-time issue surfaces.</td>
       </tr>
-      <tr>
-        <td class="id-col">Q4</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q4 <span class="badge status-done">Resolved 2026-06-30</span></td>
         <td class="decision-col">Stage 5 sequencing vs Stage 6</td>
-        <td><strong>Per-component verification just-in-time.</strong> Each Stage 6 step starts with its slice of Stage 5 verification. Wave-1/2/3 structure in <a href="roadmap.md"><code>roadmap.md</code></a> becomes a per-component checklist, not a sequenced phase.</td>
-        <td>~70%</td>
-        <td>If just-in-time verification surfaces a foundational fact change (e.g., DRI revision) that invalidates earlier components, swap to upfront pre-flight for remaining steps.</td>
+        <td><strong>Resolved. Per-component just-in-time as default, with two upfront exceptions for cross-cutting facts.</strong>
+          <p style="margin: 4px 0 0 0;"><strong>Upfront at Stage 5 entry:</strong> (1) recipe IP law currency (affects recipe sourcing + corpus build + publication #4); (2) DRI publication versions (affects intake + meal-plan + nutrition guidance + abstracted-constraint-layer).</p>
+          <p style="margin: 4px 0 0 0;"><strong>Per-component just-in-time for everything else:</strong> the wave-1/2/3 structure in <a href="roadmap.md"><code>roadmap.md</code></a> becomes a per-component checklist applied at component-entry. Q1 already eliminated some items from MVP scope (Instacart IDP indie-tier → v0.2; PSQI/AUDIT-C/CCSS psychometrics → v0.2).</p>
+          <p style="margin: 4px 0 0 0;"><strong>Sequencing implication:</strong> no clean "Stage 5 done → Stage 6 start" boundary — Stage 5 and Stage 6 interleave.</p>
+        </td>
+        <td>~70% (resolved)</td>
+        <td>If just-in-time verification at component-entry surfaces a foundational fact change that <strong>retroactively invalidates earlier-built components</strong> (e.g., DRI re-issue mid-Stage-6 forces re-work on already-built intake), swap to upfront pre-flight for remaining Stage 6 steps. Trigger is retroactive invalidation, not just freshness drift. Also: if more cross-cutting items surface during Stage 6 entry, add them to the upfront exception set rather than verifying them per-component.</td>
       </tr>
       <tr>
         <td class="id-col">Q5</td>
@@ -1055,6 +1059,29 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">S4-Q4 resolved — Stage 5 verification runs per-component just-in-time, with two upfront cross-cutting exceptions</div>
+    <div class="body">
+      Fifth Stage 4 sub-question landed. Stage 5 is the wave-1/2/3 pre-corpus-build verification pass tracked in <a href="roadmap.md"><code>roadmap.md</code></a>. Q4 decides whether Stage 5 runs as a clean phase before any Stage 6 code (universal pre-flight) or just-in-time per Stage 6 component (per-component checklist). <strong>Answer: per-component just-in-time as default, with two upfront exceptions for cross-cutting facts.</strong>
+      <p style="margin: 6px 0;"><strong>Three forces drove it:</strong></p>
+      <ol>
+        <li>MVP scope (Q1-resolved) eliminates some waves entirely. Open-source-only recipes per Q1 means Instacart IDP indie-tier verification waits for v0.2. MVP trio screeners per Q1 means only PHQ-2 + GAD-2 + Hunger Vital Sign psychometrics get refreshed; PSQI/AUDIT-C/CCSS verification waits for v0.2 re-add. Universal pre-flight would verify items MVP doesn't touch.</li>
+        <li>Just-in-time keeps verification recent at point of use. A wave-1 DRI re-fetch run months before the corresponding Stage 6 step can go stale; just-in-time matches verification window to build window.</li>
+        <li>Cross-cutting dependencies need upfront resolution. Some facts aren't component-scoped — e.g., recipe IP law currency affects multiple components. Pure just-in-time risks re-verifying the same fact three times when one upfront check would do.</li>
+      </ol>
+      <p style="margin: 6px 0;"><strong>Upfront at Stage 5 entry (run once before any Stage 6 code):</strong></p>
+      <ul>
+        <li><strong>Recipe IP law currency</strong> — affects recipe sourcing, corpus build, publication track #4</li>
+        <li><strong>DRI publication versions</strong> — affects intake, meal-plan generation, nutrition guidance display, abstracted-constraint-layer</li>
+      </ul>
+      <p style="margin: 6px 0;"><strong>Per-component just-in-time (run at each Stage 6 step entry):</strong> the wave-1/2/3 inventory in roadmap.md becomes a checklist applied at component-entry, not a sequenced phase. Example: before "recipe sourcing" Stage 6 step starts, re-verify TheMealDB free-tier API state + Project Gutenberg PD historical-recipe availability (recipe IP law is already verified upfront).</p>
+      <p style="margin: 6px 0;"><strong>Sequencing implication:</strong> no clean "Stage 5 done → Stage 6 start" boundary — Stage 5 and Stage 6 interleave. The wave-1/2/3 framing stays as the inventory in roadmap.md; the runtime pattern is interleaved-per-component, not sequenced-phase.</p>
+      <p style="margin: 6px 0;"><strong>Build-time trigger:</strong> if just-in-time verification at component-entry surfaces a foundational fact change that <strong>retroactively invalidates</strong> earlier-built components (e.g., DRI re-issue mid-Stage-6 forces re-work on already-built intake), swap to upfront pre-flight for the remaining Stage 6 steps. Trigger is retroactive invalidation, not just freshness drift. Also: if more cross-cutting items surface during Stage 6 entry, add them to the upfront exception set rather than verifying per-component.</p>
+      Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (Q4 marked resolved with two-exception model + sequencing implication + revisit trigger), <a href="stage3-plan.md">stage3-plan.md § Stage 5</a> (rewritten to lead with the runtime pattern; wave inventory annotated with per-Q1 MVP-eliminations and upfront exceptions), <a href="roadmap.md">roadmap.md</a> Stage 4 row, this doc's six-question table (Q4 row marked resolved), status bar, changelog. Next (and last): <strong>S4-Q5 Stage 6 internal sequencing (~60%, lowest-confidence)</strong>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
