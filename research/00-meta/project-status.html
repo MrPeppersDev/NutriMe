@@ -459,20 +459,20 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
-  <div class="k">Last commit</div><div class="v"><code>1fd38bc stage5: upfront cross-cutting verifications (recipe IP law + DRI versions)</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/1fd38bc">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 5 entry — upfront cross-cutting verifications COMPLETE 2026-06-30; per-component just-in-time verifications begin at Stage 6 step entry (interleaved)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">Stage 6 — Build phase 1 (MVP implementation)</span> &nbsp;·&nbsp; step 1 is the expanded Foundation per S4-Q5: persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell. Cross-cutting concerns (honest-disclosure + PHI decomposition) woven through every step.</div>
+  <div class="k">Last commit</div><div class="v"><code>60dfa47 build(foundation-1): Python project scaffolding + Apache 2.0 license</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/60dfa47">view on GitHub</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 6 — Build phase 1 IN PROGRESS. Step 1 (Foundation, expanded) opened 2026-06-30; first slice landed (Python 3.13+ scaffolding + Apache 2.0 license).</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">Foundation step 1 — next sub-commit: persistence layer (SQLite + sqlite-vec; migration runner)</span> &nbsp;·&nbsp; then multi-tenant scaffolding (F9 typed query helper + <code>tenant</code> lifecycle table), constitutional rule layer scaffolding, PHI envelope helper, deployment shell — one substantive concern per commit per working-style memory.</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 18 issues open (#2 closed 2026-06-29 via F9 resolution; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> closed 2026-06-30 with all six Stage 4 sub-questions resolved); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep (closed). Markdown is canonical; GitHub is the kanban view.</div>
-  <div class="k">Codebase</div><div class="v">No application code yet. <code>research/</code> only, 74 commits. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Codebase</div><div class="v">First code commit landed 2026-06-30 — Python 3.13+, <code>src/</code> layout, hatchling backend, Apache 2.0. 75 commits. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
 </div>
 
 <!-- ----- 30-second orientation (read first) ----- -->
 <div class="callout next-gate" style="margin: 0 0 32px 0;">
   <h4>If you only read one thing</h4>
-  <p><strong>Where we are:</strong> Stages 1, 2, 3, 3.5, and <strong>4</strong> are all <span class="badge status-done">Complete</span>. Block A v2 + the F9/S13 same-day closure landed 2026-06-29. <span class="badge status-done">Stage 4 — MVP scoping</span> closed 2026-06-30 with all six sub-questions resolved across two days (Q1 + Q3 on day one; Q2 + Q6 + Q4 + Q5 on day two). <span class="badge status-next">Stage 5 entry</span> is the next gate.</p>
-  <p><strong>What's next:</strong> Stage 5 entry runs the two upfront cross-cutting verifications per S4-Q4 — (1) <strong>recipe IP law currency</strong> (affects recipe sourcing, corpus build, publication track #4); (2) <strong>DRI publication versions</strong> (affects intake, meal-plan generation, nutrition guidance, abstracted-constraint-layer). Everything else is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave (no clean phase boundary). Stage 6's locked structural decisions per S4-Q5: expanded Foundation (step 1 absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper); cross-cutting concerns (honest-disclosure + PHI decomposition) woven through every step; recipe sourcing precedes meal-plan generation.</p>
+  <p><strong>Where we are:</strong> Stages 1, 2, 3, 3.5, and <strong>4</strong> are all <span class="badge status-done">Complete</span>. <span class="badge status-done">Stage 5 entry</span> upfront cross-cutting verifications complete 2026-06-30 (recipe IP law currency + DRI publication versions — both still current; MVP corpus targets unchanged). <span class="badge status-active">Stage 6 — Build phase 1</span> is now in progress: step 1 (Foundation, expanded) opened 2026-06-30, first slice landed (Python 3.13+ scaffolding + Apache 2.0 license).</p>
+  <p><strong>What's next:</strong> Continuing Foundation step 1 one substantive concern per commit — persistence layer (SQLite + sqlite-vec; migration runner), multi-tenant scaffolding (F9 typed query helper + <code>tenant</code> lifecycle table), constitutional rule layer scaffolding, PHI envelope helper, deployment shell. Cross-cutting concerns (honest-disclosure + PHI decomposition) ride on the constitutional rule layer and weave through every step from step 1. Per-component just-in-time Stage 5 verifications run at each subsequent Stage 6 step entry (Stage 5 and Stage 6 interleave per S4-Q4).</p>
   <p><strong>What to read first:</strong> <a href="stage3-plan.md"><code>stage3-plan.md</code></a> § "Stage 4 — MVP scoping" for the six-question resolutions (canonical home with full proposals, confidence ratings, build-time revisit triggers), and § "Stage 6" for the locked Stage 6 sequencing per S4-Q5. Then <a href="schema.md"><code>schema.md</code></a> § F9 for the tenant-axis decisions that constrain MVP shape. Then this doc's <a href="#next-steps">section 10</a> for the resolved six-question table.</p>
   <p><strong>How to cross-validate:</strong> every flag in <a href="#active-flags">section 8</a> is a GitHub issue link. Every Block A v2 row in <a href="#block-a">section 6</a> points to the canonical source. Every Changelog entry in <a href="#changelog">section 12</a> includes the commit hash. Working-style pattern: confident sub-question answers lock in; judgment-call answers land but explicitly note a "revisit during build" trigger documented inline.</p>
 </div>
@@ -508,7 +508,7 @@ tbody tr:last-child td { border-bottom: none; }
 <section id="timeline">
   <h2><span class="num">3</span>Stage timeline</h2>
 
-  <p class="intro">Seven stages. The first three plus the schema-design interstitial (3.5) plus Stage 4 are complete. Stage 5 entry is the next gate.</p>
+  <p class="intro">Seven stages. The first three plus the schema-design interstitial (3.5) plus Stage 4 are complete; Stage 5 entry upfront verifications complete 2026-06-30; Stage 6 step 1 (Foundation, expanded) in progress.</p>
 
   <table>
     <thead>
@@ -520,8 +520,8 @@ tbody tr:last-child td { border-bottom: none; }
       <tr><td class="id-col">3</td><td class="decision-col">Architecture</td><td>19 decisions across Blocks A–E</td><td><span class="badge status-done">Complete</span></td></tr>
       <tr><td class="id-col">3.5</td><td class="decision-col">Schema design</td><td>12 sub-blocks S1–S12; substrate + operational + corpus contracts</td><td><span class="badge status-done">Complete</span></td></tr>
       <tr><td class="id-col">4</td><td class="decision-col">MVP scoping</td><td>Six sub-questions framing the smallest useful end-to-end slice — attack order Q1 → Q3 → Q2 → Q6 → Q4 → Q5; all resolved across 2026-06-29 (Q1 + Q3) and 2026-06-30 (Q2 + Q6 + Q4 + Q5)</td><td><span class="badge status-done">Complete 2026-06-30</span></td></tr>
-      <tr><td class="id-col">5</td><td class="decision-col">Pre-build verification</td><td>Re-run wave-1/2/3 sweeps with live web tools to refresh time-sensitive details</td><td><span class="badge status-active">Awaits web tools</span></td></tr>
-      <tr><td class="id-col">6</td><td class="decision-col">Build phase 1</td><td>Iterative MVP implementation</td><td><span class="badge status-next">Pending Stages 4, 5</span></td></tr>
+      <tr><td class="id-col">5</td><td class="decision-col">Pre-build verification</td><td>Re-run wave-1/2/3 sweeps with live web tools to refresh time-sensitive details. Per S4-Q4: two upfront verifications run before Stage 6 (recipe IP law + DRI versions, both complete 2026-06-30); rest is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave.</td><td><span class="badge status-done">Upfront verifications complete 2026-06-30; per-component just-in-time ongoing</span></td></tr>
+      <tr><td class="id-col">6</td><td class="decision-col">Build phase 1</td><td>Iterative MVP implementation. Step 1 (Foundation, expanded) absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell + repo scaffolding.</td><td><span class="badge status-active">In progress — step 1 first slice landed 2026-06-30</span></td></tr>
       <tr><td class="id-col">7</td><td class="decision-col">Use + iterate</td><td>Real use surfaces real findings; roadmap stays alive</td><td><span class="badge status-next">Pending Stage 6</span></td></tr>
     </tbody>
   </table>
@@ -826,9 +826,10 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 
   <div class="callout next-gate">
-    <h4>Next gate — Stage 5 entry <span class="badge status-next">Next (Stage 4 closed 2026-06-30)</span></h4>
-    <p>Stage 4 MVP scoping is complete — all six sub-questions resolved across 2026-06-29 (Q1 + Q3) and 2026-06-30 (Q2 + Q6 + Q4 + Q5). <strong>Stage 5 entry runs two upfront cross-cutting verifications per S4-Q4:</strong> (1) recipe IP law currency (affects sourcing + corpus + publication #4); (2) DRI publication versions (affects intake + meal-plan + nutrition guidance + abstracted-constraint-layer). Everything else is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave (no clean phase boundary).</p>
-    <p>Stage 6 sequencing per S4-Q5 (locked): expanded Foundation (step 1 absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell); cross-cutting concerns (honest-disclosure + PHI decomposition) woven through every step from step 1; recipe sourcing (step 4) precedes meal-plan generation (step 5); open-source-only recipe sources per D4 + Q1. Two yellow flags deferred to Stage 6 entry: Intake (step 2) screener/inventory split; Daily-cadence (step 8) placement.</p>
+    <h4>Current — Stage 6 step 1 (Foundation, expanded) in progress <span class="badge status-active">First slice landed 2026-06-30</span></h4>
+    <p>Stage 5 entry upfront cross-cutting verifications complete 2026-06-30 — (1) recipe IP law currency: US doctrine unchanged, 2024-2025 AI training-data litigation doesn't reach functional recipes, PD threshold advanced 1928→1929; (2) DRI publication versions: 2006 IOM tables + NASEM 2019 Sodium/Potassium + NASEM 2023 Energy still current numerically, NASEM Nov 2024 AMDR letter report is a process flag (macronutrient review in progress). Both verifications confirmed MVP corpus targets unchanged.</p>
+    <p><strong>Stage 6 step 1 (Foundation, expanded) opened 2026-06-30.</strong> First slice landed: Python 3.13+ project scaffolding + Apache 2.0 license (commit <a href="https://github.com/MrPeppersDev/NutriMe/commit/60dfa47"><code>60dfa47</code></a>). Remaining Foundation sub-commits — one substantive concern per commit per working-style memory: persistence layer (SQLite + sqlite-vec; migration runner) → multi-tenant scaffolding (F9 typed query helper + <code>tenant</code> lifecycle table) → constitutional rule layer scaffolding → PHI envelope helper → deployment shell. Cross-cutting concerns (honest-disclosure + PHI decomposition) ride on the constitutional rule layer and weave through every step from step 1.</p>
+    <p>Two yellow flags deferred to Stage 6 entry (revisit during build): Intake (step 2) screener/inventory split; Daily-cadence (step 8) placement.</p>
   </div>
 
   <h4>Six Stage 4 sub-questions (with confidence + revisit triggers) — all resolved</h4>
@@ -917,7 +918,7 @@ tbody tr:last-child td { border-bottom: none; }
     <li><strong>Q5</strong> — Stage 6 sequencing is the most uncertain answer; benefits from every prior answer landing first</li>
   </ol>
 
-  <p class="edit-hint">// Stage 4 closed 2026-06-30. All six sub-questions resolved. Next gate is Stage 5 entry — run the two upfront cross-cutting verifications (recipe IP law + DRI publication versions per S4-Q4); per-component just-in-time verification thereafter (Stage 5 and Stage 6 interleave per S4-Q4 resolution).</p>
+  <p class="edit-hint">// Stage 5 entry upfront verifications complete 2026-06-30 (recipe IP law + DRI publication versions — both still current; MVP corpus targets unchanged). Stage 6 step 1 (Foundation, expanded) in progress — first slice landed 2026-06-30 (Python scaffolding + Apache 2.0 license, commit <code>60dfa47</code>). Continuing one substantive Foundation concern per commit. Per-component just-in-time Stage 5 verifications run at each subsequent Stage 6 step entry.</p>
 </section>
 
 <!-- ============================== 11. DOC MAP ============================== -->
@@ -1064,6 +1065,26 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">Foundation step 1 first slice landed — Python project scaffolding + Apache 2.0 license. Project transitions from planning (<code>research/</code>-only) to code phase.</div>
+    <div class="body">
+      First code commit in the repo. Stage 6 step 1 (Foundation, expanded per S4-Q5) opened 2026-06-30 with the minimum-viable Python project metadata + license + README + .gitignore + package init.
+      <p style="margin: 6px 0;"><strong>What landed (commit <a href="https://github.com/MrPeppersDev/NutriMe/commit/60dfa47"><code>60dfa47</code></a>):</strong></p>
+      <ul>
+        <li><code>pyproject.toml</code> — hatchling backend, <code>src/</code> layout pointing at <code>src/nutrime/</code>, <code>requires-python &gt;= 3.13</code>, Apache 2.0 license declared, empty dependencies list (additions deferred to subsequent Foundation commits when each substantive concern lands).</li>
+        <li><code>LICENSE</code> — Apache License 2.0 full text per E3 (code license).</li>
+        <li><code>README.md</code> — brief top-level pointing at <code>research/</code> as the canonical documentation home; notes license.</li>
+        <li><code>.gitignore</code> — Python + IDE + macOS + SQLite local-database patterns.</li>
+        <li><code>src/nutrime/__init__.py</code> — package marker with <code>__version__ = "0.0.1"</code>.</li>
+      </ul>
+      <p style="margin: 6px 0;"><strong>Stack pick rationale (Python over Swift-end-to-end):</strong> Python 3.13+ for the server side. Swift-end-to-end was the cleaner architectural fit (unified types across iPhone client and Mac server for PHI envelope + constitutional rule layer, native HealthKit flow, MLX path, lower memory footprint on the shared 24 GB MBP) but Python wins on ML/AI library ecosystem reach and mirtCAT R-interop (the PSQI/AUDIT-C/PHQ-2/GAD-2 scoring path may want R bridge later). Swift remains the iPhone client per A2-v2; Python is the server.</p>
+      <p style="margin: 6px 0;"><strong>Same-day context — Stage 5 entry verifications:</strong> Both upfront cross-cutting verifications per S4-Q4 completed earlier 2026-06-30 (commit <a href="https://github.com/MrPeppersDev/NutriMe/commit/1fd38bc"><code>1fd38bc</code></a>): (1) <strong>recipe IP law currency</strong> — US doctrine (17 USC § 102(b); <em>Publications International v. Meredith</em>; <em>Tomaydo-Tomahdo v. Vozary</em>) unchanged; 2024-2025 AI training-data litigation doesn't reach functional recipes; PD threshold advanced 1928→1929 (Jan 2025); TheMealDB still accessible with artwork attribution action item. (2) <strong>DRI publication versions</strong> — 2006 IOM tables + NASEM 2019 Sodium/Potassium + NASEM 2023 Energy still current numerically; NASEM Nov 2024 AMDR letter report is a process flag (macronutrient review in progress); Health Canada continues to co-publish. Both verifications confirmed MVP corpus targets unchanged; MVP proceeds. Sources annotated inline in <a href="../01-international-nutrition-standards/scope.md">research/01 sweep doc</a> and <a href="../11-recipe-sourcing/scope.md">research/11 sweep doc</a> Findings sections + <a href="roadmap.md">roadmap.md</a> wave-1 rows.</p>
+      <p style="margin: 6px 0;"><strong>Next sub-commits (one substantive concern per commit per working-style memory):</strong> persistence layer (SQLite + sqlite-vec; migration runner) → multi-tenant scaffolding (F9 typed query helper + <code>tenant</code> lifecycle table) → constitutional rule layer scaffolding → PHI envelope helper → deployment shell. Cross-cutting concerns (honest-disclosure + PHI decomposition) ride on the constitutional rule layer and weave through every step from step 1.</p>
+      Sections touched: status bar (last commit pointer, current stage, next gate, codebase row), 30-second orientation (where-we-are + what's-next), section 3 timeline rows (Stage 5 marked complete; Stage 6 marked in progress), section 10 callout (rewritten as "Current — Stage 6 step 1 in progress" with Stage 5 verifications outcome recorded), section 10 edit-hint, changelog. New files in repo root + <code>src/nutrime/</code>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
