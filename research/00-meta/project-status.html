@@ -459,9 +459,9 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-29</div>
-  <div class="k">Last commit</div><div class="v"><code>c255309 docs(stage4): unblock Stage 4 in stage3-plan.md after F9 closure</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/c255309">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (in progress, opened 2026-06-29)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">Six sub-questions to resolve</span> &nbsp;·&nbsp; attack order Q1 → Q3 → Q2 → Q6 → Q4 → Q5; framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Last commit</div><div class="v"><code>(pending) stage4(S4-Q1): MVP scope — open-source recipes + MVP trio</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 resolved 2026-06-29 — 5 sub-questions remain)</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q3 next (multi-tenant scaffolding, ~90%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -836,12 +836,12 @@ tbody tr:last-child td { border-bottom: none; }
       <tr><th>#</th><th>Sub-question</th><th>Proposed answer</th><th>Confidence</th><th>Revisit trigger (if any)</th></tr>
     </thead>
     <tbody>
-      <tr>
-        <td class="id-col">Q1</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q1 <span class="badge status-done">Resolved 2026-06-29</span></td>
         <td class="decision-col">MVP scope correctness</td>
-        <td>Narrow recipe sources to <strong>open-source-only</strong> per D4 (drop "1–2 commercial APIs" from starting proposal). Narrow intake instruments to the <strong>MVP trio</strong> (PHQ-2 + GAD-2 + Hunger Vital Sign) plus demographics / life-stage / dietary preferences / allergens. Defer PSQI short / AUDIT-C / CCSS to v0.2.</td>
-        <td>~75%</td>
-        <td>If MVP trio under-captures nutrition-actionable signal, add back PSQI short (sleep affects appetite).</td>
+        <td><strong>Resolved.</strong> Recipe sources narrowed to <strong>open-source-only</strong> per D4 (commercial APIs dropped — was stale text from before D4 landed). Intake instruments narrowed to the <strong>MVP trio</strong>: PHQ-2 + GAD-2 + Hunger Vital Sign + demographics / life-stage / dietary preferences / allergens. PSQI short / AUDIT-C / CCSS deferred to v0.2.</td>
+        <td>~75% (resolved)</td>
+        <td>If MVP trio under-captures nutrition-actionable signal during real use, add back PSQI short first (sleep → appetite regulation; C5 already has sleep-conditional logic). AUDIT-C / CCSS stay v0.2-deferred.</td>
       </tr>
       <tr>
         <td class="id-col">Q2</td>
@@ -1038,6 +1038,16 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
+    <div class="summary">S4-Q1 resolved — MVP scope narrowed: open-source-only recipes + MVP trio screeners (PHQ-2 / GAD-2 / Hunger Vital Sign)</div>
+    <div class="body">
+      First Stage 4 sub-question landed. Two parts:
+      <strong>(a) Recipe sources:</strong> dropped "1–2 commercial APIs" from the starting-proposal MVP — this was stale text predating D4's "open-source-only MVP" decision (TheMealDB free-tier + Project Gutenberg PD historical + open datasets). High-confidence alignment fix; paid recipe APIs stay post-MVP.
+      <strong>(b) Intake instruments:</strong> narrowed from 5–10 candidates (PHQ-2, GAD-2, PSQI short, AUDIT-C, Hunger Vital Sign, CCSS) to the <strong>MVP trio</strong> — PHQ-2 + GAD-2 + Hunger Vital Sign — plus demographics / life-stage / dietary preferences / allergens. The trio is the smallest set actionable in the MVP meal-plan loop: PHQ-2 (depression → appetite + comfort-eating), GAD-2 (anxiety → food choice + meal timing), Hunger Vital Sign (food insecurity directly gates recipe cost tier + grocery list). PSQI short / AUDIT-C / CCSS deferred to v0.2; <strong>PSQI short is the named first-re-add</strong> if MVP trio under-captures nutrition-actionable signal (sleep affects appetite regulation, and C5 already has sleep-conditional meal-plan logic). Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (MVP includes/defers updated + Q1 marked resolved), <a href="roadmap.md">roadmap.md</a> Stage 4 row, this doc's six-question table (Q1 row marked resolved), status bar, changelog. Next: <strong>S4-Q3 multi-tenant scaffolding (~90%)</strong>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>

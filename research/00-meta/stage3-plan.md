@@ -108,34 +108,36 @@ Single focused dialogue to pick the smallest useful end-to-end slice. **Opened 2
 
 The MVP must reflect the **two-tier hardware posture** from the A1-v2 refinement: scoped against the 24 GB MBP M4 Pro MVP host (cloud-primary reasoning per A3-v2 refinement), not the ≥64 GB production target. F9 closure means MVP code is multi-tenant-aware from day one (single tenant row at MVP; family-of-4 rows post-migration) — no tenant-unaware MVP technical debt.
 
-### Starting proposal (subject to revision via the six sub-questions below)
+### MVP shape (Q1 resolved 2026-06-29; remaining sub-questions still in flight)
 
 **MVP includes:**
-- Intake (validated-screener hybrid administration for 5–10 highest-leverage instruments: PHQ-2, GAD-2, PSQI short, AUDIT-C, Hunger Vital Sign, CCSS, plus demographics + life-stage + dietary preferences + allergens)
+- Intake (validated-screener hybrid administration for the **MVP trio** — PHQ-2 + GAD-2 + Hunger Vital Sign — plus demographics + life-stage + dietary preferences + allergens) *(Q1)*
 - Inventory awareness (initial intake + ongoing observation)
-- Meal-plan generation (Tier 1/2 nutrition guidance + recipe sourcing from open datasets + 1–2 commercial APIs)
+- Meal-plan generation (Tier 1/2 nutrition guidance + **open-source-only recipe sourcing** per D4: TheMealDB free-tier + Project Gutenberg PD historical + open datasets; paid sources deferred) *(Q1)*
 - Grocery list (Instacart cart-aggregation when US-located, list-export fallback otherwise)
 - Per-meal feedback (semantic + time-accuracy)
 - Honest disclosure surfaces (consult-professional, evidence-tier, audit-as-education)
 
 **MVP defers:**
+- **Additional intake instruments — PSQI short, AUDIT-C, CCSS — defer to v0.2** *(Q1)*. PSQI short is the first to re-add if the MVP trio under-captures nutrition-actionable signal (sleep affects appetite regulation).
+- **Commercial recipe APIs (paid sources)** *(Q1, per D4)*. MVP stays open-source-only; commercial API integration is post-MVP.
 - Full knowledge model evolution (start with simple per-user + household; iterate)
 - Multi-modal recipe presentation infrastructure (text + linked YouTube video; defer in-app video rendering, illustrated rendering, real-time terminology lookup glossary)
 - Audit-as-education depth (start with consult-professional + evidence-tier surfacing; defer comprehensive educational corpus)
-- All four publication targets (start designing for them; defer active publication push)
-- Multi-user household with full conflict-resolution UX (start single-user with stub for household)
+- All four publication targets — design-aware but no active push *(Q6 will lock this; placeholder here for the MVP-defers picture)*
+- Multi-user household with full conflict-resolution UX (start single-tenant with F9-aware scaffolding per Q3; multi-row tenant population is post-migration)
 - Wearable signal interpretation (start with intake-only; add wearable in v0.2)
 
-**Why this MVP:** ships a thing you'd actually use, validates the core meal-planning loop + inventory awareness + grocery integration, captures real data for the publication-#4 target without committing to the full-publication apparatus yet.
+**Why this MVP:** ships a thing you'd actually use, validates the core meal-planning loop + inventory awareness + grocery integration, captures real data for the publication-#4 target without committing to the full-publication apparatus yet. The Q1 trim — MVP trio of screeners + open-source-only recipes — keeps the intake surface short enough that real onboarding completes, and removes the licensing/cost surface that paid recipe APIs introduce. PSQI short is the named re-add candidate so MVP→v0.2 expansion has a clear first move if signal-capture turns out thin.
 
 ### Six sub-questions to resolve
 
 Each sub-question gets its own focused dialogue + per-resolution commit (per working-style: don't batch decisions). Confidence ratings are honest first-pass calibrations; "land but revisit during build" applies to any judgment-call answer (the F9/S13 mini-sweep pattern).
 
-**S4-Q1: Is the starting-proposal MVP scope correct?** *(confidence ~75%)*
-- **Tension:** proposal says "1–2 commercial APIs" for recipe sourcing, but D4 settled **open-source-only MVP** for recipe sources (TheMealDB + Project Gutenberg PD + open datasets). Also: 5–10 screeners may be too many for MVP — the actionable trio for "are you eating well?" loop is **PHQ-2 + GAD-2 + Hunger Vital Sign**.
-- **Proposed answer:** narrow MVP recipe sources to open-source-only (drop "1–2 commercial APIs"); narrow intake instruments to the MVP trio (PHQ-2 + GAD-2 + Hunger Vital Sign) plus demographics/life-stage/dietary preferences/allergens; defer PSQI short / AUDIT-C / CCSS to v0.2.
-- **Revisit-during-build trigger:** if MVP-trio screeners under-capture nutrition-actionable signal, add back PSQI short (sleep affects appetite regulation).
+**S4-Q1: Is the starting-proposal MVP scope correct?** *(resolved 2026-06-29 — confidence was ~75%)*
+- **Tensions:** (1) starting proposal said "1–2 commercial APIs" for recipe sourcing, but D4 already settled **open-source-only MVP** for recipe sources (TheMealDB + Project Gutenberg PD + open datasets) — the proposal text was stale; (2) 5–10 screeners is too much intake friction for MVP onboarding completion — needed the smallest screener set that's actionable in the MVP meal-plan loop.
+- **Resolution:** **(a)** drop "1–2 commercial APIs" — MVP recipe sources = open-source-only per D4 (high confidence: alignment fix, not a new decision); **(b)** narrow intake instruments to the **MVP trio (PHQ-2 + GAD-2 + Hunger Vital Sign)** plus demographics/life-stage/dietary preferences/allergens; defer **PSQI short / AUDIT-C / CCSS** to v0.2. The trio is the smallest set actionable in the meal-plan loop: PHQ-2 (depression suppresses appetite + comfort-eating), GAD-2 (anxiety affects food choice + meal timing), Hunger Vital Sign (food insecurity directly gates recipe cost tier + grocery list). PSQI short is indirect (sleep → appetite), AUDIT-C doesn't drive MVP meal-plan logic, CCSS is too broad.
+- **Land-but-revisit-during-build trigger:** the trio-trim is the judgment call. If MVP-trio screeners under-capture nutrition-actionable signal during real use, **add back PSQI short first** (sleep affects appetite regulation, and C5 already has sleep-conditional meal-plan logic). AUDIT-C and CCSS stay v0.2-deferred unless specific surfaces require them.
 
 **S4-Q2: What does the cloud-primary MVP-host posture imply for MVP shape?** *(confidence ~80%)*
 - **Tension:** A3-v2 MVP-host refinement is cloud-primary reasoning (24 GB can't fit Qwen3-32B Q4_K_M). Every cloud-bound query that touches user data needs PHI decomposition per query crossing. Is that MVP-essential or v0.2?
