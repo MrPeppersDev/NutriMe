@@ -460,21 +460,21 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-29</div>
   <div class="k">Last commit</div><div class="v"><code>f56ef1f docs: Block A v2 cascade — sister docs + roadmap + stage3-plan</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/f56ef1f">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Block A v2 + MVP-host refinement + sister-doc cascade landed — F9/S13 next</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">F9 / S13 sweep</span> &nbsp;→&nbsp; <span class="badge status-next">Stage 4 — MVP scoping</span> &nbsp;·&nbsp; tracked as <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-done">F9/S13 resolved 2026-06-29 — Stage 4 MVP scoping unblocked</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">Stage 4 — MVP scoping</span> &nbsp;·&nbsp; F9 closure documented in <a href="schema.md">schema.md F9</a>; issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a> closed</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open, all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep. Markdown is canonical; GitHub is the kanban view.</div>
   <div class="k">Codebase</div><div class="v">No application code yet. <code>research/</code> only, 69 commits. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
 </div>
 
-<!-- ----- 30-second orientation (NEW — read first) ----- -->
+<!-- ----- 30-second orientation (read first) ----- -->
 <div class="callout next-gate" style="margin: 0 0 32px 0;">
   <h4>If you only read one thing</h4>
-  <p><strong>Where we are:</strong> All of Stages 1, 2, 3, and 3.5 are <span class="badge status-done">Complete</span>. Block A was then revised on 2026-06-29 (A1-v2, A2-v2, A3-v2 + a same-day MVP-host refinement) driven by the new <a href="../15-llm-revisit/recommendation.md"><code>15-llm-revisit/</code></a> sweep. Sister docs, roadmap, and stage3-plan have been cascaded to match.</p>
-  <p><strong>What's blocking the next stage:</strong> The Block A revision opened one new schema flag — <strong>F9 (<code>tenant_id</code> multi-tenant axis)</strong>. It needs an <strong>S13 follow-up sweep</strong> to resolve six sub-questions before Stage 4 MVP scoping can begin. Track at <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a>.</p>
-  <p><strong>What to read first:</strong> <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29" (the four sub-sections: shape of revision + A1-v2 + A2-v2 + A3-v2, each with a refinement subsection). Then <a href="schema.md"><code>schema.md</code></a> § F9 for the schema impact. Then this doc's <a href="#next-steps">section 10</a> for the suggested order of operations.</p>
-  <p><strong>How to cross-validate:</strong> every flag in <a href="#active-flags">section 8</a> is a GitHub issue link. Every Block A v2 row in <a href="#block-a">section 6</a> points to the canonical source. Every Changelog entry in <a href="#changelog">section 12</a> includes the commit hash.</p>
+  <p><strong>Where we are:</strong> All of Stages 1, 2, 3, and 3.5 are <span class="badge status-done">Complete</span>. Block A was revised on 2026-06-29 (A1-v2, A2-v2, A3-v2 + a same-day MVP-host refinement) driven by the new <a href="../15-llm-revisit/recommendation.md"><code>15-llm-revisit/</code></a> sweep. Sister docs, roadmap, and stage3-plan cascaded to match. The schema-side fallout (<strong>F9 multi-tenant <code>tenant_id</code> axis</strong>) was resolved same day via an S13 mini-sweep — see <a href="schema.md">schema.md F9</a>.</p>
+  <p><strong>What's next:</strong> <span class="badge status-next">Stage 4 — MVP scoping</span>. F9 closure unblocked it. Stage 4 is a single focused dialogue to pick the smallest useful end-to-end slice; the proposed MVP shape in <a href="stage3-plan.md"><code>stage3-plan.md</code></a> lines 108–124 is the starting proposal.</p>
+  <p><strong>What to read first:</strong> <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29" (the four sub-sections: shape of revision + A1-v2 + A2-v2 + A3-v2, each with a refinement subsection). Then <a href="schema.md"><code>schema.md</code></a> § F9 for the resolved tenant-axis decisions (Q1–Q6 with confidence ratings). Then this doc's <a href="#next-steps">section 10</a> for the Stage 4 entry plan.</p>
+  <p><strong>How to cross-validate:</strong> every flag in <a href="#active-flags">section 8</a> is a GitHub issue link. Every Block A v2 row in <a href="#block-a">section 6</a> points to the canonical source. Every Changelog entry in <a href="#changelog">section 12</a> includes the commit hash. F9 closure also flagged three "land but revisit during build" judgment calls (Q3, Q4, Q6) documented inline in schema.md so future-build has a clear pivot if reality argues otherwise.</p>
 </div>
 
 <!-- ============================== 1. FRAMING ============================== -->
@@ -659,8 +659,8 @@ tbody tr:last-child td { border-bottom: none; }
 
   <p class="intro">12 sub-blocks S1–S12, resolved 2026-05-03 through 2026-05-06. Captured in <a href="schema.md"><code>schema.md</code></a>. Final shape summarized below; full closure summary at the bottom of <code>schema.md</code>.</p>
 
-  <p style="margin: -0.25em 0 0.75em 0; padding: 0.5em 0.75em; border-left: 3px solid var(--flag); background: var(--flag-soft);">
-    <strong>Reopened 2026-06-29:</strong> Block A v2 multi-tenant decision opened <strong>F9 (<code>tenant_id</code> base column)</strong> as an additive schema axis. This is the only post-S12 schema flag. F9 needs an <strong>S13 follow-up sweep</strong> (six sub-questions) before Stage 4 starts — tracked as <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a>. F1–F4, F6, F7, F8 stay closed; F5 stays open as ongoing build-phase monitoring (<a href="https://github.com/MrPeppersDev/NutriMe/issues/3">#3</a>).
+  <p style="margin: -0.25em 0 0.75em 0; padding: 0.5em 0.75em; border-left: 3px solid var(--done); background: var(--done-soft);">
+    <strong>Reopened then closed 2026-06-29:</strong> Block A v2 multi-tenant decision opened <strong>F9 (<code>tenant_id</code> base column)</strong> as an additive schema axis. Resolved same day via an S13 mini-sweep — see <a href="schema.md">schema.md F9</a> for the six sub-question resolutions (Q1, Q2, Q5 locked in; Q3, Q4, Q6 land but revisit during build). Net new schema shape: <code>tenant_id TEXT NOT NULL</code> + <code>is_global BOOLEAN NOT NULL DEFAULT FALSE</code> as base columns; new top-level <code>tenant</code> lifecycle table; typed query helper for tenant-aware queries. Issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a> closed. F1–F4, F6, F7, F8 stay closed; F5 stays open as ongoing build-phase monitoring (<a href="https://github.com/MrPeppersDev/NutriMe/issues/3">#3</a>).
   </p>
 
   <h4>Substrate (10 tables)</h4>
@@ -703,11 +703,10 @@ tbody tr:last-child td { border-bottom: none; }
 <section id="active-flags">
   <h2><span class="num">8</span>Active build-time flags</h2>
 
-  <p class="intro">Originally five items carried forward from Stage 3.5. As of 2026-06-29 the Block A revision opens additional flags: <strong>F9</strong> in schema (post-S12) plus <strong>L1–L6</strong> from the LLM-revisit sweep. <strong>All open flags are now mirrored as GitHub Issues</strong> for kanban tracking — see <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">epic #1</a>. Markdown remains source of truth; the issues link back to the canonical sections in <code>schema.md</code> / <code>architecture.md</code> / <code>15-llm-revisit/recommendation.md</code>.</p>
+  <p class="intro">Originally five items carried forward from Stage 3.5. As of 2026-06-29 the Block A revision added <strong>L1–L6</strong> from the LLM-revisit sweep plus a transport/auth issue; <strong>F9</strong> opened and closed same day (resolution in <a href="schema.md">schema.md F9</a>). <strong>All remaining open flags are mirrored as GitHub Issues</strong> for kanban tracking — see <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">epic #1</a>. Markdown remains source of truth; the issues link back to the canonical sections in <code>schema.md</code> / <code>architecture.md</code> / <code>15-llm-revisit/recommendation.md</code>.</p>
 
   <p style="margin: -0.25em 0 0.75em 0; padding: 0.5em 0.75em; border-left: 3px solid var(--active); background: var(--active-soft);">
-    <strong>Flag inventory as of 2026-06-29:</strong>
-    <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2 F9 tenant_id</a> (the new schema sweep, blocks Stage 4) ·
+    <strong>Open-flag inventory as of 2026-06-29 (post-F9 closure):</strong>
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/3">#3 F5 inference catch-all</a> ·
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/4">#4 (ζ) substrate revisits</a> ·
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/5">#5 S10 tuning</a> ·
@@ -718,6 +717,7 @@ tbody tr:last-child td { border-bottom: none; }
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/10">#10 L5 cloud-fallback gating</a> ·
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/11">#11 L6 paged-attention monitoring (V1 graduation)</a> ·
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12 Block A v2 transport + auth</a>
+    <br><br><em>Resolved this session:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2 F9 tenant_id</a> (closed via the six-question S13 mini-sweep — see <a href="schema.md">schema.md F9</a>).
   </p>
 
   <p>The original five Stage-3.5-carried flags follow as canonical descriptions; the post-3.5 additions (F9, L1–L6, transport) live in <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29", <a href="schema.md"><code>schema.md</code></a> § F9, and <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/recommendation.md</code></a> §9.</p>
@@ -803,36 +803,31 @@ tbody tr:last-child td { border-bottom: none; }
 <section id="next-steps">
   <h2><span class="num">10</span>Next steps</h2>
 
-  <div class="callout next-gate" style="border-left-color: var(--active); background: var(--active-soft);">
-    <h4>Immediate — Block A v2 review + F9/S13 resolution</h4>
-    <p><strong>Done this session (2026-06-29):</strong></p>
+  <div class="callout next-gate" style="border-left-color: var(--done); background: var(--done-soft);">
+    <h4>Done — Block A v2 cascade + F9/S13 resolution (2026-06-29)</h4>
+    <p><strong>This session shipped, in sequence:</strong></p>
     <ul>
       <li>New research sweep <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/</code></a> landed (T1 food-LLMs, T2 OSS landscape, T3 Apple Silicon inference, T4 capability fit + synthesis recommendation) — commit <code>10e7ebe</code></li>
       <li>Block A v2 revisions (A1/A2/A3) inserted into <a href="architecture.md"><code>architecture.md</code></a>; originals preserved as historical record</li>
-      <li>F9 (<code>tenant_id</code> multi-tenant axis) opened in <a href="schema.md"><code>schema.md</code></a> with six resolution sub-questions for an S13 follow-up sweep</li>
-      <li>This document updated; commit <code>b1055f4</code> pushed to <code>origin/main</code></li>
-      <li>GitHub Issues #1–#18 created mirroring all open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels + 4 milestones established. Convention: <em>markdown is canonical, GitHub is the kanban view</em>.</li>
-      <li>MVP-host refinement landed: hardware constraint identified (MBP M4 Pro 24 GB is the MVP host AND primary work machine); A1-v2 + A3-v2 amended in-place with two-tier posture; <code>#19</code> opened as the migration trigger build-time issue. Memory files + new <code>project_hardware_constraint.md</code> capture the constraint.</li>
-      <li>Sister-doc cascade committed (<code>f56ef1f</code>): <a href="phi-handling.md"><code>phi-handling.md</code></a> + <a href="constitutional-rules.md"><code>constitutional-rules.md</code></a> Rules 1/6/7 + <a href="knowledge-model.md"><code>knowledge-model.md</code></a> (tenant scoping section) + <a href="provider-abstraction.md"><code>provider-abstraction.md</code></a> (current registered providers, 2 new capability dimensions) + <a href="roadmap.md"><code>roadmap.md</code></a> (Block A revision row + L1–L6 sub-section) + <a href="stage3-plan.md"><code>stage3-plan.md</code></a> (Stage 4 blocker note + two-tier hardware reminder). Pushed to <code>origin/main</code>.</li>
+      <li>MVP-host refinement landed: hardware constraint identified (MBP M4 Pro 24 GB is the MVP host AND primary work machine); A1-v2 + A3-v2 amended in-place with two-tier posture; <code>#19</code> opened as the migration-trigger build-time issue.</li>
+      <li>GitHub Issues #1–#19 mirroring all open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels + 4 milestones established. Convention: <em>markdown is canonical, GitHub is the kanban view</em>.</li>
+      <li>Sister-doc cascade committed (<code>f56ef1f</code>): <a href="phi-handling.md"><code>phi-handling.md</code></a> + <a href="constitutional-rules.md"><code>constitutional-rules.md</code></a> Rules 1/6/7 + <a href="knowledge-model.md"><code>knowledge-model.md</code></a> (tenant scoping section) + <a href="provider-abstraction.md"><code>provider-abstraction.md</code></a> (current registered providers, 2 new capability dimensions) + <a href="roadmap.md"><code>roadmap.md</code></a> + <a href="stage3-plan.md"><code>stage3-plan.md</code></a>. Pushed to <code>origin/main</code>.</li>
+      <li>HTML cross-validation pass: orientation callout, per-flag issue links, status bar refresh (commit <code>4071c3e</code>).</li>
+      <li><strong>F9 / S13 mini-sweep</strong> — all six tenant-axis sub-questions resolved same day. <strong>Confident set</strong> (Q1 dedicated column, Q2 uniform NOT NULL + UUID seed, Q5 migration runner unchanged) locked in. <strong>Judgment-call set</strong> (Q3 minimal <code>tenant</code> table, Q4 <code>is_global</code> boolean over NULL semantics, Q6 single-table embeddings + typed helper with syndication-scale graduation criterion) lands but revisits during build with alternatives documented inline. Issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a> closed. Full resolution in <a href="schema.md">schema.md F9</a>.</li>
     </ul>
-    <p><strong>Next, in order:</strong></p>
-    <ol>
-      <li><strong>Review Block A v2</strong> — read <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29" (A1-v2 / A2-v2 / A3-v2). Confirm or adjust before any downstream work proceeds.</li>
-      <li><strong>F9 / S13 sweep</strong> — resolve the six sub-questions in <a href="schema.md"><code>schema.md</code></a> § F9. This is the immediate blocker for Stage 4. Tracked as <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a>.</li>
-      <li><strong>Stage 4 — MVP scoping</strong> — only unblocks once Block A v2 is accepted and F9 has a shape decision. See callout below for the (now blocked) starting proposal.</li>
-    </ol>
-    <p><strong>Build-time follow-throughs</strong> (defer to Stage 6 — not blockers for Stage 4):</p>
+    <p><strong>Build-time follow-throughs</strong> (not blockers for Stage 4):</p>
     <ul>
       <li>L1 (pre-MVP-ship gate) — adversarial-rule load test against hardcoded rule layer <a href="https://github.com/MrPeppersDev/NutriMe/issues/6">#6</a></li>
       <li>L2–L5 — Ollama MLX verify, FoodyLLM-style LoRA, Q4/Q5 calibration, cloud-fallback gating (<a href="https://github.com/MrPeppersDev/NutriMe/issues/7">#7</a>–<a href="https://github.com/MrPeppersDev/NutriMe/issues/10">#10</a>)</li>
       <li>L6 — paged-attention Metal monitoring for V1 graduation <a href="https://github.com/MrPeppersDev/NutriMe/issues/11">#11</a></li>
       <li>Transport + auth layer — Tailscale/LAN/mDNS, per-tenant auth, iPhone↔server protocol <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a></li>
+      <li><strong>F9 revisit points</strong> — Q3 (event-sourcing alternative for tenant lifecycle), Q4 (NULL-semantics alternative if <code>is_global</code> query patterns get ugly), Q6 (verify sqlite-vec filter ordering + per-tenant <code>vec0</code> at ~10+ tenant graduation criterion). Documented in <a href="schema.md">schema.md F9</a>.</li>
     </ul>
   </div>
 
   <div class="callout next-gate">
-    <h4>Blocked — Stage 4: MVP scoping</h4>
-    <p>Single focused dialogue to pick the smallest useful end-to-end slice. Proposed MVP shape from <a href="stage3-plan.md"><code>stage3-plan.md</code></a> lines 108–124 is a <em>starting proposal</em>, not a settled decision. The Stage 4 dialogue can adopt, narrow, or revise it with full Stage 1–3.5 context now in hand. <strong>Currently blocked on Block A v2 review + F9 resolution above.</strong></p>
+    <h4>Next — Stage 4: MVP scoping <span class="badge status-next">Unblocked</span></h4>
+    <p>Single focused dialogue to pick the smallest useful end-to-end slice. Proposed MVP shape from <a href="stage3-plan.md"><code>stage3-plan.md</code></a> lines 108–124 is a <em>starting proposal</em>, not a settled decision. The Stage 4 dialogue can adopt, narrow, or revise it with full Stage 1–3.5 context (and the now-resolved F9 tenant axis) in hand.</p>
   </div>
 
   <h4>Proposed MVP (subject to revision in Stage 4)</h4>
@@ -1011,6 +1006,22 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
+    <div class="summary">F9 <code>tenant_id</code> multi-tenant axis resolved via S13 mini-sweep — Stage 4 unblocked</div>
+    <div class="body">
+      Six tenant-axis sub-questions resolved same-day after Block A v2 opened F9. <strong>Confident set (locked in):</strong>
+      <strong>Q1</strong> dedicated <code>tenant_id</code> column (not folded into <code>subject_id</code>) — architectural enforcement requirement from Rule 6;
+      <strong>Q2</strong> uniform <code>NOT NULL</code> with a locally-generated UUID seed at install (no <code>'default'</code> literal — collides on syndication);
+      <strong>Q5</strong> S12 migration runner unchanged — <code>tenant_id</code> + <code>is_global</code> columns ship via standard ALTER TABLE, no tenant-snapshot bookkeeping inside the runner.
+      <strong>Judgment-call set (land but revisit during build):</strong>
+      <strong>Q3</strong> minimal top-level <code>tenant</code> lifecycle table (id / name / created_at / status / owner_user_id) — event-sourcing alternative noted;
+      <strong>Q4</strong> <code>is_global BOOLEAN DEFAULT FALSE</code> for cross-tenant-applicable content instead of <code>tenant_id NULL</code> semantics — breaks pattern consistency with F3 in exchange for explicit query-site predicate; flipped on second-pass thinking, flagged as the most worth-revisiting choice;
+      <strong>Q6</strong> single-table-per-provider embedding tables + <code>tenant_id</code> aux metadata + typed query helper — per-tenant <code>vec0</code> instances reserved as a syndication-scale (~10+ tenants) graduation criterion.
+      Net new schema: <code>tenant_id TEXT NOT NULL</code> + <code>is_global BOOLEAN NOT NULL DEFAULT FALSE</code> as base columns on substrate; <code>tenant_id</code> on operational; both as required corpus frontmatter fields; new top-level <code>tenant</code> table; CHECK constraint enforcing <code>is_global = TRUE</code> requires PHI marker FALSE; typed tenant-aware query helper. Full resolution in <a href="schema.md">schema.md F9</a>. Issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a> closed. Stage 4 MVP scoping is now unblocked.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>

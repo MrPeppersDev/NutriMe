@@ -2596,61 +2596,113 @@ Stage 3.5 closes; next phase per [stage3-plan.md](stage3-plan.md) is build (Stag
 
 ---
 
-## F9 — Multi-tenant `tenant_id` axis (post-Stage-3.5 open flag)
+## F9 — Multi-tenant `tenant_id` axis (resolved 2026-06-29)
 
-> **Opened 2026-06-29** during Block A revision (see [architecture.md](architecture.md) → "Block A revision — 2026-06-29"). Resolution deferred — likely needs a small follow-up sweep (S13) before Stage 4 build begins.
+> **Opened 2026-06-29** during Block A revision (see [architecture.md](architecture.md) → "Block A revision — 2026-06-29"). **Resolved same day** via an S13 mini-sweep (six sub-questions, three locked-in confident, three "land but revisit during build"). Stage 4 MVP scoping is now unblocked.
 
 ### Why this is new
 
 Stage 3.5 schema work assumed a single-tenant local-first deployment (one user, one Mac). A1-v2 revises the deployment shape to **multi-tenant home server from day one** (family-of-4 baseline) with **eventual syndication-grade isolation** (per-family tenants for friends/neighbors at distance). Every shared substrate table, every operational table, and every corpus markdown frontmatter contract now needs a tenant-axis declaration before build.
 
-### What changes (proposed shape — resolution still open)
+### Shape (resolved 2026-06-29)
 
 **Substrate tables** (`atom` / `molecule` / `synthesized_entry`):
 
-- Add `tenant_id TEXT NOT NULL` as a **new base column** alongside the existing `subject_type` / `subject_id` columns.
-- `tenant_id` is the **isolation boundary**: rows from tenant A are never visible to tenant B regardless of `subject_id` overlap.
-- `subject_id` retains its existing F2 semantics (user / household / member_subset *within a tenant*).
-- Cross-tenant-applicable synthesized content (the F3 `subject_id NULL` case for `pairing_rationale`-style entries) needs a parallel decision: is there a `tenant_id NULL` "global" tier, or does each tenant get its own copy?
+- New base column `tenant_id TEXT NOT NULL` alongside `subject_type` / `subject_id`.
+- New base column `is_global BOOLEAN NOT NULL DEFAULT FALSE` for cross-tenant-applicable content (see Q4 below).
+- `tenant_id` is the **isolation boundary**: rows from tenant A are never visible to tenant B regardless of `subject_id` overlap, *unless* the row carries `is_global = TRUE`.
+- `subject_id` retains existing F2 semantics (user / household / member_subset *within a tenant*).
+- CHECK constraint: `is_global = TRUE` requires the row's PHI marker to be FALSE (defense-in-depth, mirroring the `embeddings_voyage` PHI-marker pattern).
 
 **Operational tables** (`op_job_queue` / `op_event_log` / etc., all 8 from S8):
 
-- Add `tenant_id TEXT NOT NULL` as a base column so jobs, events, and audit trails partition cleanly per tenant.
-- Background workers (reverify sweeps, embedding jobs, integrity sweeps from S7+S11) must scope by `tenant_id` to avoid cross-tenant data leak through job side effects.
+- New base column `tenant_id TEXT NOT NULL`. No `is_global` (operational rows are always tenant-scoped — jobs, events, audit trails belong to one tenant).
+- Background workers (reverify sweeps, embedding jobs, integrity sweeps from S7+S11) scope by `tenant_id` to avoid cross-tenant data leak through job side effects.
 
 **Corpus markdown frontmatter** (S9 common contract):
 
-- Add `tenant_id` as a **new required base field** in the frontmatter common contract.
-- Open question: does the corpus filesystem **partition by tenant directory** (`corpus/{tenant_id}/...`) or stay flat with frontmatter scoping? Directory partition wins on filesystem-level isolation; flat layout wins on cross-tenant authoring of genuinely-shared content.
+- New required base field `tenant_id`.
+- New required base field `is_global` (boolean, defaults FALSE in frontmatter validator).
+- Filesystem layout: **flat with frontmatter scoping**, not directory partition. Rationale: globally-applicable corpus content (Tier-1 nutrition references, technique knowledge) should be authoreable once and surface to all tenants without filesystem duplication.
 
 **Reference-resolution policies** (S11):
 
-- All three policies (current_only / point_in_time / latest_version) must scope by `tenant_id` before applying the temporal logic.
-- Add a fourth implicit policy or filter: **never resolve across tenant boundaries** — this is a hard invariant, not a configurable option.
+- All three policies (`current_only` / `point_in_time` / `latest_version`) scope by `tenant_id` before applying temporal logic.
+- Hard invariant (not configurable): resolvers never cross tenant boundaries, except via `is_global = TRUE` rows on the non-PHI lane.
 
-### Open resolution questions (for S13)
+### Resolved sub-questions (S13 mini-sweep, 2026-06-29)
 
-1. **Column vs. fold:** Is `tenant_id` its own dedicated column, or does it fold into `subject_id` via a composite key scheme (`tenant:family-smith/user:b.sayer`)? Dedicated column is cleaner for indexing + RLS-style query enforcement; composite fold is fewer schema changes but loses query-time enforcement.
-2. **Default tenant for solo deployments:** Does a single-Mac deployment use `tenant_id = 'default'` or stay tenant-less? Probably the former (uniform schema everywhere), but worth confirming.
-3. **Tenant lifecycle table:** Do we need a top-level `tenant` table (id / name / created_at / active) or is the tenant just an opaque identifier with metadata elsewhere?
-4. **Cross-tenant content** (F3 generalization): How does the `subject_id NULL` "cross-user-applicable" pattern interact with the new tenant axis? Likely needs `tenant_id NULL` for genuinely-global content (e.g., factual nutrition statements) and tenant-scoped duplication for everything else.
-5. **Migration path** (S12 implications): How do existing single-tenant migrations (forward-only, per-DB) become tenant-aware? Almost certainly the migration runner needs to apply per-tenant or carry a `tenant_id` parameter; this should be addressed in S13 before any migration-affecting schema changes land.
-6. **Embedding tables** (S5): The two embedding tables need `tenant_id` too, AND the sqlite-vec query patterns need to filter by tenant before ANN search — otherwise nearest-neighbor results bleed across tenants.
+Six sub-questions resolved in one sitting. **Confident set (Q1, Q2, Q5) lands as architectural commitments.** **Judgment-call set (Q3, Q4, Q6) lands but revisits during build** — alternatives are documented inline so future-build has a clear pivot if reality argues otherwise.
 
-### Schema impact (when resolved)
+#### Q1 — Column shape: dedicated `tenant_id` column (confident, ~90%)
 
-- **All substrate tables:** +1 base column (`tenant_id`)
-- **All operational tables:** +1 base column (`tenant_id`)
-- **Corpus markdown frontmatter:** +1 required base field (`tenant_id`)
-- **All indexes:** add `tenant_id` as leading column (for query partition)
-- **All foreign keys (S11):** verify FK targets are tenant-scoped or globally-valid; reject cross-tenant FK paths
-- **All reference-resolution policies (S11):** prefix tenant-scope filter before temporal resolution
-- **Migration runner (S12):** tenant-aware execution semantics
+Dedicated `tenant_id TEXT` column on every per-tenant substrate / operational / corpus row. Not folded into `subject_id`.
+
+**Why:** Constitutional Rule 6 puts the tenant boundary on par with the cloud boundary — that demands architectural enforcement (typed, tested, fail-closed). A dedicated column lets every index lead with `tenant_id` and lets a typed query helper enforce the filter mechanically. F2's `subject_id` retains its existing user/household/member_subset semantics within a tenant; the two axes stay orthogonal. Composite-fold (`tenant:family-smith/user:b.sayer`) saves one column per table and forfeits indexing + FK enforcement — not worth the trade.
+
+#### Q2 — Tenant identifier shape: `NOT NULL` everywhere; locally-generated UUID at install (confident, ~88%)
+
+`tenant_id` is `NOT NULL` uniformly across substrate (`atom` / `molecule` / `synthesized_entry`) and operational (`op_*`) tables. Solo deployments seed `tenant_id` with a locally-generated UUID at first install — **no hardcoded literal like `'default'`** (would collide on syndication). MVP runs with one tenant row; production adds rows per family.
+
+**Cross-tenant "globally-applicable content" is NOT modeled as NULL `tenant_id`** — it's handled by Q4's `is_global` boolean. Every row has a real `tenant_id` (the authoring tenant); `is_global = TRUE` controls whether other tenants can see it.
+
+#### Q3 — Tenant lifecycle table: minimal `tenant` table (land but revisit during build, ~70%)
+
+Top-level `tenant` table with minimal columns at first: `id TEXT PRIMARY KEY`, `name TEXT`, `created_at`, `status` (`active` / `suspended` / `archived`), `owner_user_id` (or equivalent ownership pointer). Substrate / operational FKs point at `tenant.id` for referential integrity. Lifecycle state changes flow through `op_event_log` (existing S8 surface) as `tenant_lifecycle` event kind.
+
+**Build-time revisit:** event-sourcing alternative is genuinely competitive — tenants existing by virtue of `tenant_created` events in `op_event_log`, current state computed by replay. Picked the table because we'd need a state projection anyway (for FK targets and for the Tension #5 three-level sharing-consent declarations between tenants). If build phase shows the table's only use is "FK target + a name column," reconsider event-sourcing.
+
+#### Q4 — Cross-tenant content: `is_global BOOLEAN DEFAULT FALSE` (NOT `tenant_id NULL` semantics) (land but revisit during build, ~70%)
+
+Cross-tenant-applicable rows (factual nutrition statements, ingredient pairings, technique knowledge — the F3 generalization to the tenant axis) carry their **authoring** `tenant_id` (NOT NULL per Q2) **plus** `is_global = TRUE`. Queries surface them with `WHERE tenant_id = ? OR is_global = TRUE`. The PHI guard is a CHECK constraint: `is_global = TRUE` requires the row's PHI marker to be FALSE — defense-in-depth mirroring the `embeddings_voyage` PHI-marker pattern.
+
+**Why not `tenant_id NULL` semantics:** flipped after second-pass thinking. `is_global` boolean makes the cross-tenant predicate **explicit at the query site**, avoids SQL's three-valued-logic concerns in indexes/joins, and preserves authorship/provenance for global content (you still know which tenant authored a global fact).
+
+**Why the F3 break is defensible:** F3 used `subject_id NULL` to scope *within a tenant* ("applies to all users in this household"). F9 is an *isolation* axis with different semantic intent — different mechanism is justified. Pattern consistency lost; query-site clarity gained.
+
+**Build-time revisit:** if cross-tenant query patterns end up materially uglier than expected, the NULL-semantics alternative is recoverable (add a generated column, swap the helper). The yellow flag at decision time was that the choice flipped from NULL to `is_global` on a single re-think — a third pass might flip back, so this is the most worth-revisiting choice in the set.
+
+#### Q5 — Migration path: runner unchanged from S12 (confident, ~90%)
+
+`tenant_id` and `is_global` columns ship via standard ALTER TABLE migrations like any other columns. Per-tenant data backfills, if they ever exist, route through `op_job_queue` as standard background jobs — **not migration-runner work**. No tenant-snapshot bookkeeping inside the runner. Per-version PHI contracts (already in S12) extend naturally to declare per-version tenant-scoping invariants on the same axis.
+
+**Why:** S12's per-DB-tracked, forward-only, schema-of-schemas runner already operates at the right granularity. The DB is per-instance, not per-tenant — so schema changes (DDL) are global per DB by construction. The "minor adjustments" considered (tenant inventory at migration time, tenant-aware execution semantics) are YAGNI: audit logs + the tenant table together cover the correlation use case.
+
+#### Q6 — Embedding tables: single-table-per-provider + `tenant_id` aux metadata + typed query helper (land but revisit during build, ~70%)
+
+Both `embeddings_voyage` and `embeddings_local` get `tenant_id TEXT NOT NULL` as an auxiliary metadata column. `embeddings_voyage` additionally gets `is_global` (mirrors Q4 on the non-PHI lane). ANN queries go through a single typed helper that enforces the appropriate WHERE clause:
+
+- `embeddings_voyage`: `WHERE tenant_id = ? OR is_global = TRUE`
+- `embeddings_local`: `WHERE tenant_id = ?` (PHI lane — no `is_global` rows by Q4's PHI guard; the helper rejects an `is_global` predicate on this table)
+
+The (ζ) S5 Q5.3 "single virtual table" build-time decision is unaffected — the principle stands either way.
+
+**Build-time revisit (two prongs):**
+
+1. **Verify sqlite-vec filter ordering.** sqlite-vec must run the aux-metadata `WHERE` filter **before** distance compute. If it runs after, cross-tenant bleed surface is bigger than assumed, and per-tenant `vec0` instances become more attractive immediately.
+2. **Syndication-scale graduation criterion.** At ~10+ tenants, per-tenant `vec0` instances become structurally stronger than single-table-with-filter (cross-tenant bleed is impossible because each instance only contains one tenant's vectors). For MVP (1 tenant) and production (4 tenants), single-table-plus-typed-helper is fine and far less plumbing. Document the pivot point so future-build doesn't get caught.
+
+### Schema impact (resolved — apply when each section's SQL is written)
+
+- **All substrate tables** (`atom` / `molecule` / `synthesized_entry`): +2 base columns (`tenant_id` NOT NULL, `is_global` NOT NULL DEFAULT FALSE) + CHECK constraint (`is_global = TRUE` ⇒ PHI marker FALSE)
+- **All operational tables** (8 from S8): +1 base column (`tenant_id` NOT NULL)
+- **Corpus markdown frontmatter** (S9 common contract): +2 required base fields (`tenant_id`, `is_global`); flat filesystem layout retained
+- **All indexes**: add `tenant_id` as leading column for query partition; secondary `is_global` index where cross-tenant surfacing is common
+- **All foreign keys (S11)**: verify FK targets are tenant-scoped or `is_global`-eligible; reject cross-tenant FK paths
+- **All reference-resolution policies (S11)**: prefix `tenant_id` + `is_global` filter before temporal resolution
+- **Migration runner (S12)**: unchanged — `tenant_id` / `is_global` columns ship via standard ALTER TABLE migrations
+- **New `tenant` table** (top-level lifecycle table): id / name / created_at / status / owner_user_id; FK target from substrate + operational
+- **Embedding tables (S5)**: `tenant_id` aux metadata on both; `is_global` on `embeddings_voyage` only; typed query helper enforces WHERE discipline
+- **Cross-cutting: typed query helper** for tenant-aware queries — single helper enforces `tenant_id` + `is_global` filter mechanically; build-time wiring required
 
 ### Sources
 
 - [architecture.md](architecture.md) → "Block A revision — 2026-06-29" (A1-v2 multi-tenant home server)
 - [research/15-llm-revisit/recommendation.md](../15-llm-revisit/recommendation.md) → "Multi-tenant scope" section
 - F2 (household vs. user-level subject boundary) — informs but does not subsume `tenant_id`; F2 is *within-tenant* sharing semantics, F9 is *across-tenant* isolation
+- F3 (cross-user-applicable content via `subject_id NULL`) — F9's `is_global` boolean is the tenant-axis analog with deliberately different mechanism (explicit boolean vs. NULL semantics) per Q4 resolution
+- [constitutional-rules.md](constitutional-rules.md) → Rule 6 ("health data stays inside the household network by default") — drives Q1 + Q4 PHI-marker enforcement requirements
+- [phi-handling.md](phi-handling.md) → "Block A revision (2026-06-29)" section — tenant boundary on par with cloud boundary; informs the typed query helper requirement in Q6
+- GitHub issue [#2](https://github.com/MrPeppersDev/NutriMe/issues/2) — kanban tracker (now closed by this resolution)
 
 ---
