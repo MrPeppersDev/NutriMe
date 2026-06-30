@@ -459,11 +459,12 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-29</div>
-  <div class="k">Last commit</div><div class="v"><code>b1055f4 arch: Block A v2 (A1/A2/A3) + F9 schema flag + project-status.html</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Block A v2 landed — awaiting review + F9/S13 resolution</span></div>
+  <div class="k">Last commit</div><div class="v"><code>3e1d05e docs: project-status.html reflects done/next after Block A v2 + GitHub Issues setup</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Block A v2 + MVP-host refinement landed — F9/S13 next</span></div>
   <div class="k">Next gate</div><div class="v"><span class="badge status-next">F9 / S13 sweep</span> &nbsp; → &nbsp; <span class="badge status-next">Stage 4 — MVP scoping</span></div>
+  <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
-  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 18 issues mirror open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep. Markdown is canonical; GitHub is the kanban view.</div>
+  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues mirror open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep. Markdown is canonical; GitHub is the kanban view.</div>
   <div class="k">Codebase</div><div class="v">No application code yet. <code>research/</code> only, 68 commits.</div>
 </div>
 
@@ -585,14 +586,14 @@ tbody tr:last-child td { border-bottom: none; }
   <h3 id="block-a"><span class="block-id">Block A</span>Foundation (constrains everything)</h3>
 
   <p style="margin: -0.25em 0 0.75em 0; padding: 0.5em 0.75em; border-left: 3px solid var(--active); background: var(--active-soft);">
-    <strong>Block A under revision (2026-06-29).</strong> A1/A2/A3 revisited against new requirements (multi-tenant from day one for family-of-4 + eventual syndication; iPhone-first client) and new evidence (OSS LLM substrate viable on Apple Silicon per <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/recommendation.md</code></a>). v2 decisions documented in <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29"; originals preserved above as historical record. F9 (<code>tenant_id</code> axis) opened in <a href="schema.md"><code>schema.md</code></a>.
+    <strong>Block A revised 2026-06-29 + MVP-host refinement same day.</strong> A1/A2/A3 revisited against new requirements (multi-tenant from day one for family-of-4 + eventual syndication; iPhone-first client) and new evidence (OSS LLM substrate viable on Apple Silicon per <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/recommendation.md</code></a>). v2 decisions documented in <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29"; originals preserved above as historical record. <strong>Two-tier hardware posture refinement:</strong> MVP runs on user's existing 24 GB MBP M4 Pro with cloud-primary reasoning; production target is Mac-class ≥64 GB with OSS-primary per A3-v2. F9 (<code>tenant_id</code> axis) opened in <a href="schema.md"><code>schema.md</code></a>.
   </p>
 
   <table>
     <tbody>
-      <tr><td class="id-col">A1</td><td class="decision-col">Deployment model <span class="badge status-active">v2</span></td><td><strong>Multi-tenant home server</strong> (Mac Mini M4 Pro 64GB on home LAN) from day one. Family-of-4 baseline; per-tenant isolation for eventual syndication to friends/neighbors. <span style="color:var(--ink-muted)">Original: pure local-first, single MacBook — superseded.</span></td></tr>
+      <tr><td class="id-col">A1</td><td class="decision-col">Deployment model <span class="badge status-active">v2 + refinement</span></td><td><strong>Multi-tenant home server</strong> (production target Mac-class ≥64 GB) from day one. Family-of-4 baseline; per-tenant isolation for eventual syndication. <strong>MVP host:</strong> existing MBP M4 Pro 24 GB; multi-tenant schema lands now, MVP runs single-tenant. Migration trigger deferred to build. <span style="color:var(--ink-muted)">Original: pure local-first, single MacBook — superseded.</span></td></tr>
       <tr><td class="id-col">A2</td><td class="decision-col">Application shell <span class="badge status-active">v2</span></td><td><strong>iPhone-first client + Mac server.</strong> Native iOS app talks to Mac server over LAN; HealthKit ingestion on iPhone. Local Mac web UI for admin/debug. <span style="color:var(--ink-muted)">Original: native macOS app primary — superseded.</span></td></tr>
-      <tr><td class="id-col">A3</td><td class="decision-col">LLM provider + privacy <span class="badge status-active">v2</span></td><td><strong>OSS local primary + cloud fallback.</strong> Qwen3-32B (Apache 2.0) on MLX via Ollama 0.19+ as MVP; cloud fallback (Claude/Gemini) for capability bursts under existing PHI decomposition. Hardcoded rule layer for constitutional rules outside LLM. <span style="color:var(--ink-muted)">Original: cloud-only Claude + Gemini — superseded.</span></td></tr>
+      <tr><td class="id-col">A3</td><td class="decision-col">LLM provider + privacy <span class="badge status-active">v2 + MVP refinement</span></td><td><strong>Production posture:</strong> OSS local primary (Qwen3-32B Apache 2.0 on MLX via Ollama 0.19+) + narrow cloud fallback. Hardcoded constitutional rule layer outside LLM. <strong>MVP posture (until host migration):</strong> cloud-primary for reasoning core (24 GB doesn't fit Qwen3-32B); local OSS for narrow leaf tasks only (FoodyLLM-style fine-tunes on 7B/8B base). Hardcoded rule layer + PHI decomposition discipline stand regardless. <span style="color:var(--ink-muted)">Original: cloud-only Claude + Gemini — superseded.</span></td></tr>
       <tr><td class="id-col">A4</td><td class="decision-col">Data persistence</td><td>Hybrid: SQLite (substrate + operational) + markdown vault (corpus). Atoms-with-molecules organizing principle. <span style="color:var(--ink-muted)">(Unchanged; F9 <code>tenant_id</code> axis is an additive base column, not a structural revision.)</span></td></tr>
     </tbody>
   </table>
@@ -995,6 +996,14 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
+    <div class="summary">Block A v2 MVP-host refinement — two-tier hardware posture</div>
+    <div class="body">
+      Same-day refinement on A1-v2 and A3-v2 once the actual MVP host hardware was identified: the user's existing MacBook Pro M4 Pro 24 GB, which is also the primary work machine. <strong>Two tiers split:</strong> MVP runs single-tenant on the 24 GB MBP with cloud-primary reasoning (Qwen3-32B doesn't fit at Q4 in 24 GB; T3 flags Q3 as unsafe); production target stays Mac-class ≥64 GB with OSS-primary per A3-v2 unchanged. Multi-tenant schema (F9) still lands now. Hardcoded constitutional rule layer + PHI decomposition discipline stand independent of where the LLM runs. <strong>Migration trigger</strong> (when MVP host → production target) deferred to build as a new GitHub issue. L1–L6 implications updated inline in architecture.md A3-v2.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>

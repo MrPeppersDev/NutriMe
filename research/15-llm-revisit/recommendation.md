@@ -167,12 +167,12 @@ Qwen3 is therefore the cleanest Chinese option (Apache 2.0, no geographic restri
 
 ## 10. Mapping back to existing Block A originals
 
-| Original (April 2026) | Revision (June 2026) |
-|---|---|
-| **A1.** Pure local-first, single-device, no LAN exposure, no cloud sync | **A1-v2.** Multi-tenant home server (Mac Mini), local-first, family-of-4 baseline. PHI never leaves the home network in steady state. Networking transport deferred. |
-| **A2.** Native macOS app as primary shell | **A2-v2.** iPhone app primary client; Mac Mini as the always-on server. Native macOS app demoted to optional admin/dev surface. |
-| **A3.** Anthropic Claude + Google Gemini as primary cloud LLM substrate; PHI decomposed at query level | **A3-v2.** OSS local LLM primary (Qwen3-32B baseline). Claude Sonnet 4.x as narrow cloud fallback for adversarial-robustness / long-context-above-64K / low-resource-language. Gemini optional. PHI-handling discipline unchanged for any cloud crossing. |
-| **A4.** Hybrid SQLite + markdown vault | **A4.** Unchanged. New schema axis `tenant_id` tracked as F9. |
+| Original (April 2026) | Revision (June 2026) — production target | MVP host refinement (2026-06-29) |
+|---|---|---|
+| **A1.** Pure local-first, single-device, no LAN exposure, no cloud sync | **A1-v2.** Multi-tenant home server (Mac-class ≥64 GB), local-first, family-of-4 baseline. PHI never leaves the home network in steady state. Networking transport deferred. | MVP host = user's existing MacBook Pro M4 Pro 24 GB (also primary work machine). Multi-tenant schema lands now; MVP runs single-tenant. Migration trigger to production target deferred to build. |
+| **A2.** Native macOS app as primary shell | **A2-v2.** iPhone app primary client; Mac server as the always-on server. Native macOS app demoted to optional admin/dev surface. | Unchanged. |
+| **A3.** Anthropic Claude + Google Gemini as primary cloud LLM substrate; PHI decomposed at query level | **A3-v2.** OSS local LLM primary (Qwen3-32B baseline). Claude Sonnet 4.x as narrow cloud fallback for adversarial-robustness / long-context-above-64K / low-resource-language. Gemini optional. Hardcoded constitutional rule layer outside the LLM. PHI-handling discipline unchanged for any cloud crossing. | **MVP posture: cloud-primary on the MVP host.** 24 GB doesn't fit Qwen3-32B at Q4_K_M (~20 GB weights vs ~16–18 GB usable post-macOS). Cloud carries the reasoning core; local OSS runs narrow leaf tasks only (FoodyLLM-style fine-tunes on 7B/8B base). Hardcoded rule layer + PHI decomposition discipline stand independent of where the LLM runs. |
+| **A4.** Hybrid SQLite + markdown vault | **A4.** Unchanged. New schema axis `tenant_id` tracked as F9. | Unchanged. |
 
 ---
 

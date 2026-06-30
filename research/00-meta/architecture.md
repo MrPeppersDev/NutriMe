@@ -127,6 +127,21 @@ The decision is also informed by [T3 Apple Silicon inference](../15-llm-revisit/
 - Authentication mechanism per tenant
 - Eventual-syndication scaling plan beyond a single Mac Mini envelope
 
+### Refinement (2026-06-29) — two-tier hardware posture
+
+> Added later in the same revision dialogue once the actual host hardware was identified.
+
+A1-v2's "Mac Mini M4 Pro 64 GB" is the **production target**, not the MVP host. The MVP runs on the user's existing MacBook Pro M4 Pro 24 GB — which is also the user's primary work machine — because hardware acquisition is not a prerequisite for landing the architecture and the schema.
+
+| Tier | Host | What it serves |
+|---|---|---|
+| **MVP host (now)** | MacBook Pro M4 Pro, 24 GB unified memory | Single-tenant MVP; multi-tenant schema in place from day one (single active tenant). PHI substrate stays local; cloud carries the reasoning core (see A3-v2 refinement). |
+| **Production target** | Mac-class, ≥64 GB unified memory (Mac Mini M4 Pro / MBP M4 Max / similar) | Multi-tenant home server per A1-v2 above. PHI never leaves the home network in steady state. OSS-primary substrate per A3-v2. |
+
+**Migration trigger (deferred to build):** what condition moves the deployment from MVP host → production target? Candidates: family-of-4 actually using it (vs. solo); cloud spend crossing a threshold; PHI exposure posture demands; or just deciding to spec a dedicated server. Tracked as a separate GitHub issue.
+
+This refinement does **not** change A1-v2's shape decisions — multi-tenant boundary, household-network steady state, opt-in cross-tenant sharing, schema F9 — all still land now. The change is purely hardware-tier sequencing.
+
 ---
 
 ## A2-v2 — Application shell (iPhone client + Mac home server)
@@ -211,6 +226,31 @@ What remains in cloud-favor: adversarial robustness, true long-context above 64K
 - Specific fine-tune training stack (Unsloth vs. axolotl vs. MLX-native)
 - Concrete cloud-fallback gating criteria (automated vs. user-explicit)
 - V1 graduation decision: vllm-mlx vs. continued Ollama+MLX vs. llama.cpp paged-attention Metal when it lands
+
+### Refinement (2026-06-29) — MVP posture is cloud-primary on the MVP host
+
+> Added in the same revision dialogue once the MVP host was identified as a 24 GB machine that also serves as the user's primary work environment. See A1-v2 refinement for the two-tier hardware posture.
+
+A3-v2's "Qwen3-32B OSS local primary" assumes ≥64 GB unified memory. At the MVP host's 24 GB tier the budget breaks: after macOS baseline (~6–8 GB) only ~16–18 GB remains; Qwen3-32B Q4_K_M weights alone are ~20 GB; Q3_K_M would fit but T3 explicitly flags below-Q4 as "not safe" (2–4 MMLU pts; multi-step-chain coherence degrades). Running an always-on inference daemon also fights the user's day-to-day work for CPU/memory on the same machine.
+
+**MVP posture (until migration to production target):**
+
+- **Cloud handles the reasoning core.** Anthropic Claude / Google Gemini per the original (pre-revision) A3, governed by `phi-handling.md` query-level PHI decomposition.
+- **Local OSS handles narrow leaf tasks only** — what fits comfortably at 24 GB: ingredient-name normalization, format conversion, FoodyLLM-style domain fine-tunes (Llama-3-8B or Qwen2.5-7B base) for nutrient-estimation and condition-gating modules.
+- **Hardcoded constitutional rule layer still lives outside the LLM** — this is a safety-posture decision independent of where the LLM runs.
+
+**Production posture (after migration):** A3-v2 as written above — Qwen3-32B local primary with narrow cloud fallback.
+
+This refinement does **not** change A3-v2's shape decisions — OSS-as-eventual-primary, narrow cloud fallback dimensions, DeepSeek V3.x do-not-use, hardcoded rule layer outside the LLM, FoodyLLM domain-fine-tune path — all still land now. The change is which substrate carries the reasoning core *during the MVP host phase*.
+
+**Implications for active flags:**
+
+- **L1 (adversarial-rule load test)** stays pre-MVP-ship gate — applies equally to the hardcoded rule layer regardless of which LLM is downstream
+- **L2 (Ollama 0.19+ MLX path for Qwen3-32B)** moves from MVP-build to production-tier-migration work — defer to when the production host lands
+- **L3 (FoodyLLM-style LoRA harness)** stays MVP-relevant — these are the narrow leaf tasks that DO run locally at 24 GB
+- **L4 (Q4 vs Q5 calibration)** scoped to the smaller models that run at 24 GB during MVP; revisit at 32B+ for production
+- **L5 (cloud-fallback gating)** becomes near-inverted at MVP: it's "cloud-as-default-gating" rather than "fallback-gating"
+- **L6 (paged-attention Metal monitoring)** unchanged — still a V1 graduation question for the production tier
 
 ### Sources
 
