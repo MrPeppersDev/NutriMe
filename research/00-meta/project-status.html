@@ -218,6 +218,8 @@ code {
   padding: 1px 6px;
   border-radius: 3px;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Status bar */
@@ -242,7 +244,7 @@ code {
   align-self: start;
   padding-top: 3px;
 }
-.status-bar .v { color: var(--ink); }
+.status-bar .v { color: var(--ink); min-width: 0; overflow-wrap: break-word; }
 .status-bar .v code {
   font-family: var(--mono);
   font-size: 12.5px;
@@ -291,6 +293,8 @@ tbody td {
   padding: 12px 14px 12px 0;
   border-bottom: 1px solid var(--rule-soft);
   vertical-align: top;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 tbody td.id-col {
   font-family: var(--mono);
@@ -459,7 +463,7 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
-  <div class="k">Last commit</div><div class="v"><code>f3accc8 build(foundation-1): PHI envelope helper — typed per-query-type categories + fail-closed envelope rule wired into the rule engine</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/f3accc8">view on GitHub</a></div>
+  <div class="k">Last commit</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/commit/f3accc8"><code>f3accc8</code></a> build(foundation-1): PHI envelope helper — typed per-query-type categories + fail-closed envelope rule wired into the rule engine &nbsp;<span style="color:var(--ink-muted)">(2026-06-30)</span></div>
   <div class="k">Current stage</div><div class="v"><span class="badge status-done">Stage 6 — Build phase 1 step 1 (Foundation, expanded) COMPLETE 2026-06-30. All six slices landed (repo scaffolding + persistence + multi-tenant + deployment shell + constitutional rule layer + PHI envelope). 40/40 tests passing.</span></div>
   <div class="k">Next gate</div><div class="v"><span class="badge status-next">Stage 6 step 2 — Intake (initial)</span>. Open at Stage 6 step entry — Intake yellow flag deferred to that entry per S4-Q5 (current scope spans MVP screener trio + demographics + life-stage + dietary preferences + allergens + initial inventory; may split validated-screener vs inventory). Per-component just-in-time Stage 5 verifications fire at step entry per S4-Q4. Transport per issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a> stays deferred.</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
