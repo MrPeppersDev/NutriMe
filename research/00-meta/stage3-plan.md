@@ -102,13 +102,13 @@ Largely parallel after Block A. Informs design choices throughout.
 
 ---
 
-## Stage 4 — MVP scoping
+## Stage 4 — MVP scoping (in progress, opened 2026-06-29)
 
-Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. **Opened 2026-06-29** once F9 (tenant_id axis) resolved via the S13 mini-sweep — see [schema.md F9](schema.md) for the locked-in tenant-axis decisions that constrain MVP shape.
+Single focused dialogue to pick the smallest useful end-to-end slice. **Opened 2026-06-29** once F9 (tenant_id axis) resolved via the S13 mini-sweep — see [schema.md F9](schema.md) for the locked-in tenant-axis decisions that constrain MVP shape.
 
 The MVP must reflect the **two-tier hardware posture** from the A1-v2 refinement: scoped against the 24 GB MBP M4 Pro MVP host (cloud-primary reasoning per A3-v2 refinement), not the ≥64 GB production target. F9 closure means MVP code is multi-tenant-aware from day one (single tenant row at MVP; family-of-4 rows post-migration) — no tenant-unaware MVP technical debt.
 
-My current proposed MVP (subject to revision after Stage 3):
+### Starting proposal (subject to revision via the six sub-questions below)
 
 **MVP includes:**
 - Intake (validated-screener hybrid administration for 5–10 highest-leverage instruments: PHQ-2, GAD-2, PSQI short, AUDIT-C, Hunger Vital Sign, CCSS, plus demographics + life-stage + dietary preferences + allergens)
@@ -127,6 +127,54 @@ My current proposed MVP (subject to revision after Stage 3):
 - Wearable signal interpretation (start with intake-only; add wearable in v0.2)
 
 **Why this MVP:** ships a thing you'd actually use, validates the core meal-planning loop + inventory awareness + grocery integration, captures real data for the publication-#4 target without committing to the full-publication apparatus yet.
+
+### Six sub-questions to resolve
+
+Each sub-question gets its own focused dialogue + per-resolution commit (per working-style: don't batch decisions). Confidence ratings are honest first-pass calibrations; "land but revisit during build" applies to any judgment-call answer (the F9/S13 mini-sweep pattern).
+
+**S4-Q1: Is the starting-proposal MVP scope correct?** *(confidence ~75%)*
+- **Tension:** proposal says "1–2 commercial APIs" for recipe sourcing, but D4 settled **open-source-only MVP** for recipe sources (TheMealDB + Project Gutenberg PD + open datasets). Also: 5–10 screeners may be too many for MVP — the actionable trio for "are you eating well?" loop is **PHQ-2 + GAD-2 + Hunger Vital Sign**.
+- **Proposed answer:** narrow MVP recipe sources to open-source-only (drop "1–2 commercial APIs"); narrow intake instruments to the MVP trio (PHQ-2 + GAD-2 + Hunger Vital Sign) plus demographics/life-stage/dietary preferences/allergens; defer PSQI short / AUDIT-C / CCSS to v0.2.
+- **Revisit-during-build trigger:** if MVP-trio screeners under-capture nutrition-actionable signal, add back PSQI short (sleep affects appetite regulation).
+
+**S4-Q2: What does the cloud-primary MVP-host posture imply for MVP shape?** *(confidence ~80%)*
+- **Tension:** A3-v2 MVP-host refinement is cloud-primary reasoning (24 GB can't fit Qwen3-32B Q4_K_M). Every cloud-bound query that touches user data needs PHI decomposition per query crossing. Is that MVP-essential or v0.2?
+- **Proposed answer:** **MVP-essential.** PHI decomposition + typed PHI boundary enforcement (constitutional rule layer) ships in MVP, not v0.2. The constitutional rule layer is the spine of A3-v2 (hardcoded rules outside any LLM); shipping cloud-primary reasoning without it would be a compliance regression. A4 (production-target transport/auth shape) stays post-MVP.
+- **Revisit-during-build trigger:** if PHI decomposition adds untenable latency to single-request meal-plan generation, narrow the decomposition surface to specific high-risk query types only.
+
+**S4-Q3: How much multi-tenant scaffolding ships in MVP?** *(confidence ~90%)*
+- **Tension:** F9 is settled (tenant_id + is_global + tenant table + typed helper). MVP runs with one household = one tenant row. Do we scaffold from day one or punt?
+- **Proposed answer:** **scaffold from day one.** F9 already gave us the columns, the tenant lifecycle table, and the typed query helper — they cost the same to write whether MVP runs one tenant or four. Building tenant-unaware first means a forced refactor before family-of-4 migration. Single tenant row in `tenant` table at MVP; family rows added post-migration. No tenant-unaware MVP code anywhere.
+- **Revisit-during-build trigger:** none expected. F9 closure already documented the build-time alternatives (Q3 event-sourcing alt / Q4 NULL-is_global alt / Q6 per-tenant vec0 alt) if specific issues surface.
+
+**S4-Q4: How does Stage 5 (pre-build verification) sequence against Stage 6 (build)?** *(confidence ~70%)*
+- **Tension:** Stage 5 is the wave-1/2/3 verification pass. Run all of it before any Stage 6 code (clean cut), or just-in-time per component (less wasted verification on components we don't end up building)?
+- **Proposed answer:** **per-component verification just-in-time.** Each Stage 6 step starts with its slice of Stage 5 verification (e.g., "before recipe sourcing step starts, re-verify recipe IP law + TheMealDB API state"). Universal pre-flight wastes time on components MVP may scope down. The wave-structure in roadmap.md becomes a checklist applied at each component-entry point, not a sequenced phase.
+- **Revisit-during-build trigger:** if just-in-time verification surfaces a foundational fact change (e.g., DRI publication revision) that retroactively invalidates earlier-built components, swap to upfront pre-flight for the remaining steps.
+
+**S4-Q5: How does Stage 6 (build) sequence internally?** *(confidence ~60% — most uncertain)*
+- **Tension:** Current Stage 6 sequencing (in this doc, below) has eight steps. Two issues:
+  1. Step 5 (recipe sourcing) must precede step 4 (meal-plan generation) — meal plans need a recipe source.
+  2. Step 8 (honest-disclosure surfaces) is too late — constitutional rules make disclosure cross-cutting (every output needs disclosure logic from step 1, not bolted on at the end).
+- **Proposed answer:** **promote honest-disclosure to cross-cutting** (woven through every step from step 1, since the constitutional rule layer is the spine of A3-v2); **swap step 4 + step 5** so recipe sourcing precedes meal-plan generation; **defer the full Stage 6 sequencing lock to Stage 6 entry** where MVP build clarity will make ordering decisions cheaper and more correct.
+- **Revisit-during-build trigger:** this is the lowest-confidence answer. The entire Stage 6 sequencing will get re-examined when Stage 6 actually opens, with all Stage 4 + Stage 5 context in hand. Treat the current Stage 6 sequencing in this doc as a sketch, not a contract.
+
+**S4-Q6: How actively do we pursue publication tracks during MVP?** *(confidence ~80%)*
+- **Tension:** E1–E4 commit to publication-aware data collection from day one. Does MVP also include active publication push, or just keep the door open?
+- **Proposed answer:** **no active publication push during MVP.** Keep data collection consent-clean (E2 standing consent + per-publication-confirmation), license-clean (E3: Apache 2.0 code / CC-BY 4.0 docs+data), reproducibility-aware (E1: dual versioning + drift detection + anonymization-ready schema), publication-deferred-active-push. Three publication targets the MVP naturally enables data capture for — recipe time-feedback (#4), cooking-state changes pairings (#5), architectural/methodological code (Apache 2.0 by default) — and we capture for them, but the actual publication apparatus (writeups, peer review submission, dataset releases) waits for post-MVP.
+- **Revisit-during-build trigger:** if a publication opportunity surfaces unexpectedly mid-MVP (e.g., conference deadline matches captured-data state), revisit. Default stance is "data ready, push deferred."
+
+### Suggested attack order
+
+Resolve in the order **Q1 → Q3 → Q2 → Q6 → Q4 → Q5**:
+1. **Q1** first — MVP scope drives every downstream decision (instrument count, recipe source, what we're actually building)
+2. **Q3** next — small + schema-aligned + locks in the multi-tenant-from-day-one stance (already 90% confident)
+3. **Q2** third — with MVP scope known, confirm whether PHI boundary work + constitutional rule layer is MVP-essential
+4. **Q6** fourth — publication tracks decision is downstream of MVP scope clarity
+5. **Q4** fifth — Stage 5 sequencing depends on what we're building (Q1 + Q2 outputs feed this)
+6. **Q5** last — Stage 6 sequencing is the most uncertain answer and benefits from every prior answer landing first
+
+Per working-style memory: each sub-question gets its own commit (`stage4(S4-Q1): ...`), confident answers lock in, judgment-call answers land but revisit during build with the trigger documented inline.
 
 ---
 
