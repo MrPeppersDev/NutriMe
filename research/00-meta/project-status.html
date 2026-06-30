@@ -459,9 +459,9 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-29</div>
-  <div class="k">Last commit</div><div class="v"><code>a270c4f stage4(S4-Q1): MVP scope — open-source-only recipes + MVP trio screeners</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/a270c4f">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 resolved 2026-06-29 — 5 sub-questions remain)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q3 next (multi-tenant scaffolding, ~90%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Last commit</div><div class="v"><code>(pending) stage4(S4-Q3): multi-tenant scaffolding from day one</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 resolved 2026-06-29 — 4 sub-questions remain)</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q2 next (cloud-primary PHI implications, ~80%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -850,12 +850,18 @@ tbody tr:last-child td { border-bottom: none; }
         <td>~80%</td>
         <td>If decomposition adds untenable latency to single-request meal-plan generation, narrow decomposition surface to high-risk query types only.</td>
       </tr>
-      <tr>
-        <td class="id-col">Q3</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q3 <span class="badge status-done">Resolved 2026-06-29</span></td>
         <td class="decision-col">Multi-tenant scaffolding at MVP</td>
-        <td><strong>Scaffold from day one.</strong> F9 closure gave us the columns, lifecycle table, and typed helper — same cost whether MVP runs one tenant or four. MVP runs with one tenant row; family-of-4 rows added post-migration. No tenant-unaware MVP code anywhere.</td>
-        <td>~90%</td>
-        <td>None expected (F9 closure already documented Q3/Q4/Q6 build-time alternatives in <a href="schema.md">schema.md F9</a>).</td>
+        <td><strong>Resolved. Scaffold from day one across three layers:</strong>
+          <ol style="margin: 4px 0 0 18px;">
+            <li><strong>Query layer</strong> — every MVP query routes through the F9-built typed tenant-aware helper; nothing bypasses for single-tenant case</li>
+            <li><strong>Data layer</strong> — <code>tenant</code> lifecycle table populated from day one; one row seeded at install with generated UUID per F9-Q2 (no <code>'default'</code> literal — collides on syndication)</li>
+            <li><strong>UI layer</strong> — tenant context hidden at MVP (no tenant switcher, no household labels); surfaces at v0.2+ when family-of-4 migration happens. Data layer doesn't change then.</li>
+          </ol>
+        </td>
+        <td>~90% (resolved)</td>
+        <td>None expected. F9 closure pre-documented Q3 event-sourcing / Q4 NULL-<code>is_global</code> / Q6 per-tenant <code>vec0</code> alternatives inline in <a href="schema.md">schema.md F9</a> — no fresh research needed if a build-time issue surfaces.</td>
       </tr>
       <tr>
         <td class="id-col">Q4</td>
@@ -1038,6 +1044,20 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
+    <div class="summary">S4-Q3 resolved — multi-tenant scaffolding from day one across query / data / UI layers</div>
+    <div class="body">
+      Second Stage 4 sub-question landed. F9 closure (commit <code>a848293</code>) already pre-built the multi-tenant apparatus — <code>tenant_id</code> + <code>is_global</code> columns, typed query helper, <code>tenant</code> lifecycle table, PHI-on-global CHECK. Q3 decides how much of that apparatus the MVP application code uses. <strong>Answer: scaffold from day one across three layers:</strong>
+      <ul>
+        <li><strong>Query layer</strong> — every MVP query routes through the F9-built typed tenant-aware helper. Nothing bypasses it for the "single tenant" case. Cost near-zero at write time; avoids forced refactor at family-of-4 migration.</li>
+        <li><strong>Data layer</strong> — <code>tenant</code> lifecycle table populated from day one. One row seeded at install with a generated UUID per F9-Q2 resolution (uniform NOT NULL + UUID seed; no <code>'default'</code> literal — collides on syndication).</li>
+        <li><strong>UI layer</strong> — tenant context hidden at MVP. No tenant switcher, no household-name labels, no "switch tenant" affordance. UI surfaces multi-tenancy at v0.2+ when family-of-4 migration happens; data layer doesn't change then, only the interface does.</li>
+      </ul>
+      Highest-confidence of the six (~90%): not scaffolding from day one would be deliberately under-utilizing F9-built infrastructure. No revisit trigger expected — F9 closure already documented all three judgment-call alternatives (event-sourcing tenant lifecycle / NULL-<code>is_global</code> / per-tenant <code>vec0</code>) inline in <a href="schema.md">schema.md F9</a>. Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (Q3 marked resolved + MVP defers list refined to clarify schema/queries/<code>tenant</code> table are multi-tenant from day one; only UI defers), <a href="roadmap.md">roadmap.md</a> Stage 4 row, this doc's six-question table (Q3 row marked resolved), status bar, changelog. Next: <strong>S4-Q2 cloud-primary MVP-host PHI implications (~80%)</strong>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>

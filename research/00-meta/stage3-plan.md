@@ -125,7 +125,7 @@ The MVP must reflect the **two-tier hardware posture** from the A1-v2 refinement
 - Multi-modal recipe presentation infrastructure (text + linked YouTube video; defer in-app video rendering, illustrated rendering, real-time terminology lookup glossary)
 - Audit-as-education depth (start with consult-professional + evidence-tier surfacing; defer comprehensive educational corpus)
 - All four publication targets — design-aware but no active push *(Q6 will lock this; placeholder here for the MVP-defers picture)*
-- Multi-user household with full conflict-resolution UX (start single-tenant with F9-aware scaffolding per Q3; multi-row tenant population is post-migration)
+- **Multi-user household UI** (tenant switcher, household-name labels, "switch tenant" affordance) defers to v0.2+ *(Q3)*. Schema + queries + `tenant` lifecycle table ARE multi-tenant from day one per Q3 resolution; only the UI surface stays single-context at MVP.
 - Wearable signal interpretation (start with intake-only; add wearable in v0.2)
 
 **Why this MVP:** ships a thing you'd actually use, validates the core meal-planning loop + inventory awareness + grocery integration, captures real data for the publication-#4 target without committing to the full-publication apparatus yet. The Q1 trim — MVP trio of screeners + open-source-only recipes — keeps the intake surface short enough that real onboarding completes, and removes the licensing/cost surface that paid recipe APIs introduce. PSQI short is the named re-add candidate so MVP→v0.2 expansion has a clear first move if signal-capture turns out thin.
@@ -144,10 +144,13 @@ Each sub-question gets its own focused dialogue + per-resolution commit (per wor
 - **Proposed answer:** **MVP-essential.** PHI decomposition + typed PHI boundary enforcement (constitutional rule layer) ships in MVP, not v0.2. The constitutional rule layer is the spine of A3-v2 (hardcoded rules outside any LLM); shipping cloud-primary reasoning without it would be a compliance regression. A4 (production-target transport/auth shape) stays post-MVP.
 - **Revisit-during-build trigger:** if PHI decomposition adds untenable latency to single-request meal-plan generation, narrow the decomposition surface to specific high-risk query types only.
 
-**S4-Q3: How much multi-tenant scaffolding ships in MVP?** *(confidence ~90%)*
-- **Tension:** F9 is settled (tenant_id + is_global + tenant table + typed helper). MVP runs with one household = one tenant row. Do we scaffold from day one or punt?
-- **Proposed answer:** **scaffold from day one.** F9 already gave us the columns, the tenant lifecycle table, and the typed query helper — they cost the same to write whether MVP runs one tenant or four. Building tenant-unaware first means a forced refactor before family-of-4 migration. Single tenant row in `tenant` table at MVP; family rows added post-migration. No tenant-unaware MVP code anywhere.
-- **Revisit-during-build trigger:** none expected. F9 closure already documented the build-time alternatives (Q3 event-sourcing alt / Q4 NULL-is_global alt / Q6 per-tenant vec0 alt) if specific issues surface.
+**S4-Q3: How much multi-tenant scaffolding ships in MVP?** *(resolved 2026-06-29 — confidence was ~90%)*
+- **Tension:** F9 closure (`a848293`) gave us `tenant_id` + `is_global` columns, the typed query helper, the `tenant` lifecycle table, and the PHI-on-global CHECK. MVP runs one household = one tenant row. Scaffold from day one or build single-tenant-aware and refactor later?
+- **Resolution: scaffold from day one across three layers.**
+  1. **Query layer — route through the typed helper.** Every MVP query goes through the F9-built tenant-aware helper; nothing bypasses it for the "single tenant" case. Cost is near-zero at write time and avoids a forced refactor before family-of-4 migration.
+  2. **Data layer — populate the `tenant` lifecycle table from day one.** One row on first install with a generated UUID per F9-Q2 (uniform NOT NULL + UUID seed; no `'default'` literal — collides on syndication). Same write code that will produce family-of-4 rows later.
+  3. **UI layer — hide tenant context at MVP.** No tenant switcher, no household-name labels, no "switch tenant" affordance. The schema + helper + `tenant` row exist; the interface stays single-context. UI surfaces multi-tenancy at v0.2+ when the family-of-4 migration happens; data layer doesn't change at that point.
+- **Land-but-revisit-during-build trigger:** none expected. F9 closure already documented all three judgment-call alternatives (Q3 event-sourcing for tenant lifecycle, Q4 NULL-semantics for `is_global`, Q6 per-tenant `vec0` at ~10+ tenants) inline in [schema.md F9](schema.md). If any specific MVP-build pattern surfaces a real problem, the alternative is already pre-researched — no fresh sweep needed.
 
 **S4-Q4: How does Stage 5 (pre-build verification) sequence against Stage 6 (build)?** *(confidence ~70%)*
 - **Tension:** Stage 5 is the wave-1/2/3 verification pass. Run all of it before any Stage 6 code (clean cut), or just-in-time per component (less wasted verification on components we don't end up building)?
