@@ -458,10 +458,10 @@ tbody tr:last-child td { border-bottom: none; }
 
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
-  <div class="k">Last updated</div><div class="v">2026-06-29</div>
-  <div class="k">Last commit</div><div class="v"><code>c1b53a7 stage4(S4-Q3): multi-tenant scaffolding from day one across query/data/UI layers</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/c1b53a7">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 resolved 2026-06-29 — 4 sub-questions remain)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q2 next (cloud-primary PHI implications, ~80%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Last updated</div><div class="v">2026-06-30</div>
+  <div class="k">Last commit</div><div class="v"><code>(pending) stage4(S4-Q2): cloud-primary MVP-host PHI — three layers ship in MVP</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 resolved — 3 sub-questions remain)</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q6 next (publication tracks during MVP, ~80%)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -843,12 +843,19 @@ tbody tr:last-child td { border-bottom: none; }
         <td>~75% (resolved)</td>
         <td>If MVP trio under-captures nutrition-actionable signal during real use, add back PSQI short first (sleep → appetite regulation; C5 already has sleep-conditional logic). AUDIT-C / CCSS stay v0.2-deferred.</td>
       </tr>
-      <tr>
-        <td class="id-col">Q2</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q2 <span class="badge status-done">Resolved 2026-06-30</span></td>
         <td class="decision-col">Cloud-primary MVP-host PHI implications</td>
-        <td><strong>PHI decomposition + typed PHI boundary enforcement + constitutional rule layer are MVP-essential</strong>, not v0.2. Shipping cloud-primary reasoning without them is a compliance regression. A4 transport/auth stays post-MVP.</td>
-        <td>~80%</td>
-        <td>If decomposition adds untenable latency to single-request meal-plan generation, narrow decomposition surface to high-risk query types only.</td>
+        <td><strong>Resolved. Three layers ship in MVP, not v0.2:</strong>
+          <ol style="margin: 4px 0 0 18px;">
+            <li><strong>Constitutional rule layer</strong> — hardcoded outside any LLM; runs pre-egress on every cloud-bound request (banned-content + per-query-type PHI envelope + prompt-injection checks). Already cross-cutting via Q5.</li>
+            <li><strong>Typed PHI boundary enforcement</strong> — Q3 tenant-aware helper extends to a typed PHI envelope per request. Every cloud-bound payload constructed via the helper; bypass requires code-review-flagged exception.</li>
+            <li><strong>PHI decomposition per query crossing</strong> — meal-plan generation splits into recipe-search (no health PHI) + per-recipe constraint-check (minimum PHI slice) + local aggregation (full profile never crosses egress).</li>
+          </ol>
+          A4 transport/auth (Tailscale/LAN, per-tenant auth, iPhone↔server) stays post-MVP per <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a> — Q2 covers <em>what flows over the wire</em>, A4 covers <em>how the wire is built</em>.
+        </td>
+        <td>~80% (resolved)</td>
+        <td>If PHI decomposition pushes single-request meal-plan latency past tolerance (e.g., >15s end-to-end), narrow decomposition surface to high-risk query types only (mental-health + medical conditions). Rule layer + typed boundary stay MVP-essential regardless; only decomposition granularity is the tunable knob.</td>
       </tr>
       <tr style="background: var(--done-soft);">
         <td class="id-col">Q3 <span class="badge status-done">Resolved 2026-06-29</span></td>
@@ -1044,6 +1051,22 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">S4-Q2 resolved — cloud-primary MVP-host PHI implications: three layers (rule layer + typed boundary + decomposition) ship in MVP</div>
+    <div class="body">
+      Third Stage 4 sub-question landed. MVP-host refinement (A3-v2) flipped MVP to cloud-primary reasoning since 24 GB MBP can't fit Qwen3-32B Q4_K_M. Q2 decides whether the PHI-discipline machinery ships in MVP or hardens in v0.2 — answer is <strong>MVP-essential, three layers</strong>, because shipping cloud-primary without it is a regression from NutriMe's stated "HIPAA-discipline even though not legally required" posture.
+      <ul>
+        <li><strong>Constitutional rule layer (hardcoded, outside any LLM)</strong> — runs pre-egress on every cloud-bound request. Validates: no banned content categories, no PHI categories exceeding the per-query-type consent envelope, no prompt-injection attempts in user input. Already cross-cutting per Q5; sibling concern with PHI boundary in the same constitutional pipeline.</li>
+        <li><strong>Typed PHI boundary enforcement</strong> — the Q3 tenant-aware query helper extends to a typed PHI envelope per request. Every cloud-bound payload constructed via the helper; helper enforces "this query type may carry these PHI categories, no others." Bypass requires a code-review-flagged exception.</li>
+        <li><strong>PHI decomposition per query crossing</strong> — meal-plan generation gets decomposed at MVP. Example: "plan next week" splits into (a) recipe-search call with dietary preferences + allergens + cuisine variety budget only (no health PHI), (b) per-recipe constraint-check calls with the minimum health PHI slice for that specific recipe, (c) a local aggregation step that never crosses egress with the full profile. Decomposition is a Stage 6 cross-cutting concern alongside honest-disclosure.</li>
+      </ul>
+      <strong>Scope clarification:</strong> Q2 covers <em>what flows over the wire</em>. A4 (transport/auth — Tailscale/LAN/mDNS, per-tenant auth, iPhone↔server protocol) is <em>how the wire is built</em> and stays post-MVP per <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a>.
+      <strong>Build-time trigger:</strong> if decomposition adds untenable latency to single-request meal-plan generation (e.g., >15s end-to-end), narrow decomposition surface to high-risk query types only (mental-health screener results + medical conditions); bundle dietary-only queries. Rule layer + typed boundary stay MVP-essential regardless; only decomposition granularity is the tunable knob.
+      Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (Q2 marked resolved with three-layer breakdown + scope clarification + revisit trigger), <a href="roadmap.md">roadmap.md</a> Stage 4 row, this doc's six-question table (Q2 row marked resolved), status bar (last updated → 2026-06-30), changelog. Next: <strong>S4-Q6 publication tracks during MVP (~80%)</strong>.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>
