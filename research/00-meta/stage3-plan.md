@@ -165,12 +165,23 @@ Each sub-question gets its own focused dialogue + per-resolution commit (per wor
 - **Sequencing implication:** Stage 5 "starts" with the two upfront exceptions, then becomes a per-component checklist for the rest. **No clean "Stage 5 done → Stage 6 start" boundary** — Stage 5 and Stage 6 interleave. The wave-1/2/3 framing in roadmap.md stays as the inventory, but the runtime pattern is interleaved-per-component, not sequenced-phase.
 - **Land-but-revisit-during-build trigger:** if just-in-time verification at component-entry surfaces a foundational fact change that **retroactively invalidates earlier-built components** (e.g., DRI re-issue mid-Stage-6 forces re-work on already-built intake), swap to upfront pre-flight for the remaining Stage 6 steps. Trigger is **retroactive invalidation**, not just freshness drift. Also: if more cross-cutting items surface during Stage 6 entry (beyond recipe IP + DRI), add them to the upfront exception set rather than verifying them per-component.
 
-**S4-Q5: How does Stage 6 (build) sequence internally?** *(confidence ~60% — most uncertain)*
-- **Tension:** Current Stage 6 sequencing (in this doc, below) has eight steps. Two issues:
+**S4-Q5: How does Stage 6 (build) sequence internally?** *(resolved 2026-06-30 — confidence was ~70% after refinements; was ~60% on first pass)*
+- **Tensions identified across two passes:**
   1. Step 5 (recipe sourcing) must precede step 4 (meal-plan generation) — meal plans need a recipe source.
   2. Step 8 (honest-disclosure surfaces) is too late — constitutional rules make disclosure cross-cutting (every output needs disclosure logic from step 1, not bolted on at the end).
-- **Proposed answer:** **promote honest-disclosure to cross-cutting** (woven through every step from step 1, since the constitutional rule layer is the spine of A3-v2); **swap step 4 + step 5** so recipe sourcing precedes meal-plan generation; **defer the full Stage 6 sequencing lock to Stage 6 entry** where MVP build clarity will make ordering decisions cheaper and more correct.
-- **Revisit-during-build trigger:** this is the lowest-confidence answer. The entire Stage 6 sequencing will get re-examined when Stage 6 actually opens, with all Stage 4 + Stage 5 context in hand. Treat the current Stage 6 sequencing in this doc as a sketch, not a contract.
+  3. PHI decomposition has the same problem per Q2 — Q2 named it "a Stage 6 cross-cutting concern alongside honest-disclosure." Can't be a numbered step; rides on the constitutional rule layer.
+  4. Stale text in step 5: "1–2 commercial APIs + 1 open dataset" — Q1 dropped commercial APIs from MVP.
+  5. **Second-pass refinement:** the cross-cutting promotions only work if their infrastructure exists *before* feature work starts. Foundation must absorb more — persistence + multi-tenant scaffolding (F9 helper + `tenant` lifecycle table) + constitutional rule layer scaffolding + PHI envelope helper + deployment shell. Otherwise every subsequent step backfills.
+- **Resolution: four locked decisions + two deferred yellow flags.**
+  1. **Promote two concerns to cross-cutting** (woven through every step from step 1, not numbered steps): (a) honest-disclosure surfaces, (b) PHI decomposition per query crossing. Both ride on the constitutional rule layer infrastructure built in Foundation.
+  2. **Expand Foundation (step 1)** to absorb the cross-cutting infrastructure: persistence layer + multi-tenant scaffolding (F9 helper + `tenant` lifecycle table) + constitutional rule layer scaffolding + PHI envelope helper + deployment shell + repo scaffolding. Heavier step 1, but makes the cross-cutting promotion real instead of aspirational.
+  3. **Swap step 4 ↔ step 5** so recipe sourcing precedes meal-plan generation (hard dependency).
+  4. **Fix step 5 wording** — drop "1–2 commercial APIs"; replace with open-source-only sources per D4 (TheMealDB + Project Gutenberg PD + open datasets).
+- **Topological order locked in (9 steps post-promotion; honest-disclosure is no longer a numbered step):** 1. Foundation (expanded) → 2. Intake → 3. Knowledge model → 4. Recipe sourcing → 5. Meal-plan generation → 6. Grocery list → 7. Per-meal feedback → 8. Daily-cadence interaction model → 9. v0.1 ship. Plus cross-cutting (honest-disclosure + PHI decomposition) applied at every step from step 1.
+- **Land-but-revisit-during-build trigger:** two named yellow flags deferred to Stage 6 entry where MVP build clarity makes them cheaper to resolve:
+  - **(a) Intake (step 2) compression.** Step 2 currently spans validated-screener intake (PHQ-2 / GAD-2 / Hunger Vital Sign — pre-built instruments) AND inventory intake (kitchen scan / barcode / list — freeform). Different UX shapes. May split at Stage 6 entry.
+  - **(b) Daily-cadence (step 8) placement.** Genuine tension: it's near-ship polish *and* it's the actual interface (without a home screen the MVP isn't usable as a daily tool). Current position assumes "near-ship integration"; revisit if MVP build surfaces it as load-bearing earlier.
+  - Also: the entire post-Q5 sequencing remains revisitable at Stage 6 entry with all Stage 4 + Stage 5 context in hand. The locked decisions above (Foundation expansion, cross-cutting promotion, recipe-before-meal-plan swap, stale-text fix) are structural and don't revisit; the rest of the sequencing is a sketch with the yellow flags called out.
 
 **S4-Q6: How actively do we pursue publication tracks during MVP?** *(resolved 2026-06-30 — confidence was ~80%)*
 - **Tension:** E1–E4 (Block E) committed Stage 3 architecture to publication-aware data collection from day one — reproducibility schema (E1), tiered consent + three-layer anonymization (E2), Apache 2.0 code + CC-BY 4.0 docs/data (E3), quarterly re-verification (E4). Four named publication targets in `publication-ambitions.md` plus methodological/architectural code Apache 2.0 by default. Q6: during MVP, do we *also* run active publication apparatus (writeups, peer-review submission, dataset releases), or keep the door open and defer the push?
@@ -217,18 +228,23 @@ Per working-style memory: each sub-question gets its own commit (`stage4(S4-Q1):
 
 Iterative build following Stage 3 architecture decisions + Stage 4 MVP scope. Per `publication-ambitions.md`: documentation-grade discipline, reproducibility-aware data collection, license-clear from the start. Test coverage at publication standard for components flagged for publication.
 
-**Sequencing within Stage 6** (proposed; revisit during Stage 4):
+**Sequencing within Stage 6 (per S4-Q5 resolved 2026-06-30; ~70% confidence; full Stage 6 sequencing re-examinable at Stage 6 entry).** Locked structural decisions: Foundation expansion, two cross-cutting promotions, recipe-before-meal-plan swap, open-source-only recipe sources per D4 + Q1.
 
-1. Foundation — repo scaffolding, deployment shell, persistence layer
-2. Intake (initial) — hybrid administration of MVP screener set; basic inventory intake
-3. Knowledge model (initial) — per-user state with provenance tags; abstracted-constraint-layer stub
-4. Meal-plan generation (initial) — single recipe → single plan, then weekly aggregation
-5. Recipe sourcing — initial source integration (1–2 commercial APIs + 1 open dataset)
-6. Grocery list — Instacart IDP integration + list-export fallback
-7. Per-meal feedback — Mode 3 semantic feedback loop wired to knowledge model
-8. Honest-disclosure surfaces — consult-professional callouts, 3-level certainty display, evidence-tier surfacing
-9. Daily-cadence interaction model — home screen, meal-on-tonight surface
-10. v0.1 ship to user (you) — iterate based on real use
+**Cross-cutting concerns** (woven through every numbered step from step 1, not standalone steps — both ride on infrastructure built in step 1):
+- **Honest-disclosure surfaces** — consult-professional callouts, 3-level certainty display, evidence-tier surfacing. Constitutional rule layer is the spine of A3-v2; every output applies disclosure logic.
+- **PHI decomposition per query crossing** — per S4-Q2 resolution. Every cloud-bound query routes through the typed PHI envelope helper + constitutional rule layer pre-egress; decomposition splits multi-PHI-slice queries (e.g., meal-plan generation) into single-slice calls + local aggregation.
+
+**Numbered steps (9 post-promotion):**
+
+1. **Foundation (expanded)** — repo scaffolding + deployment shell + persistence layer + multi-tenant scaffolding (F9 typed query helper + `tenant` lifecycle table populated with UUID at install) + **constitutional rule layer scaffolding** (hardcoded rules outside any LLM; pre-egress validation hook) + **PHI envelope helper** (typed per-query-type PHI envelope). The cross-cutting infrastructure all lives here; subsequent steps invoke it rather than building it.
+2. **Intake (initial)** — hybrid administration of MVP screener trio (PHQ-2 + GAD-2 + Hunger Vital Sign) + demographics/life-stage/dietary preferences/allergens + initial inventory intake. *Yellow flag: step 2 currently spans both validated-screener intake and inventory intake — different UX shapes; may split at Stage 6 entry.*
+3. **Knowledge model (initial)** — per-user state with provenance tags; abstracted-constraint-layer stub.
+4. **Recipe sourcing** — initial source integration: open-source-only per D4 (TheMealDB free-tier + Project Gutenberg PD historical + open datasets). Convert to canonical Cooklang on ingest.
+5. **Meal-plan generation (initial)** — single recipe → single plan, then weekly aggregation. Reads from step 4 recipe corpus + step 3 knowledge model.
+6. **Grocery list** — Instacart IDP integration when US-located + list-export fallback otherwise.
+7. **Per-meal feedback** — semantic + time-accuracy loop per C5 cooking-experience/body-response split, wired to knowledge model.
+8. **Daily-cadence interaction model** — adaptive home screen, meal-on-tonight surface, "reorient tonight's meal" quick-action per C5. *Yellow flag: genuine tension between "near-ship polish" and "actual interface without which MVP is unusable as a daily tool"; revisit if Stage 6 build surfaces it as load-bearing earlier.*
+9. **v0.1 ship to user (you)** — iterate based on real use.
 
 ---
 

@@ -460,8 +460,8 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
   <div class="k">Last commit</div><div class="v"><code>7ac9d50 stage4(S4-Q4): Stage 5 per-component just-in-time + two upfront exceptions</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-30)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/7ac9d50">view on GitHub</a></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 4 — MVP scoping (Q1 + Q3 + Q2 + Q6 + Q4 resolved — 1 sub-question remains)</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">S4-Q5 last (Stage 6 internal sequencing, ~60% — lowest-confidence)</span> &nbsp;·&nbsp; full framing in <a href="stage3-plan.md">stage3-plan.md § Stage 4</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-done">Stage 4 — MVP scoping COMPLETE 2026-06-30</span> &nbsp; all six sub-questions resolved (Q1 + Q3 + Q2 + Q6 + Q4 + Q5)</div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">Stage 5 entry — run two upfront cross-cutting verifications (recipe IP law currency + DRI publication versions) per S4-Q4</span> &nbsp;·&nbsp; per-component just-in-time verification thereafter; Stage 5 and Stage 6 interleave</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open (#2 closed 2026-06-29 via F9 resolution; Stage 4 epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> added 2026-06-29); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> coordinates the six Stage 4 MVP-scoping sub-questions. Markdown is canonical; GitHub is the kanban view.</div>
@@ -471,9 +471,9 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- 30-second orientation (read first) ----- -->
 <div class="callout next-gate" style="margin: 0 0 32px 0;">
   <h4>If you only read one thing</h4>
-  <p><strong>Where we are:</strong> Stages 1, 2, 3, and 3.5 are <span class="badge status-done">Complete</span>. Block A v2 + the F9/S13 same-day closure landed 2026-06-29. <span class="badge status-active">Stage 4 — MVP scoping</span> is now <strong>in progress</strong>, framed as six sub-questions covering MVP scope, multi-tenant scaffolding, cloud-primary PHI implications, publication track posture, and Stage 5/6 sequencing.</p>
-  <p><strong>What's next:</strong> resolve the six Stage 4 sub-questions in attack order <code>Q1 → Q3 → Q2 → Q6 → Q4 → Q5</code>. Q1 (MVP scope correctness, ~75%) goes first because every downstream answer depends on what MVP actually contains. Q5 (Stage 6 sequencing, ~60%) goes last because it benefits from every prior answer. Per-sub-question commits per working-style (no batching).</p>
-  <p><strong>What to read first:</strong> <a href="stage3-plan.md"><code>stage3-plan.md</code></a> § "Stage 4 — MVP scoping" — that section is the canonical home for the six sub-questions with full proposals, confidence ratings, and build-time revisit triggers. Then <a href="schema.md"><code>schema.md</code></a> § F9 for the tenant-axis decisions that constrain MVP shape. Then this doc's <a href="#next-steps">section 10</a> for the Stage 4 entry plan and suggested attack order.</p>
+  <p><strong>Where we are:</strong> Stages 1, 2, 3, 3.5, and <strong>4</strong> are all <span class="badge status-done">Complete</span>. Block A v2 + the F9/S13 same-day closure landed 2026-06-29. <span class="badge status-done">Stage 4 — MVP scoping</span> closed 2026-06-30 with all six sub-questions resolved across two days (Q1 + Q3 on day one; Q2 + Q6 + Q4 + Q5 on day two). <span class="badge status-next">Stage 5 entry</span> is the next gate.</p>
+  <p><strong>What's next:</strong> Stage 5 entry runs the two upfront cross-cutting verifications per S4-Q4 — (1) <strong>recipe IP law currency</strong> (affects recipe sourcing, corpus build, publication track #4); (2) <strong>DRI publication versions</strong> (affects intake, meal-plan generation, nutrition guidance, abstracted-constraint-layer). Everything else is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave (no clean phase boundary). Stage 6's locked structural decisions per S4-Q5: expanded Foundation (step 1 absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper); cross-cutting concerns (honest-disclosure + PHI decomposition) woven through every step; recipe sourcing precedes meal-plan generation.</p>
+  <p><strong>What to read first:</strong> <a href="stage3-plan.md"><code>stage3-plan.md</code></a> § "Stage 4 — MVP scoping" for the six-question resolutions (canonical home with full proposals, confidence ratings, build-time revisit triggers), and § "Stage 6" for the locked Stage 6 sequencing per S4-Q5. Then <a href="schema.md"><code>schema.md</code></a> § F9 for the tenant-axis decisions that constrain MVP shape. Then this doc's <a href="#next-steps">section 10</a> for the resolved six-question table.</p>
   <p><strong>How to cross-validate:</strong> every flag in <a href="#active-flags">section 8</a> is a GitHub issue link. Every Block A v2 row in <a href="#block-a">section 6</a> points to the canonical source. Every Changelog entry in <a href="#changelog">section 12</a> includes the commit hash. Working-style pattern: confident sub-question answers lock in; judgment-call answers land but explicitly note a "revisit during build" trigger documented inline.</p>
 </div>
 
@@ -508,7 +508,7 @@ tbody tr:last-child td { border-bottom: none; }
 <section id="timeline">
   <h2><span class="num">3</span>Stage timeline</h2>
 
-  <p class="intro">Seven stages. The first three plus the schema-design interstitial (3.5) are complete. Stage 4 is the next gate.</p>
+  <p class="intro">Seven stages. The first three plus the schema-design interstitial (3.5) plus Stage 4 are complete. Stage 5 entry is the next gate.</p>
 
   <table>
     <thead>
@@ -519,7 +519,7 @@ tbody tr:last-child td { border-bottom: none; }
       <tr><td class="id-col">2</td><td class="decision-col">Synthesis</td><td>12 cross-cutting tensions resolved</td><td><span class="badge status-done">Complete</span></td></tr>
       <tr><td class="id-col">3</td><td class="decision-col">Architecture</td><td>19 decisions across Blocks A–E</td><td><span class="badge status-done">Complete</span></td></tr>
       <tr><td class="id-col">3.5</td><td class="decision-col">Schema design</td><td>12 sub-blocks S1–S12; substrate + operational + corpus contracts</td><td><span class="badge status-done">Complete</span></td></tr>
-      <tr><td class="id-col">4</td><td class="decision-col">MVP scoping</td><td>Six sub-questions framing the smallest useful end-to-end slice — attack order Q1 → Q3 → Q2 → Q6 → Q4 → Q5</td><td><span class="badge status-active">In progress (opened 2026-06-29)</span></td></tr>
+      <tr><td class="id-col">4</td><td class="decision-col">MVP scoping</td><td>Six sub-questions framing the smallest useful end-to-end slice — attack order Q1 → Q3 → Q2 → Q6 → Q4 → Q5; all resolved across 2026-06-29 (Q1 + Q3) and 2026-06-30 (Q2 + Q6 + Q4 + Q5)</td><td><span class="badge status-done">Complete 2026-06-30</span></td></tr>
       <tr><td class="id-col">5</td><td class="decision-col">Pre-build verification</td><td>Re-run wave-1/2/3 sweeps with live web tools to refresh time-sensitive details</td><td><span class="badge status-active">Awaits web tools</span></td></tr>
       <tr><td class="id-col">6</td><td class="decision-col">Build phase 1</td><td>Iterative MVP implementation</td><td><span class="badge status-next">Pending Stages 4, 5</span></td></tr>
       <tr><td class="id-col">7</td><td class="decision-col">Use + iterate</td><td>Real use surfaces real findings; roadmap stays alive</td><td><span class="badge status-next">Pending Stage 6</span></td></tr>
@@ -826,11 +826,12 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
 
   <div class="callout next-gate">
-    <h4>Active — Stage 4: MVP scoping <span class="badge status-active">In progress (opened 2026-06-29)</span></h4>
-    <p>Single focused dialogue framed as six sub-questions. The starting proposal in <a href="stage3-plan.md"><code>stage3-plan.md</code> § Stage 4</a> is the entry point; the six sub-questions stress-test it and produce the final MVP shape. Attack order is <strong>Q1 → Q3 → Q2 → Q6 → Q4 → Q5</strong> — each resolves in its own commit (no batching).</p>
+    <h4>Next gate — Stage 5 entry <span class="badge status-next">Next (Stage 4 closed 2026-06-30)</span></h4>
+    <p>Stage 4 MVP scoping is complete — all six sub-questions resolved across 2026-06-29 (Q1 + Q3) and 2026-06-30 (Q2 + Q6 + Q4 + Q5). <strong>Stage 5 entry runs two upfront cross-cutting verifications per S4-Q4:</strong> (1) recipe IP law currency (affects sourcing + corpus + publication #4); (2) DRI publication versions (affects intake + meal-plan + nutrition guidance + abstracted-constraint-layer). Everything else is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave (no clean phase boundary).</p>
+    <p>Stage 6 sequencing per S4-Q5 (locked): expanded Foundation (step 1 absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell); cross-cutting concerns (honest-disclosure + PHI decomposition) woven through every step from step 1; recipe sourcing (step 4) precedes meal-plan generation (step 5); open-source-only recipe sources per D4 + Q1. Two yellow flags deferred to Stage 6 entry: Intake (step 2) screener/inventory split; Daily-cadence (step 8) placement.</p>
   </div>
 
-  <h4>Six Stage 4 sub-questions (with confidence + revisit triggers)</h4>
+  <h4>Six Stage 4 sub-questions (with confidence + revisit triggers) — all resolved</h4>
   <table>
     <thead>
       <tr><th>#</th><th>Sub-question</th><th>Proposed answer</th><th>Confidence</th><th>Revisit trigger (if any)</th></tr>
@@ -881,12 +882,16 @@ tbody tr:last-child td { border-bottom: none; }
         <td>~70% (resolved)</td>
         <td>If just-in-time verification at component-entry surfaces a foundational fact change that <strong>retroactively invalidates earlier-built components</strong> (e.g., DRI re-issue mid-Stage-6 forces re-work on already-built intake), swap to upfront pre-flight for remaining Stage 6 steps. Trigger is retroactive invalidation, not just freshness drift. Also: if more cross-cutting items surface during Stage 6 entry, add them to the upfront exception set rather than verifying them per-component.</td>
       </tr>
-      <tr>
-        <td class="id-col">Q5</td>
+      <tr style="background: var(--done-soft);">
+        <td class="id-col">Q5 <span class="badge status-done">Resolved 2026-06-30</span></td>
         <td class="decision-col">Stage 6 internal sequencing</td>
-        <td><strong>Promote honest-disclosure to cross-cutting</strong> (woven through every step from step 1, since the constitutional rule layer is the spine of A3-v2). <strong>Swap recipe sourcing before meal-plan generation</strong> (meal plans need a recipe source). <strong>Defer full Stage 6 sequencing lock to Stage 6 entry</strong> where MVP build clarity will make ordering correct.</td>
-        <td>~60% (lowest)</td>
-        <td>Entire Stage 6 sequencing gets re-examined at Stage 6 entry. Current sequencing in <code>stage3-plan.md</code> is a sketch, not a contract.</td>
+        <td><strong>Resolved. Four locked structural decisions + two named yellow flags deferred to Stage 6 entry.</strong>
+          <p style="margin: 4px 0 0 0;"><strong>Locked:</strong> (a) <strong>promote two concerns to cross-cutting</strong> woven through every step from step 1 — honest-disclosure surfaces + PHI decomposition per query crossing (both ride on the constitutional rule layer); (b) <strong>expand Foundation (step 1)</strong> to absorb persistence + multi-tenant scaffolding (F9 typed query helper + <code>tenant</code> lifecycle table) + constitutional rule layer scaffolding + PHI envelope helper + deployment shell so cross-cutting infrastructure exists before feature work; (c) <strong>swap step 4 ↔ step 5</strong> so recipe sourcing precedes meal-plan generation (hard dependency); (d) <strong>fix stale step 5 wording</strong> to drop "1–2 commercial APIs" per Q1 — replace with open-source-only sources per D4.</p>
+          <p style="margin: 4px 0 0 0;"><strong>Topological order (9 steps; honest-disclosure no longer numbered):</strong> 1. Foundation (expanded) → 2. Intake → 3. Knowledge model → 4. Recipe sourcing → 5. Meal-plan generation → 6. Grocery list → 7. Per-meal feedback → 8. Daily-cadence interaction model → 9. v0.1 ship. Plus cross-cutting (honest-disclosure + PHI decomposition) applied at every step from step 1.</p>
+          <p style="margin: 4px 0 0 0;"><strong>Yellow flags deferred to Stage 6 entry:</strong> (i) Intake (step 2) compression — currently spans validated-screener intake AND inventory intake, different UX shapes; may split. (ii) Daily-cadence (step 8) placement — genuine tension between "near-ship polish" and "actual interface without which MVP is unusable as a daily tool."</p>
+        </td>
+        <td>~70% (lowest of six; raised from ~60% via Foundation-expansion commit)</td>
+        <td>Two yellow flags above deferred to Stage 6 entry; rest of the post-Q5 sequencing remains revisitable at Stage 6 entry with all Stage 4 + Stage 5 context in hand.</td>
       </tr>
       <tr style="background: var(--done-soft);">
         <td class="id-col">Q6 <span class="badge status-done">Resolved 2026-06-30</span></td>
@@ -912,7 +917,7 @@ tbody tr:last-child td { border-bottom: none; }
     <li><strong>Q5</strong> — Stage 6 sequencing is the most uncertain answer; benefits from every prior answer landing first</li>
   </ol>
 
-  <p class="edit-hint">// Edit this section as each sub-question resolves. When Stage 4 closes, replace "Active" callout with Stage 5 status.</p>
+  <p class="edit-hint">// Stage 4 closed 2026-06-30. All six sub-questions resolved. Next gate is Stage 5 entry — run the two upfront cross-cutting verifications (recipe IP law + DRI publication versions per S4-Q4); per-component just-in-time verification thereafter (Stage 5 and Stage 6 interleave per S4-Q4 resolution).</p>
 </section>
 
 <!-- ============================== 11. DOC MAP ============================== -->
@@ -1059,6 +1064,33 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">S4-Q5 resolved — Stage 4 MVP scoping COMPLETE. Stage 6 sequencing: cross-cutting promotion + expanded Foundation + recipe-before-meal-plan swap</div>
+    <div class="body">
+      Sixth and last Stage 4 sub-question landed. Q5 is the lowest-confidence answer (~70% after second-pass refinements; ~60% on first pass) because Stage 6 build clarity isn't there yet. Two passes surfaced four structural decisions worth locking now + two yellow flags worth deferring to Stage 6 entry.
+      <p style="margin: 6px 0;"><strong>Five tensions identified across two passes:</strong></p>
+      <ol>
+        <li>Step 5 (recipe sourcing) must precede step 4 (meal-plan generation) — meal plans need a recipe source.</li>
+        <li>Step 8 (honest-disclosure surfaces) is too late — constitutional rules make disclosure cross-cutting; every output needs disclosure logic from step 1.</li>
+        <li>PHI decomposition has the same problem per Q2 — Q2 already named it "a Stage 6 cross-cutting concern alongside honest-disclosure."</li>
+        <li>Stale text in step 5: "1–2 commercial APIs + 1 open dataset" — Q1 dropped commercial APIs from MVP.</li>
+        <li><strong>Second-pass refinement:</strong> cross-cutting promotions only work if their infrastructure exists <em>before</em> feature work. Foundation must absorb more — persistence + multi-tenant scaffolding (F9 helper + <code>tenant</code> table) + constitutional rule layer + PHI envelope helper + deployment shell — or every subsequent step backfills.</li>
+      </ol>
+      <p style="margin: 6px 0;"><strong>Four locked structural decisions:</strong></p>
+      <ol>
+        <li><strong>Promote two concerns to cross-cutting</strong> (woven through every step from step 1, not numbered steps): (a) honest-disclosure surfaces; (b) PHI decomposition per query crossing. Both ride on the constitutional rule layer.</li>
+        <li><strong>Expand Foundation (step 1)</strong> to absorb the cross-cutting infrastructure: persistence layer + multi-tenant scaffolding + constitutional rule layer scaffolding + PHI envelope helper + deployment shell + repo scaffolding. Heavier step 1; makes the cross-cutting promotion real.</li>
+        <li><strong>Swap step 4 ↔ step 5</strong> so recipe sourcing precedes meal-plan generation.</li>
+        <li><strong>Fix step 5 wording</strong> — drop "1–2 commercial APIs"; replace with open-source-only sources per D4.</li>
+      </ol>
+      <p style="margin: 6px 0;"><strong>Topological order (9 steps post-promotion; honest-disclosure no longer numbered):</strong> 1. Foundation (expanded) → 2. Intake → 3. Knowledge model → 4. Recipe sourcing → 5. Meal-plan generation → 6. Grocery list → 7. Per-meal feedback → 8. Daily-cadence interaction model → 9. v0.1 ship. Plus cross-cutting (honest-disclosure + PHI decomposition) applied at every step from step 1.</p>
+      <p style="margin: 6px 0;"><strong>Two yellow flags deferred to Stage 6 entry:</strong> (i) Intake (step 2) compression — currently spans validated-screener intake AND inventory intake, different UX shapes; may split. (ii) Daily-cadence (step 8) placement — genuine tension between "near-ship polish" and "actual interface without which MVP is unusable as a daily tool." Both cheaper to resolve with MVP build clarity in hand.</p>
+      <p style="margin: 6px 0;"><strong>Stage 4 MVP scoping is now COMPLETE.</strong> All six sub-questions resolved across two days (Q1 + Q3 on 2026-06-29; Q2 + Q6 + Q4 + Q5 on 2026-06-30). Per-sub-question commits per working-style memory (no batching). Confident answers locked in; judgment-call answers landed with "revisit during build" triggers documented inline. Next gate: <strong>Stage 5 entry</strong> — run the two upfront cross-cutting verifications (recipe IP law currency + DRI publication versions per S4-Q4); per-component just-in-time verification thereafter (Stage 5 and Stage 6 interleave per S4-Q4).</p>
+      Sections touched: <a href="stage3-plan.md">stage3-plan.md § Stage 4</a> (Q5 marked resolved with four locked decisions + two yellow flags), <a href="stage3-plan.md">stage3-plan.md § Stage 6</a> (rewritten — cross-cutting concerns lifted out of numbered steps; Foundation expanded; steps 4/5 swapped; step 5 stale text replaced), <a href="roadmap.md">roadmap.md</a> Stage 4 row (marked complete), this doc's six-question table (Q5 row marked resolved), status bar (current stage badge → Stage 4 COMPLETE; next gate → Stage 5 entry), section 10 edit-hint refreshed, changelog.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
