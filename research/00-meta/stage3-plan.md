@@ -104,9 +104,9 @@ Largely parallel after Block A. Informs design choices throughout.
 
 ## Stage 4 — MVP scoping
 
-Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. **Currently blocked on F9 (tenant_id axis) resolution via an S13 follow-up sweep** — the multi-tenant schema axis opened by A1-v2 has six unresolved questions (column-vs-fold, default-tenant for solo MVP, lifecycle table, F3 interplay, migration-runner implications, embedding-table tenant scoping) that need to land before MVP scope can be set.
+Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. **Opened 2026-06-29** once F9 (tenant_id axis) resolved via the S13 mini-sweep — see [schema.md F9](schema.md) for the locked-in tenant-axis decisions that constrain MVP shape.
 
-The MVP must also reflect the **two-tier hardware posture** from the A1-v2 refinement: scoped against the 24 GB MBP M4 Pro MVP host (cloud-primary reasoning per A3-v2 refinement), not the ≥64 GB production target.
+The MVP must reflect the **two-tier hardware posture** from the A1-v2 refinement: scoped against the 24 GB MBP M4 Pro MVP host (cloud-primary reasoning per A3-v2 refinement), not the ≥64 GB production target. F9 closure means MVP code is multi-tenant-aware from day one (single tenant row at MVP; family-of-4 rows post-migration) — no tenant-unaware MVP technical debt.
 
 My current proposed MVP (subject to revision after Stage 3):
 
