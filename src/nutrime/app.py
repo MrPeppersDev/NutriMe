@@ -1,0 +1,65 @@
+"""Application bootstrap — open both DBs, run migrations, ensure tenant.
+
+The deployment shell's role per Stage 6 step 1: a single ``initialize()`` entry
+point that opens substrate + operational SQLite databases under the data
+directory, applies any pending migrations on each, and bootstraps the single
+tenant (F9 Q2 — locally-generated UUID at first install). Returns an
+:class:`Application` carrying the live connections plus the resolved tenant id
+for downstream callers (CLI, future server process, tests).
+
+The two databases are tracked independently per S12 — each owns its own
+``schema_migrations`` table — so migrations on one cannot stall the other.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
+
+from nutrime.db import apply_migrations, connect
+from nutrime.paths import (
+    default_data_dir,
+    default_operational_migrations_dir,
+    default_substrate_migrations_dir,
+)
+from nutrime.tenancy import bootstrap_tenant
+
+
+@dataclass
+class Application:
+    substrate: sqlite3.Connection
+    operational: sqlite3.Connection
+    tenant_id: str
+    data_dir: Path
+
+
+def initialize(
+    data_dir: Path | None = None,
+    *,
+    substrate_migrations: Path | None = None,
+    operational_migrations: Path | None = None,
+    tenant_name: str = "Default Household",
+) -> Application:
+    data_dir = data_dir or default_data_dir()
+    substrate_migrations = substrate_migrations or default_substrate_migrations_dir()
+    operational_migrations = (
+        operational_migrations or default_operational_migrations_dir()
+    )
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    substrate = connect(data_dir / "substrate.db")
+    apply_migrations(substrate, substrate_migrations)
+
+    operational = connect(data_dir / "operational.db")
+    apply_migrations(operational, operational_migrations)
+
+    tenant_id = bootstrap_tenant(substrate, name=tenant_name)
+
+    return Application(
+        substrate=substrate,
+        operational=operational,
+        tenant_id=tenant_id,
+        data_dir=data_dir,
+    )
