@@ -23,6 +23,7 @@ from nutrime.paths import (
     default_operational_migrations_dir,
     default_substrate_migrations_dir,
 )
+from nutrime.phi import PhiEnvelopeRegistry, default_phi_envelope_registry
 from nutrime.rules import RuleEngine, default_rule_engine
 from nutrime.tenancy import bootstrap_tenant
 
@@ -34,6 +35,7 @@ class Application:
     tenant_id: str
     data_dir: Path
     rule_engine: RuleEngine
+    phi_envelope: PhiEnvelopeRegistry
 
 
 def initialize(
@@ -42,6 +44,7 @@ def initialize(
     substrate_migrations: Path | None = None,
     operational_migrations: Path | None = None,
     tenant_name: str = "Default Household",
+    phi_envelope: PhiEnvelopeRegistry | None = None,
     rule_engine: RuleEngine | None = None,
 ) -> Application:
     data_dir = data_dir or default_data_dir()
@@ -60,10 +63,13 @@ def initialize(
 
     tenant_id = bootstrap_tenant(substrate, name=tenant_name)
 
+    phi_envelope = phi_envelope or default_phi_envelope_registry()
+
     return Application(
         substrate=substrate,
         operational=operational,
         tenant_id=tenant_id,
         data_dir=data_dir,
-        rule_engine=rule_engine or default_rule_engine(),
+        rule_engine=rule_engine or default_rule_engine(phi_envelope),
+        phi_envelope=phi_envelope,
     )

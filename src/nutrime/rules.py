@@ -25,7 +25,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Iterable, Protocol
+from typing import TYPE_CHECKING, Iterable, Protocol
+
+if TYPE_CHECKING:
+    from nutrime.phi import PhiEnvelopeRegistry
 
 
 @dataclass(frozen=True)
@@ -124,13 +127,19 @@ class PromptInjectionGuard:
         return RuleResult(allowed=True, rule_name=self.name)
 
 
-def default_rule_engine() -> RuleEngine:
+def default_rule_engine(
+    phi_envelope_registry: PhiEnvelopeRegistry | None = None,
+) -> RuleEngine:
     """Engine with the starter rule set wired up.
 
-    Components that need additional rules (PHI envelope enforcement, peer-review
-    floor, consult-professional adjacency) register against the engine carried
-    on the :class:`nutrime.app.Application` once the engine is in their hands.
+    Components that need additional rules (peer-review floor,
+    consult-professional adjacency) register against the engine carried on the
+    :class:`nutrime.app.Application` once the engine is in their hands.
     """
+    from nutrime.phi import PhiEnvelopeRule, default_phi_envelope_registry
+
+    registry = phi_envelope_registry or default_phi_envelope_registry()
     engine = RuleEngine()
     engine.register(PromptInjectionGuard())
+    engine.register(PhiEnvelopeRule(registry))
     return engine

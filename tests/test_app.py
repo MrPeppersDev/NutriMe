@@ -76,6 +76,31 @@ def test_initialize_carries_default_rule_engine(data_dir: Path) -> None:
 
     names = {r.name for r in app.rule_engine.rules}
     assert "prompt-injection-guard" in names
+    assert "phi-envelope" in names
+
+
+def test_initialize_carries_phi_envelope_registry_shared_with_engine(
+    data_dir: Path,
+) -> None:
+    """Envelopes registered after init must be visible to the engine's rule."""
+    from nutrime.phi import PhiCategory
+    from nutrime.rules import EgressRequest
+
+    app = initialize(
+        data_dir=data_dir,
+        substrate_migrations=SUBSTRATE_MIGRATIONS,
+        operational_migrations=OPERATIONAL_MIGRATIONS,
+    )
+    app.phi_envelope.register("recipe.suggest", [PhiCategory.ALLERGENS])
+
+    app.rule_engine.evaluate_pre_egress(
+        EgressRequest(
+            destination="cloud-llm:anthropic",
+            query_type="recipe.suggest",
+            payload="suggest a low-sodium dinner",
+            phi_categories=frozenset({PhiCategory.ALLERGENS.value}),
+        )
+    )
 
 
 def test_initialize_is_idempotent(data_dir: Path) -> None:
