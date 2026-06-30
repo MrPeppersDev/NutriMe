@@ -29,9 +29,19 @@ Reasoning: clinical documents are denser PHI per file, long-lived unmodified, an
 
 This posture is **HIPAA-discipline-as-culture**, not HIPAA-compliance-as-certification.
 
-## Cloud LLM strategy: Anthropic + Google with query-level PHI anonymization
+## Block A revision (2026-06-29) — primary substrate now local; cloud is exception
 
-NutriMe uses cloud LLMs (Anthropic Claude, Google Gemini) as its primary inference substrate. The privacy boundary is **at the query level**, not at the local-vs-cloud level. The principle:
+Per [architecture.md A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback), the primary reasoning substrate at the production tier is now an **OSS LLM running locally on the household server** (Qwen3-32B via Ollama 0.19+ MLX). Cloud LLMs are a narrow fallback for three specific dimensions (adversarial robustness on the hardest condition-gated queries; long context above 64K tokens; low-resource cuisine languages outside Qwen3's top-10 coverage). PHI in the steady state no longer leaves the home network.
+
+**MVP-host refinement (per A3-v2 refinement):** at the 24 GB MVP host tier the budget breaks for Qwen3-32B (~20 GB Q4_K_M weights), so MVP posture is **cloud-primary for the reasoning core**. Cloud crossings at MVP are governed by the same query-level PHI decomposition discipline below — the volume of cloud-bound PHI is higher at MVP, but the per-query boundary is unchanged.
+
+**Tenant boundary (per A1-v2):** the home server is multi-tenant. Cross-tenant PHI access is treated as a boundary crossing **on par with cloud crossing**: explicit consent (per the Tension #5 three-level model — strict / constraint-only / mutual-consent), audit-logged, and fail-closed by default.
+
+**Client/server transport (per A2-v2):** the iPhone client ↔ Mac server channel is a PHI-handling surface alongside cloud-LLM crossings. The transport must preserve the per-query PHI decomposition discipline (the iPhone doesn't get to skip categorization just because the server is "local").
+
+## Cloud LLM strategy: query-level PHI anonymization
+
+The privacy boundary is **at the query level**, not at the local-vs-cloud level. Whether a query crosses to a cloud provider, to a tenant boundary on the home server, or across the iPhone↔server transport, it carries the minimum context for the operation. The principle:
 
 > **No single LLM query carries a full health profile.** Queries are decomposed so each crossing carries only the minimum demographic + clinical context required for that specific operation, and the composite of all queries does not trivially reconstruct the user.
 
@@ -73,15 +83,15 @@ Per [B1 (semantic RAG vs. structured query strategy)](architecture.md#b1--semant
 
 Two index spaces in the substrate DB — `embeddings_voyage_*` and `embeddings_local_*` — keep the boundary mechanical, not conventional. PHI content cannot be embedded by Voyage by construction.
 
-## Why both Anthropic AND Google
+## Why both Anthropic AND Google (historical — superseded by A3-v2)
 
-Open thread flagged for resolution during Block C (intake agent architecture). Plausible reasons under consideration:
+This question is largely closed by [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback): Claude Sonnet 4.x is the named cloud fallback; Gemini is now **optional, not architectural**. No multi-provider PHI-decomposition assumption is baked in.
+
+Original Block C open thread reasoning preserved for context:
 
 - **Provider diversity** for redundancy / failover
 - **Capability differentiation** per task — Claude for reasoning + long-context; Gemini for search-grounded queries / multimodal / specific tool-use patterns
 - **Cost optimization** — route cheap-and-fast queries to one provider, deep-reasoning to another
-
-Resolution deferred to Block C; affects orchestration architecture but doesn't block A1/A3 from settling.
 
 ## Audit log requirements
 

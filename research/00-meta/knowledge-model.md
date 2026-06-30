@@ -4,6 +4,17 @@
 
 The knowledge model is what makes [spaced education](synthesis.md#tension-3--spaced-repetition-cadence-vs-no-daily-check-in-rule), [topic-relevance triggers](#topic-relevance-triggers), and [iterative horizon-broadening pacing](intake-pattern.md) actually work. Without it, the system would re-explain the same concepts to a user who's already learned them, push the same cuisines a household has rejected, and miss obvious cross-meal correlations.
 
+## Tenant scoping (per A1-v2 / A2-v2 — 2026-06-29)
+
+The knowledge model lives in a **multi-tenant home server** (per [architecture.md A1-v2](architecture.md#a1-v2--deployment-model-multi-tenant-home-server)). Every per-user and per-household row carries a `tenant_id` (the F9 schema axis open in [schema.md](schema.md)). Tenant boundary semantics:
+
+- **Per-user knowledge model rows are tenant-scoped.** A tenant cannot read or write another tenant's per-user state without explicit cross-tenant consent. Default visibility is strict-per-user.
+- **Per-household knowledge model rows live inside a household tenant scope.** Members of a household share the household-level rows; cross-household sharing is opt-in only.
+- **Abstracted constraints surface across tenants only when their source data is constraint-only-shared or mutual-consent-shared** (per the Tension #5 three-level model below). The constraint travels; the source PHI does not.
+- **Migration-runner implications** for the existing un-tenanted schema design are part of the F9 / S13 follow-up sweep before Stage 4 build.
+
+Cross-tenant access is treated as a boundary crossing on par with cloud-LLM crossing per [Rule 6](constitutional-rules.md#rule-6--health-data-stays-inside-the-household-network-by-default-cross-tenant-and-cloud-crossings-are-decomposed-minimal-and-consent-gated) and [phi-handling.md](phi-handling.md). The iPhone↔Mac-server transport (per A2-v2) is another boundary surface; the knowledge model itself is not transport-aware but the persistence layer is.
+
 ## Two layers
 
 ### Per-user knowledge model

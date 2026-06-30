@@ -17,6 +17,8 @@ This applies to:
 
 The disclaimer must be **adjacent to the uncertain content**, not buried in a footer. The product never withholds information by default — the rule is *transparency plus appropriate redirection*, not gatekeeping.
 
+**Enforcement** (per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback)): the hardest condition-gated enforcement for this rule lives in a **deterministic hardcoded rule layer outside any LLM**, not in LLM instruction-following. T4 surfaced that adversarial constitutional robustness does not close with parameter count alone; the OSS field hasn't matched Anthropic Constitutional AI / OpenAI deliberative alignment on this dimension. Pre-MVP-ship gate is L1 — an adversarial-rule load test against the hardcoded layer.
+
 ## Rule 2 — Evidence transparency over evidence gating
 
 NutriMe surfaces weak evidence rather than hiding it, but always with a clear declaration of evidence quality. See [evidence-tiers.md](evidence-tiers.md). The product never claims certainty it does not have.
@@ -40,16 +42,17 @@ Recipes are sourced from existing curated collections, peer-reviewed APIs, open 
 
 NutriMe defaults to the user's home country (or current country if living abroad, with home country given priority). It always surfaces alternative dietary patterns and cultural frameworks so the user understands their home country is one option among many. See [sweep #1 scope](../01-international-nutrition-standards/scope.md).
 
-## Rule 6 — Health data stays local; cloud LLM crossings are decomposed and minimal
+## Rule 6 — Health data stays inside the household network by default; cross-tenant and cloud crossings are decomposed, minimal, and consent-gated
 
-Wearable, biometric, and health data are processed locally and **stay local by default.** Full user health profiles never cross to cloud LLMs in a single query. Per [phi-handling.md](phi-handling.md):
+Wearable, biometric, and health data are processed locally and **stay inside the household network by default.** Full user health profiles never cross to cloud LLMs, do not cross tenant boundaries inside the home server, and do not transit the iPhone↔server channel without per-query PHI decomposition. Per [phi-handling.md](phi-handling.md):
 
-- The system uses cloud LLMs (Anthropic Claude, Google Gemini) as primary inference substrate
-- The privacy boundary is **at the query level** — queries are decomposed so each crossing carries only the minimum context required for that specific operation
+- **Primary substrate is local** (per A3-v2). Cloud LLMs are a narrow fallback (adversarial robustness / >64K context / low-resource cuisine languages), not the default reasoning path. MVP-host refinement: at the 24 GB MVP host the cloud carries the reasoning core, governed by the same per-query decomposition discipline.
+- **The privacy boundary is at the query level** — queries are decomposed so each crossing (cloud, cross-tenant, or client↔server) carries only the minimum context required for that specific operation
+- **Cross-tenant PHI access requires explicit consent** (per A1-v2 multi-tenant boundary + Tension #5 three-level sharing model: strict / constraint-only / mutual-consent). Cross-tenant crossings are audit-logged on par with cloud crossings.
 - The composite of all queries does not trivially reconstruct the user's health profile
 - HIPAA discipline is applied at the **data-handling level** (audit logs, careful-by-default culture, query-decomposition enforcement), not at the formal compliance level (no breach notification readiness, no formal key management beyond Keychain, no compliance-grade access control infrastructure)
 
-Architectural enforcement: typed LLM call boundaries with declared allowed-PHI-categories, pre-call boundary checks, fail-closed semantics. Specifics deferred to Stage 3 Block C; principle is set here.
+Architectural enforcement: typed LLM call boundaries with declared allowed-PHI-categories, pre-call boundary checks, fail-closed semantics. Tenant isolation enforced at the substrate row level (`tenant_id`-aware queries) plus application-layer guards. Specifics deferred to Stage 3 Block C; principle is set here.
 
 See [phi-handling.md](phi-handling.md) for the operational definition.
 
@@ -60,6 +63,8 @@ Every system design decision (defaults, gating logic, recommendation algorithms)
 Tier 4 *may* appear as informational / cultural / historical context where no health claim is attached (e.g., "this dietary pattern is traditional in X region" is a cultural fact; "...and improves cardiovascular outcomes" requires peer-reviewed support).
 
 See [evidence-tiers.md](evidence-tiers.md) for tier definitions and surfacing rules.
+
+**Enforcement** (per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback)): peer-reviewed-floor gating for the hardest claims is enforced by the **deterministic hardcoded rule layer outside any LLM**, same as Rule 1. The LLM is not the gatekeeper for this rule.
 
 ## Rule 10 — User decides with full context
 

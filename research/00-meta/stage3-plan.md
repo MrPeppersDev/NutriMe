@@ -12,8 +12,9 @@
 
 | Stage | What | Cadence | Depends on |
 |---|---|---|---|
-| **3** | Architecture / system design dialogue | Topic-by-topic with clarifying questions, captured in `architecture.md` | Stage 2 |
-| **4** | MVP scoping | Single dialogue once Stage 3 settles, captured in `mvp.md` | Stage 3 Blocks A + B + C |
+| **3** | Architecture / system design dialogue | Topic-by-topic with clarifying questions, captured in `architecture.md`. **Block A revised 2026-06-29** (A1-v2/A2-v2/A3-v2 + MVP-host refinement) — see [architecture.md Block A revision](architecture.md#block-a-revision--2026-06-29). | Stage 2 |
+| **3.5** | Schema-design phase | All S1–S12 sub-blocks resolved 2026-05-03 → 2026-05-06, captured in `schema.md`. **F9 (tenant_id axis) reopened by A1-v2** — awaits an S13 follow-up sweep before Stage 4 build can begin. | Stage 3 |
+| **4** | MVP scoping | Single dialogue once Stage 3 + 3.5 settle, captured in `mvp.md`. **Blocked on F9/S13 resolution.** | Stage 3 Blocks A + B + C; Stage 3.5 (including S13 F9 resolution) |
 | **5** | Pre-corpus-build verification pass | Re-run wave-1/2/3 sweeps with live web tools to refresh time-sensitive details (per roadmap) | Web-tool availability |
 | **6** | Build phase 1 — MVP implementation | Iterative build; commits per merged feature | Stages 3 + 4 + 5 |
 | **7** | Use + iterate | Real use surfaces real findings; roadmap stays alive | Stage 6 |
@@ -30,14 +31,14 @@ Mirrors the Stage 2 cadence: topic-by-topic, my proposals with tradeoffs, your d
 
 ### Block A — Foundation (constrains everything)
 
-Most cross-cutting decisions. Must be first.
+Most cross-cutting decisions. Must be first. **Block A revised 2026-06-29** — A1/A2/A3 superseded by A1-v2/A2-v2/A3-v2 + two-tier hardware refinement; originals preserved in [architecture.md](architecture.md) as historical record; A4 unchanged. See [architecture.md Block A revision](architecture.md#block-a-revision--2026-06-29).
 
 | # | Decision | Notes | Downstream impact | Status |
 |---|---|---|---|---|
-| A1 | **Deployment model** — pure local-first, single-device | Resolved 2026-04-29: pure local-first, single MacBook, no LAN exposure, no cloud sync. HIPAA discipline rules out the LAN-multi-device or web-exposed paths originally proposed. | Cascades to A2, A3, A4, all of Block D, the entire data-flow design | ✅ Resolved |
-| A2 | **Application shell** — native macOS app primary; localhost web acceptable for build speed | Resolved 2026-04-29: native macOS app as primary shell to leverage Apple security primitives (Keychain, App Sandbox, Hardened Runtime, codesigning, native HealthKit access for D1). Localhost-served web acceptable as a build-speed-friendly alternative since it's never network-exposed. | Affects intake UX, recipe presentation rendering (C4), HealthKit integration path (D1) | ✅ Resolved |
-| A3 | **LLM provider + multi-agent orchestration** — Anthropic Claude + Google Gemini with query-level PHI decomposition | Resolved 2026-04-29 (provider choice + privacy posture). Cloud LLMs as primary inference substrate; query decomposition keeps full health profiles from crossing in a single call (per [phi-handling.md](phi-handling.md)). Why-both-providers open thread flagged for Block C. Multi-agent orchestration specifics deferred to C1. | Constrains C1, C2, Block B retrieval orchestration, all educational content surfaces | ✅ Resolved (provider + PHI posture); orchestration specifics deferred to C1 |
-| A4 | **Data persistence + knowledge model storage** — hybrid: SQLite for substrate + operational, markdown vault for corpus | Resolved 2026-04-30 across Q4.1–Q4.4. Three-layer architecture (substrate / operational / corpus); LC + CKV patterns adopted (12 patterns total); atoms-with-molecules-refinement organizing principle for substrate. Full decision in [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). | Constrains B1 (RAG architecture), B2 (provenance), B4 (schema), every data-write code path | ✅ Resolved |
+| A1 | **Deployment model** — *originally* pure local-first single-device; **revised to multi-tenant home server (A1-v2)** | A1 resolved 2026-04-29 as single-device. **A1-v2 (2026-06-29)** lands multi-tenant local home server for family-of-4 baseline + eventual syndication; PHI never leaves household network in steady state. **Two-tier refinement:** ≥64 GB Mac-class is the production target; MVP runs on the user's existing MBP M4 Pro 24 GB (also their primary work machine). Opens F9 schema axis (`tenant_id`). | Cascades to A2, A3, A4, all of Block D, the entire data-flow design | ✅ Resolved → revised A1-v2 |
+| A2 | **Application shell** — *originally* native macOS app primary; **revised to iPhone-first client + Mac home server (A2-v2)** | A2 resolved 2026-04-29 as native macOS primary. **A2-v2 (2026-06-29)** demotes native macOS to optional admin/dev surface; iPhone app becomes the primary client; Mac server hosts substrate + corpus + LLM daemon + orchestration. HealthKit-on-iOS is structural fit for D1. | Affects intake UX, recipe presentation rendering (C4), HealthKit integration path (D1), now adds client/server transport surface | ✅ Resolved → revised A2-v2 |
+| A3 | **LLM provider + privacy posture** — *originally* Anthropic + Google primary; **revised to OSS local primary + narrow cloud fallback (A3-v2)** | A3 resolved 2026-04-29 as Anthropic Claude + Google Gemini cloud-primary with query-level PHI decomposition. **A3-v2 (2026-06-29)** lands OSS local primary (Qwen3-32B Apache-2.0 via Ollama 0.19+ MLX) + narrow Claude Sonnet 4.x fallback for three dimensions only (adversarial robustness / >64K context / low-resource cuisine languages); DeepSeek V3.x do-not-use for constitutional enforcement; hardcoded constitutional rule layer outside any LLM; FoodyLLM-style domain fine-tunes. **MVP refinement:** cloud-primary at the 24 GB MVP host tier (Qwen3-32B Q4_K_M doesn't fit); OSS-local-primary kicks in at production target. PHI-decomposition discipline preserved across both tiers. | Constrains C1, C2, Block B retrieval orchestration, all educational content surfaces | ✅ Resolved → revised A3-v2 |
+| A4 | **Data persistence + knowledge model storage** — hybrid: SQLite for substrate + operational, markdown vault for corpus | Resolved 2026-04-30 across Q4.1–Q4.4. Three-layer architecture (substrate / operational / corpus); LC + CKV patterns adopted (12 patterns total); atoms-with-molecules-refinement organizing principle for substrate. Full decision in [architecture.md A4](architecture.md#a4--data-persistence--knowledge-model-storage). **Unaffected by Block A revision.** | Constrains B1 (RAG architecture), B2 (provenance), B4 (schema), every data-write code path | ✅ Resolved |
 
 ### Schema design — Stage 3.5 deliverable between Blocks B and C
 
@@ -103,7 +104,11 @@ Largely parallel after Block A. Informs design choices throughout.
 
 ## Stage 4 — MVP scoping
 
-Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. My current proposed MVP (subject to revision after Stage 3):
+Single dialogue once Block C decisions are settled. Picks the smallest useful end-to-end slice. **Currently blocked on F9 (tenant_id axis) resolution via an S13 follow-up sweep** — the multi-tenant schema axis opened by A1-v2 has six unresolved questions (column-vs-fold, default-tenant for solo MVP, lifecycle table, F3 interplay, migration-runner implications, embedding-table tenant scoping) that need to land before MVP scope can be set.
+
+The MVP must also reflect the **two-tier hardware posture** from the A1-v2 refinement: scoped against the 24 GB MBP M4 Pro MVP host (cloud-primary reasoning per A3-v2 refinement), not the ≥64 GB production target.
+
+My current proposed MVP (subject to revision after Stage 3):
 
 **MVP includes:**
 - Intake (validated-screener hybrid administration for 5–10 highest-leverage instruments: PHQ-2, GAD-2, PSQI short, AUDIT-C, Hunger Vital Sign, CCSS, plus demographics + life-stage + dietary preferences + allergens)

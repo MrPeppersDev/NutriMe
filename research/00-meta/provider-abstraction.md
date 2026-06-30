@@ -51,14 +51,22 @@ Not exhaustive; final set defined in schema-design / agent-design phase:
 - **Latency tier** — interactive (<2s) / standard (<10s) / batch (>10s)
 - **Cost tier** — economy / standard / premium
 - **PHI eligibility** — cloud-no-BAA / cloud-with-BAA / on-device
+- **Deployment locus** *(added per A3-v2)* — local-OSS / cloud-fallback-only / cloud-permitted. Routing prefers local-OSS at production tier; cloud-fallback-only is reserved for the three A3-v2 dimensions (adversarial robustness / >64K context / low-resource cuisine language). MVP-host tier inverts the preference (cloud-permitted as primary) until production hardware lands.
+- **Constitutional-enforcement eligibility** *(added per A3-v2)* — `enforces-constitutional-rules` (false for all current providers; constitutional enforcement lives in the hardcoded rule layer outside any LLM per A3-v2). DeepSeek V3.x explicitly do-not-use for any rule-following-dominant role.
 
-## Current registered providers (as of 2026-05-01)
+## Current registered providers (as of 2026-06-29, post-Block-A-revision)
 
-Captured for reference; subject to change as adapter implementations land:
+Captured for reference; subject to change as adapter implementations land. Per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback):
 
-- **Anthropic Claude** family (Sonnet, Haiku, Opus tiers)
-- **Google Gemini** family (Pro, Flash tiers; native search grounding)
-- **Local LLMs via Ollama** for PHI lane (per B1 Q1.3 — embedding providers split same way)
+- **OSS local primary** at production tier — Qwen3-32B (Apache 2.0) via Ollama 0.19+ MLX on Mac-class ≥64 GB. Graduation path: Qwen3-72B or GLM-5.2 (MIT) at the 128 GB hardware tier.
+- **Anthropic Claude** family (Sonnet 4.x as named cloud fallback) — used narrowly for adversarial robustness on hardest condition-gated queries, long context above 64K tokens, and low-resource cuisine language work outside Qwen3's top-10 coverage.
+- **Google Gemini** family — **optional, not architectural** under A3-v2. No multi-provider PHI-decomposition assumption baked in.
+- **FoodyLLM-style domain fine-tunes** (Llama-3-8B or Qwen2.5-7B base + LoRA) for specialist modules (nutrient estimation, condition gating, food-entity linking). Per L3 build-time flag. **Stays MVP-relevant at the 24 GB tier.**
+- **Local embedding models** for PHI lane (per B1 Q1.3) — `mxbai-embed-large` / `BGE-M3` / `nomic-embed-text` candidates.
+- **Voyage** for non-PHI corpus embeddings.
+- **DeepSeek V3.x** — flagged **do-not-use** as primary instruction-following / constitutional-rule-enforcement agent (T4 95/104 instruction-following ranking). R1-distill-32B variant is fine for math-heavy reasoning leaf tasks; V3.x line should not own constitutional enforcement.
+
+**MVP-host refinement (A3-v2 refinement, 2026-06-29):** at the 24 GB MVP host tier, cloud handles the reasoning core (the original A3 Claude + Gemini posture). The provider-abstraction layer continues to look the same; the routing layer simply weights cloud-capable providers higher during the MVP-host phase. Once the production target lands (≥64 GB), the weighting flips to OSS-local-primary with cloud-as-narrow-fallback per A3-v2.
 
 ## Why this matters
 
