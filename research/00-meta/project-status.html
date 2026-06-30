@@ -459,13 +459,22 @@ tbody tr:last-child td { border-bottom: none; }
 <!-- ----- Status bar (UPDATE THIS WHEN STAGE CHANGES) ----- -->
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-29</div>
-  <div class="k">Last commit</div><div class="v"><code>3e1d05e docs: project-status.html reflects done/next after Block A v2 + GitHub Issues setup</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Block A v2 + MVP-host refinement landed — F9/S13 next</span></div>
-  <div class="k">Next gate</div><div class="v"><span class="badge status-next">F9 / S13 sweep</span> &nbsp; → &nbsp; <span class="badge status-next">Stage 4 — MVP scoping</span></div>
-  <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger deferred to build.</div>
+  <div class="k">Last commit</div><div class="v"><code>f56ef1f docs: Block A v2 cascade — sister docs + roadmap + stage3-plan</code> &nbsp; <span style="color:var(--ink-muted)">(2026-06-29)</span> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/commit/f56ef1f">view on GitHub</a></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Block A v2 + MVP-host refinement + sister-doc cascade landed — F9/S13 next</span></div>
+  <div class="k">Next gate</div><div class="v"><span class="badge status-next">F9 / S13 sweep</span> &nbsp;→&nbsp; <span class="badge status-next">Stage 4 — MVP scoping</span> &nbsp;·&nbsp; tracked as <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a></div>
+  <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
-  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues mirror open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep. Markdown is canonical; GitHub is the kanban view.</div>
-  <div class="k">Codebase</div><div class="v">No application code yet. <code>research/</code> only, 68 commits.</div>
+  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 19 issues open, all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep. Markdown is canonical; GitHub is the kanban view.</div>
+  <div class="k">Codebase</div><div class="v">No application code yet. <code>research/</code> only, 69 commits. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+</div>
+
+<!-- ----- 30-second orientation (NEW — read first) ----- -->
+<div class="callout next-gate" style="margin: 0 0 32px 0;">
+  <h4>If you only read one thing</h4>
+  <p><strong>Where we are:</strong> All of Stages 1, 2, 3, and 3.5 are <span class="badge status-done">Complete</span>. Block A was then revised on 2026-06-29 (A1-v2, A2-v2, A3-v2 + a same-day MVP-host refinement) driven by the new <a href="../15-llm-revisit/recommendation.md"><code>15-llm-revisit/</code></a> sweep. Sister docs, roadmap, and stage3-plan have been cascaded to match.</p>
+  <p><strong>What's blocking the next stage:</strong> The Block A revision opened one new schema flag — <strong>F9 (<code>tenant_id</code> multi-tenant axis)</strong>. It needs an <strong>S13 follow-up sweep</strong> to resolve six sub-questions before Stage 4 MVP scoping can begin. Track at <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a>.</p>
+  <p><strong>What to read first:</strong> <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29" (the four sub-sections: shape of revision + A1-v2 + A2-v2 + A3-v2, each with a refinement subsection). Then <a href="schema.md"><code>schema.md</code></a> § F9 for the schema impact. Then this doc's <a href="#next-steps">section 10</a> for the suggested order of operations.</p>
+  <p><strong>How to cross-validate:</strong> every flag in <a href="#active-flags">section 8</a> is a GitHub issue link. Every Block A v2 row in <a href="#block-a">section 6</a> points to the canonical source. Every Changelog entry in <a href="#changelog">section 12</a> includes the commit hash.</p>
 </div>
 
 <!-- ============================== 1. FRAMING ============================== -->
@@ -591,10 +600,10 @@ tbody tr:last-child td { border-bottom: none; }
 
   <table>
     <tbody>
-      <tr><td class="id-col">A1</td><td class="decision-col">Deployment model <span class="badge status-active">v2 + refinement</span></td><td><strong>Multi-tenant home server</strong> (production target Mac-class ≥64 GB) from day one. Family-of-4 baseline; per-tenant isolation for eventual syndication. <strong>MVP host:</strong> existing MBP M4 Pro 24 GB; multi-tenant schema lands now, MVP runs single-tenant. Migration trigger deferred to build. <span style="color:var(--ink-muted)">Original: pure local-first, single MacBook — superseded.</span></td></tr>
-      <tr><td class="id-col">A2</td><td class="decision-col">Application shell <span class="badge status-active">v2</span></td><td><strong>iPhone-first client + Mac server.</strong> Native iOS app talks to Mac server over LAN; HealthKit ingestion on iPhone. Local Mac web UI for admin/debug. <span style="color:var(--ink-muted)">Original: native macOS app primary — superseded.</span></td></tr>
-      <tr><td class="id-col">A3</td><td class="decision-col">LLM provider + privacy <span class="badge status-active">v2 + MVP refinement</span></td><td><strong>Production posture:</strong> OSS local primary (Qwen3-32B Apache 2.0 on MLX via Ollama 0.19+) + narrow cloud fallback. Hardcoded constitutional rule layer outside LLM. <strong>MVP posture (until host migration):</strong> cloud-primary for reasoning core (24 GB doesn't fit Qwen3-32B); local OSS for narrow leaf tasks only (FoodyLLM-style fine-tunes on 7B/8B base). Hardcoded rule layer + PHI decomposition discipline stand regardless. <span style="color:var(--ink-muted)">Original: cloud-only Claude + Gemini — superseded.</span></td></tr>
-      <tr><td class="id-col">A4</td><td class="decision-col">Data persistence</td><td>Hybrid: SQLite (substrate + operational) + markdown vault (corpus). Atoms-with-molecules organizing principle. <span style="color:var(--ink-muted)">(Unchanged; F9 <code>tenant_id</code> axis is an additive base column, not a structural revision.)</span></td></tr>
+      <tr><td class="id-col">A1</td><td class="decision-col">Deployment model <span class="badge status-active">v2 + refinement</span></td><td><strong>Multi-tenant home server</strong> (production target Mac-class ≥64 GB) from day one. Family-of-4 baseline; per-tenant isolation for eventual syndication. <strong>MVP host:</strong> existing MBP M4 Pro 24 GB; multi-tenant schema lands now, MVP runs single-tenant. Migration trigger deferred to build. <span style="color:var(--ink-muted)">Original: pure local-first, single MacBook — superseded.</span> &nbsp; <em>Cross-validate:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2 F9 tenant_id</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">#19 migration trigger</a></td></tr>
+      <tr><td class="id-col">A2</td><td class="decision-col">Application shell <span class="badge status-active">v2</span></td><td><strong>iPhone-first client + Mac server.</strong> Native iOS app talks to Mac server over LAN; HealthKit ingestion on iPhone. Local Mac web UI for admin/debug. <span style="color:var(--ink-muted)">Original: native macOS app primary — superseded.</span> &nbsp; <em>Cross-validate:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12 transport + auth</a></td></tr>
+      <tr><td class="id-col">A3</td><td class="decision-col">LLM provider + privacy <span class="badge status-active">v2 + MVP refinement</span></td><td><strong>Production posture:</strong> OSS local primary (Qwen3-32B Apache 2.0 on MLX via Ollama 0.19+) + narrow cloud fallback. Hardcoded constitutional rule layer outside LLM. <strong>MVP posture (until host migration):</strong> cloud-primary for reasoning core (24 GB doesn't fit Qwen3-32B); local OSS for narrow leaf tasks only (FoodyLLM-style fine-tunes on 7B/8B base). Hardcoded rule layer + PHI decomposition discipline stand regardless. <span style="color:var(--ink-muted)">Original: cloud-only Claude + Gemini — superseded.</span> &nbsp; <em>Cross-validate:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/6">#6 L1 rule load test</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/7">#7 L2 Ollama MLX</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/8">#8 L3 LoRA</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/9">#9 L4 Q4/Q5</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/10">#10 L5 fallback gating</a> · <a href="https://github.com/MrPeppersDev/NutriMe/issues/11">#11 L6 paged-attention</a></td></tr>
+      <tr><td class="id-col">A4</td><td class="decision-col">Data persistence</td><td>Hybrid: SQLite (substrate + operational) + markdown vault (corpus). Atoms-with-molecules organizing principle. <span style="color:var(--ink-muted)">(Unchanged; F9 <code>tenant_id</code> axis is an additive base column, not a structural revision.)</span> &nbsp; <em>Cross-validate:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2 F9 tenant_id</a></td></tr>
     </tbody>
   </table>
 
@@ -649,6 +658,10 @@ tbody tr:last-child td { border-bottom: none; }
   <h2><span class="num">7</span>Stage 3.5 — Schema design</h2>
 
   <p class="intro">12 sub-blocks S1–S12, resolved 2026-05-03 through 2026-05-06. Captured in <a href="schema.md"><code>schema.md</code></a>. Final shape summarized below; full closure summary at the bottom of <code>schema.md</code>.</p>
+
+  <p style="margin: -0.25em 0 0.75em 0; padding: 0.5em 0.75em; border-left: 3px solid var(--flag); background: var(--flag-soft);">
+    <strong>Reopened 2026-06-29:</strong> Block A v2 multi-tenant decision opened <strong>F9 (<code>tenant_id</code> base column)</strong> as an additive schema axis. This is the only post-S12 schema flag. F9 needs an <strong>S13 follow-up sweep</strong> (six sub-questions) before Stage 4 starts — tracked as <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">issue #2</a>. F1–F4, F6, F7, F8 stay closed; F5 stays open as ongoing build-phase monitoring (<a href="https://github.com/MrPeppersDev/NutriMe/issues/3">#3</a>).
+  </p>
 
   <h4>Substrate (10 tables)</h4>
   <ul>
@@ -710,34 +723,34 @@ tbody tr:last-child td { border-bottom: none; }
   <p>The original five Stage-3.5-carried flags follow as canonical descriptions; the post-3.5 additions (F9, L1–L6, transport) live in <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29", <a href="schema.md"><code>schema.md</code></a> § F9, and <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/recommendation.md</code></a> §9.</p>
 
   <div class="callout flag-callout">
-    <h4>F5 — generic <code>inference</code> catch-all type</h4>
+    <h4>F5 — generic <code>inference</code> catch-all type &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/3" style="font-size:13px; font-weight:normal;">[issue #3]</a></h4>
     <p><strong>What.</strong> Of 16 synthesized entry types, 15 are specific shapes (<code>nutrient_intake_estimate</code>, <code>meal_recommendation</code>, <code>dietary_constraint</code>, etc.). The 16th, <code>inference</code>, is a deliberately generic catch-all for cases that don't fit any specific bucket.</p>
     <p><strong>Why it's flagged.</strong> Generic catch-all types are usually a schema-design smell. Kept anyway at ~65% confidence because forcing every inference into a specific type today would mean inventing speculative types.</p>
     <p><strong>Build-time work.</strong> Monitor where <code>inference</code> entries cluster. If a recognizable subtype emerges (e.g. wearable↔food correlations), promote it to a specific synthesized type and shrink the catch-all. Goal: drive <code>inference</code> use toward zero over time.</p>
   </div>
 
   <div class="callout flag-callout">
-    <h4>Molecule-level weakest-tier heuristic for <code>evidence_tier</code></h4>
+    <h4>Molecule-level weakest-tier heuristic for <code>evidence_tier</code> &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/4" style="font-size:13px; font-weight:normal;">[rolled into issue #4 — (ζ) substrate revisits]</a></h4>
     <p><strong>What.</strong> When a molecule (composite atom group) needs a displayed <code>evidence_tier</code>, the rule is: take the weakest tier among constituent atoms.</p>
     <p><strong>Why it's flagged.</strong> Honest but potentially misleadingly pessimistic. A meal recommendation built from Strong-evidence nutrition + Suggestive operational-tradition flavor pairing displays as "Suggestive" — undersells the nutrition piece.</p>
     <p><strong>Build-time work.</strong> Watch query patterns. May prefer per-atom joins to a pre-rolled-up tier.</p>
   </div>
 
   <div class="callout flag-callout">
-    <h4>(ζ) Collapse embeddings table + <code>vec0</code> into single virtual table — S5 Q5.3</h4>
+    <h4>(ζ) Collapse embeddings table + <code>vec0</code> into single virtual table — S5 Q5.3 &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/4" style="font-size:13px; font-weight:normal;">[issue #4]</a></h4>
     <p><strong>What.</strong> Embeddings currently live in two parallel tables (normal SQLite for metadata; <code>vec0</code> virtual table for vector search). sqlite-vec may support a single virtual table with auxiliary metadata columns.</p>
     <p><strong>Build-time work.</strong> Verify hands-on: do CHECK constraints, partial indexes, and S11 FK semantics work cleanly on the virtual table? If yes, swap. If no, current main-table-plus-vec0 design stands. Application surface (the Q5.5 resolver) doesn't change either way.</p>
   </div>
 
   <div class="callout flag-callout">
-    <h4>(ζ) <code>subject_registry</code> alternative for loose polymorphic refs — S11 Q11.2</h4>
+    <h4>(ζ) <code>subject_registry</code> alternative for loose polymorphic refs — S11 Q11.2 &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/4" style="font-size:13px; font-weight:normal;">[issue #4 — bundled with the other ζ revisit]</a></h4>
     <p><strong>What.</strong> Polymorphic foreign keys (a column pointing to atom OR molecule OR synthesized entry) can't be enforced by normal SQL FKs. Current plan: enforce in application code + <code>orphan_sweep_polymorphic_refs</code> job.</p>
     <p><strong>Alternative.</strong> Single <code>subject_registry</code> table mapping <code>(id, type)</code> → existence; FK to that registry. Cleaner if it works.</p>
     <p><strong>Build-time work.</strong> Validate at build alongside the broader (ζ) collapse. If FK semantics work for both virtual and regular tables, swap to FK-native enforcement.</p>
   </div>
 
   <div class="callout flag-callout">
-    <h4>S10 build-time tuning concerns (three knobs)</h4>
+    <h4>S10 build-time tuning concerns (three knobs) &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/5" style="font-size:13px; font-weight:normal;">[issue #5]</a></h4>
     <p><strong>What.</strong> S10 deterministically maps raw quality factors → <code>system_aggregate_quality_score</code> → user-facing certainty (Strong / Moderate / Suggestive). Three knobs need empirical calibration on real data:</p>
     <ol>
       <li><strong>Weight values</strong> — how much does each factor (evidence_tier, verification_status, source authority, derivation depth) contribute?</li>
@@ -799,6 +812,8 @@ tbody tr:last-child td { border-bottom: none; }
       <li>F9 (<code>tenant_id</code> multi-tenant axis) opened in <a href="schema.md"><code>schema.md</code></a> with six resolution sub-questions for an S13 follow-up sweep</li>
       <li>This document updated; commit <code>b1055f4</code> pushed to <code>origin/main</code></li>
       <li>GitHub Issues #1–#18 created mirroring all open flags; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels + 4 milestones established. Convention: <em>markdown is canonical, GitHub is the kanban view</em>.</li>
+      <li>MVP-host refinement landed: hardware constraint identified (MBP M4 Pro 24 GB is the MVP host AND primary work machine); A1-v2 + A3-v2 amended in-place with two-tier posture; <code>#19</code> opened as the migration trigger build-time issue. Memory files + new <code>project_hardware_constraint.md</code> capture the constraint.</li>
+      <li>Sister-doc cascade committed (<code>f56ef1f</code>): <a href="phi-handling.md"><code>phi-handling.md</code></a> + <a href="constitutional-rules.md"><code>constitutional-rules.md</code></a> Rules 1/6/7 + <a href="knowledge-model.md"><code>knowledge-model.md</code></a> (tenant scoping section) + <a href="provider-abstraction.md"><code>provider-abstraction.md</code></a> (current registered providers, 2 new capability dimensions) + <a href="roadmap.md"><code>roadmap.md</code></a> (Block A revision row + L1–L6 sub-section) + <a href="stage3-plan.md"><code>stage3-plan.md</code></a> (Stage 4 blocker note + two-tier hardware reminder). Pushed to <code>origin/main</code>.</li>
     </ul>
     <p><strong>Next, in order:</strong></p>
     <ol>
@@ -862,7 +877,7 @@ tbody tr:last-child td { border-bottom: none; }
   <div class="doc-map">
     <div class="doc-card">
       <div class="doc-card-title"><a href="https://github.com/MrPeppersDev/NutriMe/issues">GitHub Issues</a></div>
-      <div class="doc-card-desc">Kanban view of all open flags (18 issues as of 2026-06-29). Epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels (<code>flag:open</code>, <code>block-a-v2</code>, <code>schema</code>, <code>llm-revisit</code>, <code>build-time</code>, <code>pre-ship-gate</code>, <code>broader-scope</code>, <code>epic</code>); 4 milestones (Stage 4 / Stage 6 / Pre-MVP-ship / V1). <strong>Markdown is source of truth; issues link back to canonical sections.</strong></div>
+      <div class="doc-card-desc">Kanban view of all open flags (19 issues as of 2026-06-29). Epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels (<code>flag:open</code>, <code>block-a-v2</code>, <code>schema</code>, <code>llm-revisit</code>, <code>build-time</code>, <code>pre-ship-gate</code>, <code>broader-scope</code>, <code>epic</code>); 4 milestones (Stage 4 / Stage 6 / Pre-MVP-ship / V1). <strong>Markdown is source of truth; issues link back to canonical sections.</strong></div>
     </div>
   </div>
 
@@ -999,6 +1014,22 @@ tbody tr:last-child td { border-bottom: none; }
 
   <div class="changelog-entry">
     <span class="date">2026-06-29</span>
+    <div class="summary">HTML status doc cross-validation pass — GitHub issue links wired throughout</div>
+    <div class="body">
+      Section 6 Block A rows (A1/A2/A3/A4) gained inline <em>Cross-validate</em> issue links so each Block A v2 decision points at its tracking issues (#2 F9, #6–#11 L1–L6, #12 transport, #19 migration trigger). Section 7 (Stage 3.5) gained a "Reopened 2026-06-29" callout marking F9 as the one post-S12 schema flag and pointing at <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2</a>. Section 8 callouts (F5, molecule-tier, ζ × 2, S10) each got an inline <code>[issue #N]</code> tag in the header so each open flag is one click from its kanban entry. Section 10 added an entry for the f56ef1f sister-doc cascade. Section 11 + section 12 corrected from "18 issues" to "19 issues" to reflect the migration-trigger issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">#19</a>. A new "If you only read one thing" 30-second orientation callout sits directly under the status bar — three short paragraphs covering where-we-are, what's-blocking, what-to-read-first, and how-to-cross-validate. Status bar refreshed: last commit <code>f56ef1f</code>, commit count 69, MVP-host row + migration-trigger link added. No content moved; only links + the orientation callout added.
+    </div>
+  </div>
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
+    <div class="summary">Sister-doc cascade for Block A v2 + MVP-host refinement (commit <code>f56ef1f</code>)</div>
+    <div class="body">
+      After Block A v2 + the MVP-host refinement landed in <code>architecture.md</code>, the cascade through dependent sister docs was committed in one batch: <a href="phi-handling.md"><code>phi-handling.md</code></a> (new "Block A revision" section covering local-substrate primary, MVP-host refinement, tenant boundary on par with cloud, iPhone↔server transport discipline); <a href="constitutional-rules.md"><code>constitutional-rules.md</code></a> (Rule 6 expanded to "stays inside the household network by default" + cross-tenant explicit consent; Rule 1 + Rule 7 enforcement notes naming the hardcoded rule layer outside LLM + L1 pre-MVP-ship gate); <a href="knowledge-model.md"><code>knowledge-model.md</code></a> (new "Tenant scoping" section before Two Layers — <code>tenant_id</code> on every per-user/per-household row, default strict-per-user, abstracted constraints travel cross-tenant only via three-level consent model); <a href="provider-abstraction.md"><code>provider-abstraction.md</code></a> ("Current registered providers" rewritten for post-revision state — OSS-local-primary + Claude as named cloud fallback + Gemini optional + FoodyLLM-style fine-tunes + DeepSeek V3.x do-not-use; added <em>deployment-locus</em> and <em>constitutional-enforcement-eligibility</em> as new capability-vector dimensions). <a href="roadmap.md"><code>roadmap.md</code></a> + <a href="stage3-plan.md"><code>stage3-plan.md</code></a> annotated with the Block A revision row, F9 schema axis, two-tier hardware refinement, and a Stage 4 blocker note pointing at F9/S13. Memory files + <code>project_hardware_constraint.md</code> + <code>feedback_github_issues_kanban.md</code> rewritten to match.
+    </div>
+  </div>
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-29</span>
     <div class="summary">Block A v2 MVP-host refinement — two-tier hardware posture</div>
     <div class="body">
       Same-day refinement on A1-v2 and A3-v2 once the actual MVP host hardware was identified: the user's existing MacBook Pro M4 Pro 24 GB, which is also the primary work machine. <strong>Two tiers split:</strong> MVP runs single-tenant on the 24 GB MBP with cloud-primary reasoning (Qwen3-32B doesn't fit at Q4 in 24 GB; T3 flags Q3 as unsafe); production target stays Mac-class ≥64 GB with OSS-primary per A3-v2 unchanged. Multi-tenant schema (F9) still lands now. Hardcoded constitutional rule layer + PHI decomposition discipline stand independent of where the LLM runs. <strong>Migration trigger</strong> (when MVP host → production target) deferred to build as a new GitHub issue. L1–L6 implications updated inline in architecture.md A3-v2.
@@ -1009,7 +1040,7 @@ tbody tr:last-child td { border-bottom: none; }
     <span class="date">2026-06-29</span>
     <div class="summary">GitHub Issues established as kanban tracker for all open flags</div>
     <div class="body">
-      18 issues created on <a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> mirroring every open flag from the markdown decision logs. Epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels and 4 milestones (Stage 4 / Stage 6 / Pre-MVP-ship gate / V1 graduation) established. Convention codified in epic body: <strong>markdown remains source of truth; issues link back to canonical sections and act as the kanban view</strong>. Closing an issue corresponds to a resolved section in the markdown docs.
+      18 issues initially created on <a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> mirroring every open flag from the markdown decision logs (later extended to 19 with the MVP-host migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">#19</a>). Epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates the Block A v2 sweep. 8 labels and 4 milestones (Stage 4 / Stage 6 / Pre-MVP-ship gate / V1 graduation) established. Convention codified in epic body: <strong>markdown remains source of truth; issues link back to canonical sections and act as the kanban view</strong>. Closing an issue corresponds to a resolved section in the markdown docs.
     </div>
   </div>
 
