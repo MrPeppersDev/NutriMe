@@ -222,6 +222,20 @@ Per working-style memory: each sub-question gets its own commit (`stage4(S4-Q1):
 
 **Not a re-do of the sweeps** — the framework, source identification, and analytical structure stand. Just a freshness check on time-sensitive details. **Trigger to swap to universal pre-flight for remaining steps:** if just-in-time surfaces a foundational fact change that retroactively invalidates earlier-built components (not just freshness drift).
 
+### Component verification log (per-component just-in-time findings)
+
+Append as each Stage 6 step entry runs its checklist.
+
+**Step 2 sub-commit 2.1 — MVP screener trio psychometric refresh** *(verified 2026-06-30, live-web pass)*
+
+| Instrument | Substrate value | Verified current | Status |
+|---|---|---|---|
+| **PHQ-2** — depression | 2 items, 0–3 each (past 2 weeks: 0=not at all → 3=nearly every day); items = "little interest or pleasure in doing things" + "feeling down/depressed/hopeless". Positive: ≥3 (Kroenke 2003; sens 83% / spec 92% vs. SCID). | Confirmed. Standard cutoff ≥3 still widely-recommended in 2024–2026 practice per PMC systematic reviews + clinical trial protocols. Some settings use ≥2 to raise sensitivity — presented as a design-time option, not a replacement. | **No drift. Substrate values ship as-is in 2.1.** |
+| **GAD-2** — anxiety | 2 items, 0–3 each (past 2 weeks scale); items = "feeling nervous/anxious/on edge" + "not being able to stop or control worrying". Positive: ≥3 (Kroenke 2007; sens ~0.76 / spec ~0.81 pooled; sens 0.69 / spec 0.91 for GAD specifically). | Confirmed. USPSTF 2023 anxiety-in-adults recommendation lists both ≥2 (sens 0.94 / spec 0.68) and ≥3 (sens 0.81 / spec 0.86) as viable cutoffs without designating a single preferred — leaves the sensitivity/specificity tradeoff to the clinical setting. ≥3 remains the most widely-cited standard. | **No drift. Substrate values ship as-is in 2.1.** Note the USPSTF sensitivity-vs-specificity framing as a build-time knob if in-use signal suggests the household is under-flagging. |
+| **Hunger Vital Sign** — food insecurity | 2 items, response = often true / sometimes true / never true; items = (i) "Within the past 12 months we worried whether our food would run out before we got money to buy more", (ii) "Within the past 12 months the food we bought just didn't last and we didn't have money to get more". Positive: ≥1 affirmative ("often true" OR "sometimes true") on EITHER item (Hager 2010; sens 96.7% / spec 86.2% vs. HFSSM). | Confirmed via Children's HealthWatch canonical source + PMC validation study. AAP (2015) recommends universal pediatric screening; CMS (2017) incorporated it into Accountable Health Communities Screening Tool. | **No drift. Substrate values ship as-is in 2.1.** |
+
+**Bottom line:** all three instruments' scoring + cutoffs are unchanged from the Stage 1 substrate. The 2.1 build can hard-code these values with high confidence. GAD-2 gets a build-time comment noting ≥2 as an alternative if positive-screen rate under-flags in real use.
+
 ---
 
 ## Stage 6 — Build phase 1 (MVP implementation)

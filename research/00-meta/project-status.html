@@ -852,8 +852,9 @@ tbody tr:last-child td { border-bottom: none; }
       <li><strong>2.2 — Inventory intake</strong>: pantry / fridge / freezer capture. Ongoing surface (not one-shot). Zero PHI per Rule 3 inventory-is-not-logging distinction. No fresh Stage 5 checks required.</li>
     </ol>
     <p><strong>Rationale:</strong> UX shapes and PHI postures are genuinely different so the sub-commit boundary is natural, but a formal 2a/2b renumbering would churn the 9-step plan for no operational gain since the same commits land either way. Tradeoff accepted: if v0.1 ships with 2.1 done and 2.2 partial, unified numbering makes the gap less visible in the roadmap — flag inline in the sub-commit if that happens.</p>
-    <p>Per-component just-in-time Stage 5 verifications fire at step entry per S4-Q4 — <strong>opening now for sub-commit 2.1</strong>: refresh current PHQ-2 / GAD-2 / Hunger Vital Sign scoring + cutoffs against live sources before hard-coding.</p>
+    <p><strong>Sub-commit 2.1 Stage 5 psychometric verification — COMPLETE 2026-06-30.</strong> Live-web pass against Kroenke originals, USPSTF 2023 anxiety-in-adults recommendation, Children's HealthWatch canonical source, and PMC validation studies. All three instruments' scoring + cutoffs unchanged from substrate — PHQ-2 ≥3, GAD-2 ≥3, Hunger Vital Sign ≥1 affirmative on either item. GAD-2 gets a build-time comment noting ≥2 as sensitivity-favoring alternative per USPSTF 2023. Full log in <a href="stage3-plan.md"><code>stage3-plan.md</code></a> § "Component verification log".</p>
     <p>Daily-cadence (step 8) placement remains a yellow flag deferred to its step entry.</p>
+    <p><strong>Ready to build.</strong> Sub-commit 2.1 (first-run baseline intake) opens next.</p>
   </div>
 
   <h4>Six Stage 4 sub-questions (with confidence + revisit triggers) — all resolved</h4>
@@ -1089,6 +1090,19 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">Stage 5 psychometric refresh for sub-commit 2.1 — PHQ-2 / GAD-2 / Hunger Vital Sign scoring + cutoffs confirmed unchanged; 2.1 build cleared</div>
+    <div class="body">
+      Second of two entry decisions for Stage 6 step 2 resolved. Per S4-Q4 (per-component just-in-time Stage 5 verifications), ran a live-web pass on the three MVP screener instruments before hard-coding scoring rules into sub-commit 2.1.
+      <p style="margin: 6px 0;"><strong>PHQ-2 (depression, Kroenke 2003):</strong> 2 items, 0–3 each, ≥3 = positive screen. <strong>Confirmed unchanged.</strong> Some settings use ≥2 for higher sensitivity — presented as a design-time option, not a replacement.</p>
+      <p style="margin: 6px 0;"><strong>GAD-2 (anxiety, Kroenke 2007):</strong> 2 items, 0–3 each, ≥3 = positive screen. <strong>Confirmed unchanged.</strong> USPSTF 2023 anxiety-in-adults recommendation lists both ≥2 and ≥3 without designating a preferred, but ≥3 remains the most widely-cited standard. Build-time comment will note ≥2 as sensitivity-favoring alternative.</p>
+      <p style="margin: 6px 0;"><strong>Hunger Vital Sign (food insecurity, Hager 2010):</strong> 2 items, response = often/sometimes/never true. Positive: ≥1 affirmative ("often true" OR "sometimes true") on either item. <strong>Confirmed unchanged</strong> via Children's HealthWatch canonical source + PMC validation study; AAP 2015 recommends universal pediatric screening; CMS 2017 incorporated into Accountable Health Communities Screening Tool.</p>
+      <p style="margin: 6px 0;"><strong>Bottom line:</strong> substrate values ship as-is; no adjustments to component design needed. Sub-commit 2.1 (first-run baseline intake) can hard-code scoring with high confidence and opens next.</p>
+      Sections touched: <code>stage3-plan.md</code> § Stage 5 — added "Component verification log" subsection with the psychometric refresh table (this becomes the append-target for all future per-component verifications); <code>project-status.html</code> section 10 "Next" callout updated with verification-complete status + ready-to-build note; changelog. No code changes.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
