@@ -31,3 +31,8 @@ def default_substrate_migrations_dir() -> Path:
 
 def default_operational_migrations_dir() -> Path:
     return _project_root() / "migrations" / "operational"
+
+
+def default_corpus_dir(data_dir: Path) -> Path:
+    """Corpus vault root — markdown source-of-truth per S9 Q9.1."""
+    return data_dir / "corpus"

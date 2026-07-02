@@ -9,6 +9,8 @@ adds only the subparser it needs. Current surface:
 - ``nutrime inventory list``     — show current inventory grouped by location (2.2)
 - ``nutrime knowledge sync``     — derive atoms + constraint stub from intake (step 3)
 - ``nutrime knowledge list``     — show currently-valid atoms + constraints (step 3)
+- ``nutrime recipes fetch``      — seed corpus from an external source (step 4 s.c. 4.1)
+- ``nutrime recipes list``       — show recipes in the local vault (step 4 s.c. 4.1)
 """
 
 from __future__ import annotations
@@ -23,6 +25,8 @@ from nutrime.inventory.capture import capture_items
 from nutrime.inventory.store import by_location, list_items
 from nutrime.knowledge.derivation import sync_from_intake
 from nutrime.knowledge.store import list_atoms, list_synthesized_entries
+from nutrime.recipes.store import RecipeVault
+from nutrime.recipes.themealdb import TheMealDBClient, seed_recipes
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -112,6 +116,57 @@ def _cmd_knowledge_list(args: argparse.Namespace) -> int:
         print(f"— abstracted_constraint ({len(constraints)}) —")
         for entry in constraints:
             print(f"  {entry.payload.get('abstracted_text', '(no text)')}")
+    return 0
+
+
+def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    if args.source != "themealdb":
+        print(
+            f"unknown --source {args.source!r}; only 'themealdb' is wired in"
+            " sub-commit 4.1"
+        )
+        return 2
+    vault = RecipeVault(app.corpus_dir)
+    client = TheMealDBClient()
+    letters = tuple(args.letters)
+    outcome = seed_recipes(client, vault, letters=letters, limit=args.limit)
+    print(
+        f"Fetched {outcome.fetched} meal(s); wrote {outcome.written} new"
+        f" recipe file(s) to {vault.root}."
+    )
+    if outcome.skipped_upstream_ids:
+        print(
+            f"Skipped {len(outcome.skipped_upstream_ids)} already-ingested"
+            " upstream id(s)."
+        )
+    return 0
+
+
+def _cmd_recipes_list(args: argparse.Namespace) -> int:
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    vault = RecipeVault(app.corpus_dir)
+    records = vault.list_recipes()
+    if not records:
+        print(
+            "(no recipes yet — run `nutrime recipes fetch` to seed the vault)"
+        )
+        return 0
+    shown = records if args.limit is None else records[: args.limit]
+    print(f"— {len(shown)} of {len(records)} recipe(s) —")
+    for record in shown:
+        fm = record.frontmatter
+        title = fm.get("title", "(untitled)")
+        cuisine = ", ".join(fm.get("cuisine_tradition_tags", ())) or "-"
+        categories = ", ".join(fm.get("meal_categories", ())) or "-"
+        allergens = ", ".join(fm.get("top_allergens_present", ())) or "none"
+        print(f"  {record.recipe_id}")
+        print(f"    title:     {title}")
+        print(f"    cuisine:   {cuisine}")
+        print(f"    category:  {categories}")
+        print(f"    allergens: {allergens}")
     return 0
 
 
@@ -208,6 +263,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     kn_list.set_defaults(func=_cmd_knowledge_list)
+
+    recipes = subparsers.add_parser(
+        "recipes",
+        help="Seed + inspect the recipe corpus vault (step 4).",
+    )
+    recipes_sub = recipes.add_subparsers(dest="recipes_command", required=True)
+
+    rec_fetch = recipes_sub.add_parser(
+        "fetch",
+        help="Fetch recipes from a seed source and write them to the vault.",
+    )
+    rec_fetch.add_argument(
+        "--source",
+        default="themealdb",
+        help="Seed source; only 'themealdb' is wired in sub-commit 4.1.",
+    )
+    rec_fetch.add_argument(
+        "--letters",
+        default="a",
+        help="Letters to iterate for TheMealDB search.php?f=<letter> (default: a).",
+    )
+    rec_fetch.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Cap the number of writes (default: no cap).",
+    )
+    rec_fetch.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    rec_fetch.set_defaults(func=_cmd_recipes_fetch)
+
+    rec_list = recipes_sub.add_parser(
+        "list",
+        help="Show recipes in the vault with their headline frontmatter fields.",
+    )
+    rec_list.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Show at most N recipes (default: show all).",
+    )
+    rec_list.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    rec_list.set_defaults(func=_cmd_recipes_list)
 
     return parser
 
