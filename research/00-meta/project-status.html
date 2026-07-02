@@ -464,12 +464,12 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="status-bar">
   <div class="k">Last updated</div><div class="v">2026-06-30</div>
   <div class="k">Last commit</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/commit/ed80dd4"><code>ed80dd4</code></a> meta(intake): S4-Q5 yellow flag resolved at step 2 entry — unified numbering with two sub-commits (2.1 baseline / 2.2 inventory) &nbsp;<span style="color:var(--ink-muted)">(2026-06-30)</span></div>
-  <div class="k">Current stage</div><div class="v"><span class="badge status-done">Stage 6 — Build phase 1 step 1 (Foundation, expanded) COMPLETE 2026-06-30. All six slices landed (repo scaffolding + persistence + multi-tenant + deployment shell + constitutional rule layer + PHI envelope). 40/40 tests passing.</span></div>
+  <div class="k">Current stage</div><div class="v"><span class="badge status-active">Stage 6 step 2 (Intake, initial) IN PROGRESS. Step 1 (Foundation, expanded) COMPLETE 2026-06-30. Sub-commit 2.1 (first-run baseline intake — screener trio + demographics + preferences + allergens) landed 2026-06-30; 2.2 (inventory intake) opens next. 70/70 tests passing.</span></div>
   <div class="k">Next gate</div><div class="v"><span class="badge status-next">Stage 6 step 2 — Intake (initial)</span>. S4-Q5 Intake yellow flag <strong>RESOLVED 2026-06-30</strong>: no renumbering — step 2 stays unified and lands as two visible sub-commits (<strong>2.1 first-run baseline intake</strong>: screener trio + demographics + life-stage + preferences + allergens; declares <code>intake_screener</code> on the PHI envelope; needs Stage 5 psychometric verification → <strong>2.2 inventory intake</strong>: pantry/fridge/freezer capture; zero PHI per Rule 3 inventory-is-not-logging distinction). Per-component just-in-time Stage 5 verifications fire at step entry per S4-Q4. Transport per issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a> stays deferred.</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
   <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 18 issues open (#2 closed 2026-06-29 via F9 resolution; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> closed 2026-06-30 with all six Stage 4 sub-questions resolved); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep (closed). Markdown is canonical; GitHub is the kanban view.</div>
-  <div class="k">Codebase</div><div class="v">Python 3.13+, <code>src/</code> layout, hatchling backend, Apache 2.0. SQLite + sqlite-vec persistence layer with forward-only migration runner; F9 multi-tenant axis (tenant lifecycle table + typed query helper); deployment shell (<code>nutrime init</code> CLI + <code>Application</code> bootstrap); constitutional <code>RuleEngine</code> with fail-closed pre-egress hook + starter prompt-injection guard; typed PHI envelope registry wired through the engine. 100 commits, 40 tests passing. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
+  <div class="k">Codebase</div><div class="v">Python 3.13+, <code>src/</code> layout, hatchling backend, Apache 2.0. SQLite + sqlite-vec persistence layer with forward-only migration runner; F9 multi-tenant axis (tenant lifecycle table + typed query helper); deployment shell (<code>nutrime init</code> CLI + <code>Application</code> bootstrap); constitutional <code>RuleEngine</code> with fail-closed pre-egress hook + starter prompt-injection guard; typed PHI envelope registry wired through the engine; MVP screener trio (PHQ-2 / GAD-2 / Hunger Vital Sign) + baseline intake profile (demographics + life-stage + preferences + allergens) via <code>nutrime intake</code>. 70 tests passing. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
 </div>
 
 <!-- ----- 30-second orientation (read first) ----- -->
@@ -525,7 +525,7 @@ tbody tr:last-child td { border-bottom: none; }
       <tr><td class="id-col">3.5</td><td class="decision-col">Schema design</td><td>12 sub-blocks S1–S12; substrate + operational + corpus contracts</td><td><span class="badge status-done">Complete</span></td></tr>
       <tr><td class="id-col">4</td><td class="decision-col">MVP scoping</td><td>Six sub-questions framing the smallest useful end-to-end slice — attack order Q1 → Q3 → Q2 → Q6 → Q4 → Q5; all resolved across 2026-06-29 (Q1 + Q3) and 2026-06-30 (Q2 + Q6 + Q4 + Q5)</td><td><span class="badge status-done">Complete 2026-06-30</span></td></tr>
       <tr><td class="id-col">5</td><td class="decision-col">Pre-build verification</td><td>Re-run wave-1/2/3 sweeps with live web tools to refresh time-sensitive details. Per S4-Q4: two upfront verifications run before Stage 6 (recipe IP law + DRI versions, both complete 2026-06-30); rest is per-component just-in-time at Stage 6 step entry — Stage 5 and Stage 6 interleave.</td><td><span class="badge status-done">Upfront verifications complete 2026-06-30; per-component just-in-time ongoing</span></td></tr>
-      <tr><td class="id-col">6</td><td class="decision-col">Build phase 1</td><td>Iterative MVP implementation. Step 1 (Foundation, expanded) absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell + repo scaffolding.</td><td><span class="badge status-active">In progress — step 1 COMPLETE 2026-06-30 (all 6 slices landed); step 2 (Intake) opens next</span></td></tr>
+      <tr><td class="id-col">6</td><td class="decision-col">Build phase 1</td><td>Iterative MVP implementation. Step 1 (Foundation, expanded) absorbs persistence + multi-tenant scaffolding + constitutional rule layer + PHI envelope helper + deployment shell + repo scaffolding.</td><td><span class="badge status-active">In progress — step 1 COMPLETE 2026-06-30; step 2 IN PROGRESS with sub-commit 2.1 (baseline intake) landed 2026-06-30, 2.2 (inventory) opens next</span></td></tr>
       <tr><td class="id-col">7</td><td class="decision-col">Use + iterate</td><td>Real use surfaces real findings; roadmap stays alive</td><td><span class="badge status-next">Pending Stage 6</span></td></tr>
     </tbody>
   </table>
@@ -853,8 +853,8 @@ tbody tr:last-child td { border-bottom: none; }
     </ol>
     <p><strong>Rationale:</strong> UX shapes and PHI postures are genuinely different so the sub-commit boundary is natural, but a formal 2a/2b renumbering would churn the 9-step plan for no operational gain since the same commits land either way. Tradeoff accepted: if v0.1 ships with 2.1 done and 2.2 partial, unified numbering makes the gap less visible in the roadmap — flag inline in the sub-commit if that happens.</p>
     <p><strong>Sub-commit 2.1 Stage 5 psychometric verification — COMPLETE 2026-06-30.</strong> Live-web pass against Kroenke originals, USPSTF 2023 anxiety-in-adults recommendation, Children's HealthWatch canonical source, and PMC validation studies. All three instruments' scoring + cutoffs unchanged from substrate — PHQ-2 ≥3, GAD-2 ≥3, Hunger Vital Sign ≥1 affirmative on either item. GAD-2 gets a build-time comment noting ≥2 as sensitivity-favoring alternative per USPSTF 2023. Full log in <a href="stage3-plan.md"><code>stage3-plan.md</code></a> § "Component verification log".</p>
-    <p>Daily-cadence (step 8) placement remains a yellow flag deferred to its step entry.</p>
-    <p><strong>Ready to build.</strong> Sub-commit 2.1 (first-run baseline intake) opens next.</p>
+    <p><strong>Sub-commit 2.1 (first-run baseline intake) — LANDED 2026-06-30.</strong> New substrate migration <code>0002_create_intake.sql</code> with <code>intake_profile</code> + <code>intake_screener_response</code>; new <code>src/nutrime/intake/</code> package (typed instruments + persistence + baseline flow); <code>nutrime intake</code> CLI subcommand; honest-disclosure callout printed up-front per instrument per constitutional-rules.md Rule 4; 30 new tests (70 total).</p>
+    <p><strong>Next:</strong> sub-commit 2.2 (inventory intake — pantry / fridge / freezer capture; zero PHI per Rule 3 inventory-is-not-logging distinction). Daily-cadence (step 8) placement remains a yellow flag deferred to its step entry.</p>
   </div>
 
   <h4>Six Stage 4 sub-questions (with confidence + revisit triggers) — all resolved</h4>
@@ -1090,6 +1090,30 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-06-30</span>
+    <div class="summary">Sub-commit 2.1 (first-run baseline intake) LANDED — MVP screener trio + demographics profile + <code>nutrime intake</code> CLI; 30 new tests (70 total)</div>
+    <div class="body">
+      First half of Stage 6 step 2 lands. Second half (sub-commit 2.2, inventory intake) opens next.
+      <p style="margin: 6px 0;"><strong>Substrate migration</strong> <code>migrations/substrate/0002_create_intake.sql</code>:</p>
+      <ul>
+        <li><code>intake_profile</code> — per-tenant row (PRIMARY KEY on <code>tenant_id</code> with FK cascade delete): year_of_birth (bounded 1900–2100), sex_assigned_at_birth (CHECK-enumerated), life_stage (CHECK-enumerated to DRI-relevant categories: infant / child / adolescent / adult / pregnant / lactating / older_adult), height_cm / weight_kg (bounded), dietary_preferences + allergens (JSON arrays, <code>json_valid</code> CHECK), created_at + updated_at ISO 8601 UTC.</li>
+        <li><code>intake_screener_response</code> — one row per (tenant, instrument, version, item, administered_at). Raw responses stored normalized; scoring computed at read time by the instrument module. Future v0.2 additions (PSQI, AUDIT-C) require no schema change.</li>
+        <li>Index on <code>(tenant_id, instrument_id, administered_at)</code> for future longitudinal queries.</li>
+      </ul>
+      <p style="margin: 6px 0;"><strong>Intake package</strong> <code>src/nutrime/intake/</code>:</p>
+      <ul>
+        <li><code>instruments.py</code>: typed <code>Instrument</code>, <code>InstrumentItem</code>, <code>ResponseScale</code>, <code>ScreenerResult</code>. Ships <code>PHQ2</code>, <code>GAD2</code>, <code>HUNGER_VITAL_SIGN</code> with verified cutoffs. Each instrument owns items + scale + scorer + positive threshold + a mandatory non-diagnostic disclosure string. GAD-2 carries <code>alternative_thresholds = (2,)</code> per USPSTF 2023.</li>
+        <li><code>store.py</code>: <code>IntakeProfile</code> dataclass with runtime bounds validation (year, life_stage, sex, height, weight) + <code>save_profile</code> (upsert via ON CONFLICT for re-run flow) + <code>save_screener_responses</code> (batch insert per instrument, timestamp-shared across items in a batch).</li>
+        <li><code>baseline.py</code>: <code>run_baseline_intake(conn, tenant_id, prompter, emitter)</code> orchestrates demographics + profile + all three instruments. I/O-parameterized so tests inject scripted prompts; CLI passes <code>input</code> + <code>print</code>. Honest-disclosure printed up-front per instrument per constitutional-rules.md Rule 4.</li>
+      </ul>
+      <p style="margin: 6px 0;"><strong>CLI</strong> — new <code>nutrime intake</code> subcommand (in <code>src/nutrime/cli.py</code>) initializes the app then runs the baseline flow.</p>
+      <p style="margin: 6px 0;"><strong>Tests (30 new; 70 total):</strong> <code>test_intake_instruments.py</code> (17 tests: scoring at cutoffs + boundary values + validation errors + label↔value roundtrip + ID uniqueness), <code>test_intake_store.py</code> (10 tests: dataclass validation, upsert, six-row persistence across the trio, schema-level CHECK constraints, FK integrity), <code>test_intake_baseline.py</code> (3 tests: end-to-end persist + score, numeric-choice acceptance, reprompt on invalid input).</p>
+      <p style="margin: 6px 0;"><strong>Manual smoke:</strong> <code>nutrime init</code> + <code>nutrime intake</code> against a fresh data dir persists the profile row + six response rows and prints per-instrument cutoff-comparison lines.</p>
+      Sections touched: status bar (Current stage → step 2 IN PROGRESS; Codebase row → 70 tests + intake surface listed), section 3 timeline row 6, section 10 "Next — step 2" callout (sub-commit 2.1 LANDED entry added; 2.2 announced as next), changelog. No other doc changes.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-06-30</span>
