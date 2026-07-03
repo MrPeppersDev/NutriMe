@@ -468,7 +468,7 @@ tbody tr:last-child td { border-bottom: none; }
   <div class="k">Next gate</div><div class="v"><span class="badge status-next">Sub-commit 4.2 build</span> — USDA MyPlate + NHLBI bulk-HTML adapters (both public-domain per 17 USC §105; direct download or paged HTML crawl). Frontmatter contract + Cooklang converter + <code>RecipeVault</code> already in place from 4.1; 4.2 adds only the ingest adapters. Step 3 expansion (life-stage / DRI-derived constraints) still deferred to step 5 (meal-plan generation) per S4-Q4 Exception-2. Transport per issue <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a> stays deferred.</div>
   <div class="k">MVP host</div><div class="v">MacBook Pro M4 Pro 24 GB (also user's primary work machine). Cloud-primary for reasoning core; OSS local for narrow leaf tasks only. Production target = Mac-class ≥64 GB; migration trigger <a href="https://github.com/MrPeppersDev/NutriMe/issues/19">issue #19</a> deferred to build.</div>
   <div class="k">First build decision</div><div class="v">Schema-of-schemas declarative format (per <code>schema.md</code> closure summary)</div>
-  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 18 issues open (#2 closed 2026-06-29 via F9 resolution; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> closed 2026-06-30 with all six Stage 4 sub-questions resolved); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep (closed). Markdown is canonical; GitHub is the kanban view.</div>
+  <div class="k">Active tracker</div><div class="v"><a href="https://github.com/MrPeppersDev/NutriMe/issues">github.com/MrPeppersDev/NutriMe/issues</a> — 21 issues open (#2 closed 2026-06-29 via F9 resolution; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/20">#20</a> closed 2026-06-30 with all six Stage 4 sub-questions resolved; <a href="https://github.com/MrPeppersDev/NutriMe/issues/21">#21</a> consent capture + <a href="https://github.com/MrPeppersDev/NutriMe/issues/22">#22</a> audit persistence + <a href="https://github.com/MrPeppersDev/NutriMe/issues/23">#23</a> attribution-at-render added 2026-07-02 via retrospective audit); all mirror flags from markdown; epic <a href="https://github.com/MrPeppersDev/NutriMe/issues/1">#1</a> coordinates Block A v2 sweep (closed). Markdown is canonical; GitHub is the kanban view.</div>
   <div class="k">Codebase</div><div class="v">Python 3.13+, <code>src/</code> layout, hatchling backend, Apache 2.0. SQLite + sqlite-vec persistence layer with forward-only migration runner; F9 multi-tenant axis (tenant lifecycle table + typed query helper); deployment shell (<code>nutrime init</code> CLI + <code>Application</code> bootstrap); constitutional <code>RuleEngine</code> with fail-closed pre-egress hook + starter prompt-injection guard; typed PHI envelope registry wired through the engine; MVP screener trio (PHQ-2 / GAD-2 / Hunger Vital Sign) + baseline intake profile via <code>nutrime intake</code>; kitchen inventory (pantry / fridge / freezer / countertop) via <code>nutrime inventory add|list</code>; knowledge model initial slice — <code>atom</code> + <code>synthesized_entry</code> tables with 24-column base + typed-prefix UUIDv7 ids + <code>Provenance</code> / <code>SubjectType</code> / <code>RetractionReason</code> StrEnums + intake→atom derivation + <code>abstracted_constraint</code> stub via <code>nutrime knowledge sync|list</code>; recipe corpus vault at <code>&lt;data_dir&gt;/corpus/recipes/</code> — S9-compliant YAML frontmatter (23 required fields) + Cooklang body per D4 canonical-on-ingest; TheMealDB free-tier API adapter (dev key 1, attribution surfaced) + <code>rcp-</code>typed UUIDv7 ids + heuristic top-9 allergen detector + <code>recipe_search</code> PHI envelope (empty categories, fail-closed) via <code>nutrime recipes fetch|list</code>. 209 tests passing. <a href="https://github.com/MrPeppersDev/NutriMe/commits/main">commit history</a></div>
 </div>
 
@@ -722,6 +722,10 @@ tbody tr:last-child td { border-bottom: none; }
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/11">#11 L6 paged-attention monitoring (V1 graduation)</a> ·
     <a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12 Block A v2 transport + auth</a>
     <br><br><em>Resolved this session:</em> <a href="https://github.com/MrPeppersDev/NutriMe/issues/2">#2 F9 tenant_id</a> (closed via the six-question S13 mini-sweep — see <a href="schema.md">schema.md F9</a>).
+    <br><br><em>Added 2026-07-02 (retrospective audit after sub-commit 4.1):</em>
+    <a href="https://github.com/MrPeppersDev/NutriMe/issues/21">#21 consent capture (E2) missing on live surfaces</a> ·
+    <a href="https://github.com/MrPeppersDev/NutriMe/issues/22">#22 operational audit persistence unbuilt</a> ·
+    <a href="https://github.com/MrPeppersDev/NutriMe/issues/23">#23 attribution-at-render unbacked (pre-ship gate)</a>
   </p>
 
   <p>The original five Stage-3.5-carried flags follow as canonical descriptions; the post-3.5 additions (F9, L1–L6, transport) live in <a href="architecture.md"><code>architecture.md</code></a> § "Block A revision — 2026-06-29", <a href="schema.md"><code>schema.md</code></a> § F9, and <a href="../15-llm-revisit/recommendation.md"><code>research/15-llm-revisit/recommendation.md</code></a> §9.</p>
@@ -762,6 +766,24 @@ tbody tr:last-child td { border-bottom: none; }
       <li><strong>Deep-chain compounding</strong> — how does confidence degrade as inferences derive from inferences? Multiplicative? Logarithmic? Capped?</li>
     </ol>
     <p><strong>Build-time work.</strong> Can't be tuned in the abstract. Calibrate against real data once the system is producing entries.</p>
+  </div>
+
+  <div class="callout flag-callout">
+    <h4>Consent capture (E2) missing on live data-capture surfaces &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/21" style="font-size:13px; font-weight:normal;">[issue #21]</a></h4>
+    <p><strong>What.</strong> S4-Q6 requires MVP to be consent-clean <em>from day one</em> (E2 tiered standing consent + per-publication-confirmation on every data-capture surface). Intake 2.1 + inventory 2.2 + knowledge 3.1 capture surfaces are live with zero consent capture — only the <code>CONSENT_WITHDRAWN</code> retraction enum and null <code>consent_record_id</code> base columns exist. Surfaced by the 2026-07-02 retrospective audit; previously untracked.</p>
+    <p><strong>Build-time work.</strong> S8 consent-record table family + first-run consent flow + retroactive consent records for existing rows (acceptable per E2 at single-user local scale). <strong>Deadline anchor: before step 7</strong> — per-meal feedback is the publication-target capture surface.</p>
+  </div>
+
+  <div class="callout flag-callout">
+    <h4>Operational audit persistence (S8 / Rule 8) unbuilt &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/22" style="font-size:13px; font-weight:normal;">[issue #22]</a></h4>
+    <p><strong>What.</strong> The constitutional rule engine runs pre-egress checks, but <code>migrations/operational/</code> is an empty migration set — no <code>op_event_log</code> / <code>op_llm_request_log</code>, so nothing durable records crossings or rule outcomes. Deferral acknowledged in code docstrings (<code>tenancy.py</code>) but previously unissued.</p>
+    <p><strong>Build-time work.</strong> Land the S8 event-log + request-log tables (with PHI defense-in-depth CHECK); pre-egress hook writes a row for every crossing, allowed and blocked; tenant lifecycle events wire into <code>op_event_log</code> per F9 Q3. <strong>Deadline anchor: no later than step 5</strong> — the first real LLM egress must be audit-logged from the first call; audit history cannot be backfilled.</p>
+  </div>
+
+  <div class="callout flag-callout">
+    <h4>Attribution-at-render obligation stored but unbacked &nbsp; <a href="https://github.com/MrPeppersDev/NutriMe/issues/23" style="font-size:13px; font-weight:normal;">[issue #23 — pre-ship gate]</a></h4>
+    <p><strong>What.</strong> TheMealDB free-tier terms require attribution surfaced at recipe render. Sub-commit 4.1 stores attribution correctly (frontmatter + Cooklang metadata), but no render surface exists — <code>nutrime recipes list</code> omits it.</p>
+    <p><strong>Build-time work.</strong> When the first recipe-display surface lands (step 5 or step 8), render attribution adjacent to recipe content, generalized to any attribution-required <code>source_license</code> (4.4 URL-scrape sources inherit). Pre-MVP-ship hard gate: every TheMealDB-sourced render carries its credit line.</p>
   </div>
 </section>
 
@@ -1132,6 +1154,23 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="body">Optional longer body — what changed, why, which sections were touched.</div>
   </div>
   -->
+
+  <div class="changelog-entry">
+    <span class="date">2026-07-02</span>
+    <div class="summary">Retrospective audit (conceived → planned → executed → remaining) — three untracked execution gaps flagged and mirrored as issues <a href="https://github.com/MrPeppersDev/NutriMe/issues/21">#21</a> (consent capture missing on live surfaces), <a href="https://github.com/MrPeppersDev/NutriMe/issues/22">#22</a> (operational audit persistence unbuilt), <a href="https://github.com/MrPeppersDev/NutriMe/issues/23">#23</a> (attribution-at-render unbacked; pre-ship gate); S12 monolithic-baseline deviation recorded in schema.md</div>
+    <div class="body">
+      Full-project retrospective run after sub-commit 4.1 across three parallel research passes (vision/conception docs; planning/schema docs; execution state + git history + issue tracker). Headline finding: conception, planning, and the cross-cutting build discipline (honest-disclosure callouts verified present in intake; PHI envelopes registered at every step; license hygiene; tenant scaffolding; per-step just-in-time verification) have held — but five plan-vs-execution deviations surfaced, three of which were previously untracked.
+      <p style="margin: 6px 0;"><strong>Flagged + mirrored as issues:</strong></p>
+      <ul>
+        <li><strong>Consent capture (E2) missing on live data-capture surfaces</strong> — S4-Q6 requires consent-clean from day one; intake 2.1 + inventory 2.2 + knowledge 3.1 are live with zero consent capture. Must land before step 7. <a href="https://github.com/MrPeppersDev/NutriMe/issues/21">#21</a></li>
+        <li><strong>Operational audit persistence (S8 / Rule 8) unbuilt</strong> — rule engine runs pre-egress checks but <code>migrations/operational/</code> is empty; no <code>op_event_log</code> / <code>op_llm_request_log</code>. Must land no later than step 5 (first real LLM egress); audit history cannot be backfilled. <a href="https://github.com/MrPeppersDev/NutriMe/issues/22">#22</a></li>
+        <li><strong>Attribution-at-render stored but unbacked</strong> — TheMealDB free-tier obligation lives in frontmatter + Cooklang metadata but no render surface exists. Lands with first recipe-display surface (step 5/8); pre-MVP-ship hard gate. <a href="https://github.com/MrPeppersDev/NutriMe/issues/23">#23</a></li>
+      </ul>
+      <p style="margin: 6px 0;"><strong>Recorded, no issue needed:</strong> S12 Q12.4.a monolithic-baseline deviation — Stage 6 landed incremental per-step migrations (<code>0001</code>–<code>0004</code>) instead of the planned single monolithic baseline; accepted as the better fit for S4-Q5 lean sequencing (tables land with their first consumer) and recorded as a deviation note in <code>schema.md</code> § S12 Q12.4.a. Forward-only semantics, per-DB tracking, and the peer-review checklist survive; the monolithic baseline is repurposed as a future tooling-generated fresh-install artifact.</p>
+      <p style="margin: 6px 0;"><strong>Watch items (no action yet):</strong> schema-of-schemas declarative format remains the named-but-unmade "first build decision" (becomes load-bearing at S12 read-time payload migration); hand-rolled YAML parser can't handle lists-of-dicts (optional <code>image_references</code> field will hit it, likely at 4.2); knowledge <code>abstracted_constraint</code> stub boundary has no guard test; README documents no CLI surface.</p>
+      Sections touched: <code>schema.md</code> § S12 Q12.4.a (deviation note appended); <code>stage3-plan.md</code> § Stage 6 cross-cutting concerns (gap note with #21/#22) + § step 4 paragraph (attribution gap note with #23); <code>project-status.html</code> status bar (Active tracker → 21 open), section 8 (three new flag callouts + inventory line), changelog. No code changes.
+    </div>
+  </div>
 
   <div class="changelog-entry">
     <span class="date">2026-07-02</span>
