@@ -38,6 +38,25 @@ def _minimal_frontmatter() -> dict:
     )
 
 
+class TestAttributionArchivalField:
+    def test_snapshot_url_included_when_set(self) -> None:
+        attribution = Attribution(
+            source_name="X",
+            source_url="https://original.example/r/1",
+            source_license="PD",
+            ingested_at="2026-07-07T00:00:00Z",
+            ingestion_method="test",
+            archived_snapshot_url="https://web.archive.org/web/1id_/x",
+        )
+        out = attribution.as_dict()
+        assert out["archived_snapshot_url"] == (
+            "https://web.archive.org/web/1id_/x"
+        )
+
+    def test_snapshot_url_absent_by_default(self) -> None:
+        assert "archived_snapshot_url" not in _minimal_attribution().as_dict()
+
+
 class TestBuildRecipeFrontmatter:
     def test_all_s9_required_fields_populated(self) -> None:
         fm = _minimal_frontmatter()

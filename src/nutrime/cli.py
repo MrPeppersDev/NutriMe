@@ -9,7 +9,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime inventory list``     — show current inventory grouped by location (2.2)
 - ``nutrime knowledge sync``     — derive atoms + constraint stub from intake (step 3)
 - ``nutrime knowledge list``     — show currently-valid atoms + constraints (step 3)
-- ``nutrime recipes fetch``      — seed corpus from an external source (step 4 s.c. 4.1)
+- ``nutrime recipes fetch``      — seed corpus from an external source (step 4 s.c. 4.1/4.2)
 - ``nutrime recipes list``       — show recipes in the local vault (step 4 s.c. 4.1)
 """
 
@@ -25,8 +25,11 @@ from nutrime.inventory.capture import capture_items
 from nutrime.inventory.store import by_location, list_items
 from nutrime.knowledge.derivation import sync_from_intake
 from nutrime.knowledge.store import list_atoms, list_synthesized_entries
+from nutrime.recipes.myplate_wayback import seed_recipes as myplate_seed_recipes
+from nutrime.recipes.nhlbi import seed_recipes as nhlbi_seed_recipes
 from nutrime.recipes.store import RecipeVault
 from nutrime.recipes.themealdb import TheMealDBClient, seed_recipes
+from nutrime.recipes.web import Pacer
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -122,18 +125,26 @@ def _cmd_knowledge_list(args: argparse.Namespace) -> int:
 def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    if args.source != "themealdb":
+    vault = RecipeVault(app.corpus_dir)
+    pacer = Pacer(delay_s=args.delay)
+    if args.source == "themealdb":
+        client = TheMealDBClient()
+        letters = tuple(args.letters)
+        outcome = seed_recipes(
+            client, vault, letters=letters, limit=args.limit
+        )
+    elif args.source == "nhlbi":
+        outcome = nhlbi_seed_recipes(vault, pacer=pacer, limit=args.limit)
+    elif args.source == "myplate_wayback":
+        outcome = myplate_seed_recipes(vault, pacer=pacer, limit=args.limit)
+    else:
         print(
-            f"unknown --source {args.source!r}; only 'themealdb' is wired in"
-            " sub-commit 4.1"
+            f"unknown --source {args.source!r}; wired sources:"
+            " themealdb, nhlbi, myplate_wayback"
         )
         return 2
-    vault = RecipeVault(app.corpus_dir)
-    client = TheMealDBClient()
-    letters = tuple(args.letters)
-    outcome = seed_recipes(client, vault, letters=letters, limit=args.limit)
     print(
-        f"Fetched {outcome.fetched} meal(s); wrote {outcome.written} new"
+        f"Fetched {outcome.fetched} recipe(s); wrote {outcome.written} new"
         f" recipe file(s) to {vault.root}."
     )
     if outcome.skipped_upstream_ids:
@@ -277,7 +288,9 @@ def build_parser() -> argparse.ArgumentParser:
     rec_fetch.add_argument(
         "--source",
         default="themealdb",
-        help="Seed source; only 'themealdb' is wired in sub-commit 4.1.",
+        help=(
+            "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2)."
+        ),
     )
     rec_fetch.add_argument(
         "--letters",
@@ -289,6 +302,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Cap the number of writes (default: no cap).",
+    )
+    rec_fetch.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        help="Politeness delay in seconds between HTTP requests (default: 1.0).",
     )
     rec_fetch.add_argument(
         "--data-dir",

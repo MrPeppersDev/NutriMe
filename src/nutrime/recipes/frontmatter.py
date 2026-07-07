@@ -82,6 +82,10 @@ class Attribution:
     ingested_at: str
     ingestion_method: str
     upstream_id: str = ""
+    # For content ingested from an archive after the source went dark
+    # (preservation-layer principle): the snapshot actually fetched, while
+    # source_url keeps the original canonical URL.
+    archived_snapshot_url: str = ""
 
     def as_dict(self) -> dict[str, str]:
         out = {
@@ -93,6 +97,8 @@ class Attribution:
         }
         if self.upstream_id:
             out["upstream_id"] = self.upstream_id
+        if self.archived_snapshot_url:
+            out["archived_snapshot_url"] = self.archived_snapshot_url
         return out
 
 

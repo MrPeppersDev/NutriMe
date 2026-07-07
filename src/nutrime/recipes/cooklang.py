@@ -66,6 +66,61 @@ def split_measure(measure: str) -> tuple[str, str]:
     return (m, "")
 
 
+# -- combined ingredient-line parsing (bulk-HTML sources) --------------------
+
+_VULGAR_FRACTIONS = {
+    "½": "1/2", "⅓": "1/3", "⅔": "2/3", "¼": "1/4", "¾": "3/4",
+    "⅕": "1/5", "⅖": "2/5", "⅗": "3/5", "⅘": "4/5",
+    "⅙": "1/6", "⅚": "5/6", "⅛": "1/8", "⅜": "3/8", "⅝": "5/8", "⅞": "7/8",
+}
+
+_UNIT_WORDS = frozenset({
+    "c", "cup", "cups", "tsp", "tsps", "teaspoon", "teaspoons",
+    "tbsp", "tbsps", "tablespoon", "tablespoons",
+    "lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces",
+    "g", "gram", "grams", "kg", "mg", "ml", "l", "liter", "liters",
+    "litre", "litres", "qt", "quart", "quarts", "pt", "pint", "pints",
+    "gal", "gallon", "gallons", "can", "cans", "package", "packages",
+    "pkg", "jar", "jars", "bag", "bags", "box", "boxes", "container",
+    "slice", "slices", "clove", "cloves", "pinch", "dash",
+    "stalk", "stalks", "sprig", "sprigs", "head", "heads",
+    "bunch", "bunches", "piece", "pieces", "stick", "sticks",
+})
+
+_QTY_LEAD = re.compile(
+    r"^((?:\d+\s+\d+/\d+)|(?:\d+/\d+)|(?:\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?))\s+(.+)$"
+)
+
+
+def normalize_fractions(text: str) -> str:
+    """Expand unicode vulgar fractions: ``"1½ lb"`` → ``"1 1/2 lb"``."""
+    out = text
+    for char, ascii_frac in _VULGAR_FRACTIONS.items():
+        out = out.replace(char, f" {ascii_frac}")
+    return re.sub(r"\s+", " ", out).strip()
+
+
+def split_ingredient_line(line: str) -> tuple[str, str, str]:
+    """Parse a combined line → ``(quantity, unit, name)``.
+
+    Bulk-HTML sources (NHLBI, MyPlate) ship one flattened string per
+    ingredient — ``"1½ lb salmon fillet"`` → ``("1 1/2", "lb",
+    "salmon fillet")``; lines with no leading quantity (``"Cooking
+    spray"``) come back as name-only.
+    """
+    text = normalize_fractions(line)
+    if not text:
+        return ("", "", "")
+    match = _QTY_LEAD.match(text)
+    if not match:
+        return ("", "", text)
+    qty, rest = match.group(1), match.group(2).strip()
+    first, _, remainder = rest.partition(" ")
+    if first.strip(".,()").lower() in _UNIT_WORDS and remainder.strip():
+        return (qty, first.strip(".,"), remainder.strip())
+    return (qty, "", rest)
+
+
 def _emit_ingredient(ingredient: Ingredient) -> str:
     name = ingredient.name.strip()
     qty = ingredient.quantity.strip()

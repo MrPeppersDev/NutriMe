@@ -70,6 +70,77 @@ class TestRecipesFetchCLI:
         assert "unknown" in out
 
 
+class TestRecipesFetchBulkSourcesCLI:
+    def test_fetch_nhlbi_writes_to_vault(
+        self, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        from nutrime.recipes import nhlbi as nhlbi_mod
+
+        listing = (
+            f'<a href="{nhlbi_mod.LISTING_PATH}/test-dish">x</a>'
+        )
+        recipe = """<html><head><title>Test Dish | NHLBI, NIH</title></head>
+<body><h2>Ingredients</h2><ul><li>1 cup rice</li></ul>
+<h2>Directions</h2><ol><li>Cook rice.</li></ol></body></html>"""
+
+        def _fetch(url: str) -> str:
+            return recipe if url.endswith("/test-dish") else (
+                listing if "page=0" in url else "<html></html>"
+            )
+
+        monkeypatch.setattr(nhlbi_mod, "_urllib_fetch_text", _fetch)
+        rc = main(
+            [
+                "recipes", "fetch",
+                "--source", "nhlbi",
+                "--data-dir", str(tmp_path),
+                "--delay", "0",
+                "--limit", "1",
+            ]
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "wrote 1" in out
+
+    def test_fetch_myplate_wayback_writes_to_vault(
+        self, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        import json as json_mod
+
+        from nutrime.recipes import myplate_wayback as myplate_mod
+
+        cdx = json_mod.dumps([
+            ["urlkey", "timestamp", "original", "mimetype",
+             "statuscode", "digest", "length"],
+            ["gov,myplate)/recipes/test-dish", "20241126000000",
+             "https://www.myplate.gov/recipes/test-dish",
+             "text/html", "200", "D", "1"],
+        ])
+        recipe = """<html><head><script type="application/ld+json">
+{"@graph": [{"@type": "Recipe", "name": "Test Dish", "recipeYield": "2"}]}
+</script></head><body>
+<div class="field--name-field-ingredients"><ul><li>1 cup rice</li></ul></div>
+<div class="field--name-field-instructions"><ol><li>Cook rice.</li></ol></div>
+</body></html>"""
+
+        def _fetch(url: str) -> str:
+            return cdx if "cdx" in url else recipe
+
+        monkeypatch.setattr(myplate_mod, "_urllib_fetch_text", _fetch)
+        rc = main(
+            [
+                "recipes", "fetch",
+                "--source", "myplate_wayback",
+                "--data-dir", str(tmp_path),
+                "--delay", "0",
+                "--limit", "1",
+            ]
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "wrote 1" in out
+
+
 class TestRecipesListCLI:
     def test_list_empty_shows_placeholder(
         self, tmp_path: Path, capsys

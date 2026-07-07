@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Callable, Iterable
 
 from nutrime.recipes.allergens import detect_allergens
@@ -28,6 +27,8 @@ from nutrime.recipes.frontmatter import (
     build_recipe_frontmatter,
 )
 from nutrime.recipes.ids import new_recipe_id
+from nutrime.recipes.store import collect_upstream_ids
+from nutrime.recipes.web import now_iso
 
 BASE_URL = "https://www.themealdb.com/api/json/v1/1"
 SOURCE_NAME = "TheMealDB"
@@ -111,14 +112,6 @@ def _extract_steps(meal: dict[str, Any]) -> list[str]:
     return steps
 
 
-def _now_iso() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .isoformat(timespec="seconds")
-        .replace("+00:00", "Z")
-    )
-
-
 def _cuisine_tags(meal: dict[str, Any]) -> list[str]:
     area = (meal.get("strArea") or "").strip()
     return [area.lower()] if area else []
@@ -150,7 +143,7 @@ class ConvertedRecipe:
 
 def convert_meal(meal: dict[str, Any], *, ingested_at: str | None = None) -> ConvertedRecipe:
     """Map one TheMealDB meal payload → (frontmatter, Cooklang body)."""
-    when = ingested_at or _now_iso()
+    when = ingested_at or now_iso()
     recipe_id = new_recipe_id()
     upstream_id = (meal.get("idMeal") or "").strip()
     title = (meal.get("strMeal") or "Untitled Recipe").strip()
@@ -235,20 +228,16 @@ def seed_recipes(
     written = 0
     fetched = 0
     skipped: list[str] = []
-    seen_upstream: set[str] = set()
-    for record in vault.iter_recipes():
-        attribution = record.frontmatter.get("attribution", {}) or {}
-        if attribution.get("source_name") != SOURCE_NAME:
-            continue
-        upstream = attribution.get("upstream_id") or ""
-        if not upstream:
-            # Fallback for older writes that predate upstream_id in attribution
-            url = attribution.get("source_url") or ""
-            marker = "themealdb.com/meal/"
-            if marker in url:
-                upstream = url.rsplit("/", 1)[-1]
-        if upstream:
-            seen_upstream.add(upstream)
+
+    def _legacy_url_id(attribution: dict[str, Any]) -> str:
+        # Fallback for older writes that predate upstream_id in attribution
+        url = attribution.get("source_url") or ""
+        marker = "themealdb.com/meal/"
+        return url.rsplit("/", 1)[-1] if marker in url else ""
+
+    seen_upstream = collect_upstream_ids(
+        vault, SOURCE_NAME, fallback=_legacy_url_id
+    )
 
     for letter in letters:
         meals = client.search_by_letter(letter)

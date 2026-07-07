@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 from nutrime.recipes.frontmatter import (
     render_markdown_document,
@@ -90,3 +90,28 @@ class RecipeVault:
         if not self._root.exists():
             return 0
         return sum(1 for _ in self._root.glob("*.md"))
+
+
+def collect_upstream_ids(
+    vault: RecipeVault,
+    source_name: str,
+    *,
+    fallback: Callable[[dict[str, Any]], str] | None = None,
+) -> set[str]:
+    """Upstream ids already ingested for ``source_name`` (seed de-dup).
+
+    ``fallback`` lets an adapter derive an id from the attribution block for
+    legacy writes that predate ``upstream_id`` (e.g. TheMealDB source-URL
+    pattern).
+    """
+    seen: set[str] = set()
+    for record in vault.iter_recipes():
+        attribution = record.frontmatter.get("attribution", {}) or {}
+        if attribution.get("source_name") != source_name:
+            continue
+        upstream = attribution.get("upstream_id") or ""
+        if not upstream and fallback is not None:
+            upstream = fallback(attribution) or ""
+        if upstream:
+            seen.add(upstream)
+    return seen

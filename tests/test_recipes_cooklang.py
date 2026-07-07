@@ -4,8 +4,60 @@ from nutrime.recipes.cooklang import (
     Ingredient,
     Recipe,
     emit_cooklang,
+    normalize_fractions,
+    split_ingredient_line,
     split_measure,
 )
+
+
+class TestNormalizeFractions:
+    def test_mixed_number(self) -> None:
+        assert normalize_fractions("1½ lb salmon") == "1 1/2 lb salmon"
+
+    def test_bare_fraction(self) -> None:
+        assert normalize_fractions("½ tsp garlic powder") == (
+            "1/2 tsp garlic powder"
+        )
+
+    def test_no_fractions_passthrough(self) -> None:
+        assert normalize_fractions("2 cups rice") == "2 cups rice"
+
+
+class TestSplitIngredientLine:
+    def test_qty_unit_name(self) -> None:
+        assert split_ingredient_line("1 C fat-free sour cream") == (
+            "1", "C", "fat-free sour cream"
+        )
+
+    def test_unicode_fraction_with_unit(self) -> None:
+        assert split_ingredient_line("1½ lb salmon fillet") == (
+            "1 1/2", "lb", "salmon fillet"
+        )
+
+    def test_qty_no_unit(self) -> None:
+        assert split_ingredient_line("2 chicken breasts") == (
+            "2", "", "chicken breasts"
+        )
+
+    def test_no_quantity_at_all(self) -> None:
+        assert split_ingredient_line("Cooking spray") == (
+            "", "", "Cooking spray"
+        )
+
+    def test_fraction_quantity(self) -> None:
+        assert split_ingredient_line("3/4 cup rolled oats") == (
+            "3/4", "cup", "rolled oats"
+        )
+
+    def test_parenthetical_note_survives_in_name(self) -> None:
+        qty, unit, name = split_ingredient_line(
+            "1 tablespoon vegetable oil (or cooking oil of choice)"
+        )
+        assert (qty, unit) == ("1", "tablespoon")
+        assert name == "vegetable oil (or cooking oil of choice)"
+
+    def test_empty_line(self) -> None:
+        assert split_ingredient_line("  ") == ("", "", "")
 
 
 class TestSplitMeasure:
