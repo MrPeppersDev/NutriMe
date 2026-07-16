@@ -59,6 +59,16 @@ class TestSplitIngredientLine:
     def test_empty_line(self) -> None:
         assert split_ingredient_line("  ") == ("", "", "")
 
+    def test_dashed_mixed_fraction(self) -> None:
+        assert split_ingredient_line("1-1/2 oz. of salt") == (
+            "1-1/2", "oz", "salt"
+        )
+
+    def test_leading_of_dropped_from_name(self) -> None:
+        assert split_ingredient_line("4 lbs. of shin of beef") == (
+            "4", "lbs", "shin of beef"
+        )
+
 
 class TestSplitMeasure:
     def test_quantity_and_unit(self) -> None:

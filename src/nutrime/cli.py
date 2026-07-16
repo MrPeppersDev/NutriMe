@@ -25,6 +25,7 @@ from nutrime.inventory.capture import capture_items
 from nutrime.inventory.store import by_location, list_items
 from nutrime.knowledge.derivation import sync_from_intake
 from nutrime.knowledge.store import list_atoms, list_synthesized_entries
+from nutrime.recipes.gutenberg import seed_recipes as gutenberg_seed_recipes
 from nutrime.recipes.myplate_wayback import seed_recipes as myplate_seed_recipes
 from nutrime.recipes.nhlbi import seed_recipes as nhlbi_seed_recipes
 from nutrime.recipes.store import RecipeVault
@@ -137,10 +138,19 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
         outcome = nhlbi_seed_recipes(vault, pacer=pacer, limit=args.limit)
     elif args.source == "myplate_wayback":
         outcome = myplate_seed_recipes(vault, pacer=pacer, limit=args.limit)
+    elif args.source == "gutenberg":
+        books = (
+            tuple(b.strip() for b in args.books.split(",") if b.strip())
+            if args.books
+            else None
+        )
+        outcome = gutenberg_seed_recipes(
+            vault, pacer=pacer, books=books, limit=args.limit
+        )
     else:
         print(
             f"unknown --source {args.source!r}; wired sources:"
-            " themealdb, nhlbi, myplate_wayback"
+            " themealdb, nhlbi, myplate_wayback, gutenberg"
         )
         return 2
     print(
@@ -289,7 +299,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--source",
         default="themealdb",
         help=(
-            "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2)."
+            "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2),"
+            " gutenberg (4.3)."
+        ),
+    )
+    rec_fetch.add_argument(
+        "--books",
+        default=None,
+        help=(
+            "Comma-separated Gutenberg book keys"
+            " (beeton,farmer,forme_of_cury,golden_age; default: all)."
         ),
     )
     rec_fetch.add_argument(

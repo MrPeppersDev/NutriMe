@@ -88,7 +88,8 @@ _UNIT_WORDS = frozenset({
 })
 
 _QTY_LEAD = re.compile(
-    r"^((?:\d+\s+\d+/\d+)|(?:\d+/\d+)|(?:\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?))\s+(.+)$"
+    r"^((?:\d+-\d+/\d+)|(?:\d+\s+\d+/\d+)|(?:\d+/\d+)"
+    r"|(?:\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?))\s+(.+)$"
 )
 
 
@@ -117,7 +118,11 @@ def split_ingredient_line(line: str) -> tuple[str, str, str]:
     qty, rest = match.group(1), match.group(2).strip()
     first, _, remainder = rest.partition(" ")
     if first.strip(".,()").lower() in _UNIT_WORDS and remainder.strip():
-        return (qty, first.strip(".,"), remainder.strip())
+        name = remainder.strip()
+        # "4 lbs. of shin of beef" → drop the connective "of"
+        if name.lower().startswith("of "):
+            name = name[3:].strip()
+        return (qty, first.strip(".,"), name)
     return (qty, "", rest)
 
 

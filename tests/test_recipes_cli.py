@@ -141,6 +141,36 @@ class TestRecipesFetchBulkSourcesCLI:
         assert "wrote 1" in out
 
 
+class TestRecipesFetchGutenbergCLI:
+    def test_fetch_gutenberg_selected_book(
+        self, tmp_path: Path, capsys, monkeypatch
+    ) -> None:
+        from nutrime.recipes import gutenberg as gutenberg_mod
+
+        book_text = """*** START OF THE PROJECT GUTENBERG EBOOK X ***
+GOOD SOUP.
+
+One quart of good stock, seasoned well and served hot with bread.
+
+*** END OF THE PROJECT GUTENBERG EBOOK X ***"""
+
+        monkeypatch.setattr(
+            gutenberg_mod, "_urllib_fetch_text", lambda url: book_text
+        )
+        rc = main(
+            [
+                "recipes", "fetch",
+                "--source", "gutenberg",
+                "--books", "golden_age",
+                "--data-dir", str(tmp_path),
+                "--delay", "0",
+            ]
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "wrote 1" in out
+
+
 class TestRecipesListCLI:
     def test_list_empty_shows_placeholder(
         self, tmp_path: Path, capsys
