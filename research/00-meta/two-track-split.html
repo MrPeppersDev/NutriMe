@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriMe — Project Overview: Two Tracks, State &amp; To-Do</title>
+<!--
+  ============================================================================
+  NutriMe — Personal tracking overview (NOT canonical)
+  One readable page: where the project stands, split into the two product
+  pieces (nutrition guidance vs meal-planning & grocery), what's landed,
+  what remains, and every open flag — so day-to-day orientation never
+  requires git log or project-status.html.
+
+  Canonical decisions stay in the 00-meta markdown; project-status.html
+  remains the formal dashboard. Edit this freely; it serves the reader.
+
+  Badges: .status-done .status-partial .status-next .status-notbuilt .status-flag
+  Tracks: .track-g (guidance) .track-m (meal-planning/grocery) .track-s (shared)
+  ============================================================================
+-->
+<style>
+:root {
+  --bg: #f8f6f1;
+  --paper: #fdfcf9;
+  --ink: #18181b;
+  --ink-muted: #56565c;
+  --rule: #d8d4ca;
+  --rule-soft: #ebe7dd;
+  --accent: #7a3922;
+  --done: #2d5e3f;
+  --done-soft: #e3eee7;
+  --partial: #6b4e16;
+  --partial-soft: #f6efd9;
+  --next: #234e6e;
+  --next-soft: #e1ecf4;
+  --notbuilt: #4a4750;
+  --notbuilt-soft: #e8e5ec;
+  --flag: #8a3a1a;
+  --flag-soft: #f6e3d8;
+  --g: #2b5876;  --g-soft: #e3edf3;
+  --m: #5c6e2e;  --m-soft: #ecf0dd;
+  --s: #6b5b7a;  --s-soft: #ece7f1;
+  --serif: "Iowan Old Style", "Charter", "Source Serif Pro", "Georgia", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 960px; margin: 0 auto; padding: 44px 32px 96px; }
+h1, h2, h3 { font-family: var(--serif); line-height: 1.25; }
+h1 { font-size: 32px; margin: 0 0 4px; }
+h2 { font-size: 23px; margin: 52px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
+h3 { font-size: 18px; margin: 28px 0 8px; }
+p { margin: 10px 0; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--rule-soft); padding: 1px 5px; border-radius: 4px; }
+.subtitle { color: var(--ink-muted); font-size: 15px; margin-bottom: 20px; }
+.badge {
+  display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 1px 8px; border-radius: 10px; vertical-align: middle; white-space: nowrap;
+}
+.status-done     { background: var(--done-soft);     color: var(--done); }
+.status-partial  { background: var(--partial-soft);  color: var(--partial); }
+.status-next     { background: var(--next-soft);     color: var(--next); }
+.status-notbuilt { background: var(--notbuilt-soft); color: var(--notbuilt); }
+.status-flag     { background: var(--flag-soft);     color: var(--flag); }
+.track-g { background: var(--g-soft); color: var(--g); }
+.track-m { background: var(--m-soft); color: var(--m); }
+.track-s { background: var(--s-soft); color: var(--s); }
+table { width: 100%; border-collapse: collapse; background: var(--paper); font-size: 14px; margin: 14px 0; }
+th, td { text-align: left; padding: 8px 10px; border: 1px solid var(--rule-soft); vertical-align: top; }
+th { background: var(--rule-soft); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+.callout {
+  background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent);
+  border-radius: 6px; padding: 14px 18px; margin: 18px 0; font-size: 15px;
+}
+.callout.flag { border-left-color: var(--flag); background: var(--flag-soft); }
+/* At-a-glance progress rails */
+.glance {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 20px 24px; margin: 20px 0;
+}
+.glance .row { display: grid; grid-template-columns: 210px 1fr 120px; gap: 14px; align-items: center; margin: 10px 0; font-size: 14px; }
+.glance .lbl { font-weight: 600; }
+.glance .pct { text-align: right; color: var(--ink-muted); font-family: var(--mono); font-size: 13px; }
+.rail { height: 14px; border-radius: 7px; background: var(--rule-soft); overflow: hidden; }
+.rail .fill { height: 100%; border-radius: 7px 0 0 7px; }
+.fill.g { background: var(--g); }
+.fill.m { background: var(--m); }
+.fill.s { background: var(--s); }
+.fill.all { background: var(--accent); }
+/* Step pipeline */
+.pipe { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.pipe .step {
+  flex: 1 1 90px; min-width: 90px; text-align: center; padding: 8px 6px;
+  border-radius: 6px; font-size: 12.5px; font-weight: 600; line-height: 1.35;
+  border: 1px solid var(--rule);
+}
+.pipe .step small { display: block; font-weight: 400; color: var(--ink-muted); font-size: 11px; }
+.step.done     { background: var(--done-soft);     color: var(--done);     border-color: var(--done); }
+.step.partial  { background: var(--partial-soft);  color: var(--partial);  border-color: var(--partial); }
+.step.next     { background: var(--next-soft);     color: var(--next);     border-color: var(--next); }
+.step.notbuilt { background: var(--notbuilt-soft); color: var(--notbuilt); }
+/* Seam diagram */
+.seam {
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 18px 22px; margin: 20px 0; text-align: center; font-size: 14px;
+}
+.seam .box {
+  display: inline-block; border-radius: 8px; padding: 10px 16px; margin: 4px;
+  font-weight: 600; text-align: left; min-width: 250px; vertical-align: top;
+}
+.seam .box.g { background: var(--g-soft); color: var(--g); border: 1.5px solid var(--g); }
+.seam .box.m { background: var(--m-soft); color: var(--m); border: 1.5px solid var(--m); }
+.seam .box small { display: block; font-weight: 400; color: var(--ink-muted); margin-top: 3px; }
+.seam .iface {
+  display: block; margin: 8px auto; padding: 8px 14px; max-width: 540px;
+  background: var(--s-soft); color: var(--s); border: 1.5px dashed var(--s);
+  border-radius: 8px; font-weight: 600;
+}
+.seam .arrow { font-size: 18px; color: var(--ink-muted); display: block; margin: 1px 0; }
+/* Checklists */
+ul.checks { list-style: none; padding-left: 4px; }
+ul.checks li { margin: 6px 0; padding-left: 26px; position: relative; }
+ul.checks li::before {
+  content: "☐"; position: absolute; left: 0; top: 0; font-size: 16px; color: var(--notbuilt);
+}
+ul.checks li.done::before { content: "☑"; color: var(--done); }
+ul.checks li.done { color: var(--ink-muted); }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 5px 0; }
+.edit-hint { font-size: 13px; color: var(--ink-muted); font-style: italic; }
+.footer { margin-top: 60px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>NutriMe — Project Overview</h1>
+<p class="subtitle">Personal tracking page: the state of everything in one read, organized by the two product pieces — <span class="badge track-g">TRACK G · NUTRITION GUIDANCE</span> and <span class="badge track-m">TRACK M · MEAL-PLANNING &amp; GROCERY</span> (+ <span class="badge track-s">SHARED SUBSTRATE</span>). Not canonical — decisions live in the 00-meta markdown; this exists so orientation never requires git or <a href="project-status.html">project-status.html</a>.</p>
+
+<!-- ==================================================================== -->
+<h2 id="glance">1. At a glance <span class="edit-hint" style="font-size:13px;">(updated 2026-08-08 · last commit <code>d2e7546</code> · 291/291 tests)</span></h2>
+
+<div class="glance">
+  <div class="row">
+    <div class="lbl">Prototype overall</div>
+    <div class="rail"><div class="fill all" style="width:42%"></div></div>
+    <div class="pct">steps 1–3 + ¾ of 4</div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span class="badge track-m">TRACK M</span> corpus &amp; data</div>
+    <div class="rail"><div class="fill m" style="width:75%"></div></div>
+    <div class="pct">3 of 4 adapters</div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span class="badge track-m">TRACK M</span> app loop</div>
+    <div class="rail"><div class="fill m" style="width:0%"></div></div>
+    <div class="pct">0% — steps 5–8</div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span class="badge track-g">TRACK G</span> capture &amp; storage</div>
+    <div class="rail"><div class="fill g" style="width:100%"></div></div>
+    <div class="pct">done (2.1 + 3.1)</div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span class="badge track-g">TRACK G</span> guidance logic</div>
+    <div class="rail"><div class="fill g" style="width:8%"></div></div>
+    <div class="pct">stubs only</div>
+  </div>
+  <div class="row">
+    <div class="lbl"><span class="badge track-s">SHARED</span> substrate</div>
+    <div class="rail"><div class="fill s" style="width:70%"></div></div>
+    <div class="pct">audit + consent gap</div>
+  </div>
+</div>
+
+<p><strong>One-sentence state:</strong> all foundations and ¾ of the recipe corpus are built and tested; nothing user-facing beyond the CLI exists yet; no LLM call has ever been made; the current push is the <strong>Track M functional loop</strong> — audit logging first (5.1), then the LLM provider layer, recipe search, LLM plan assembly, and the grocery list/ordering pipeline.</p>
+
+<div class="callout" style="border-left-color: var(--m);">
+<strong>Current focus (decided 2026-08-08): Track M functional prototype, full-vision LLM planner.</strong> Option B chosen over a deterministic interim planner — the product vision is LLM-driven planning, so the provider layer + audit gate land first rather than being deferred. First cloud adapter: <strong>Anthropic</strong> (Gemini pluggable later per provider-abstraction.md). Build order: <strong>5.1 audit (#22) → 5.2 provider adapter → 5.3 recipe search → 5.4 LLM plan assembly (+#23 attribution) → 6.1 grocery list/export → 6.2 Instacart</strong>. Parked meanwhile: 4.4 URL-scrape adapter, per-meal feedback (+consent #21), daily UI (step 8), and all Track G guidance derivation (planner runs on the existing stub constraints).
+</div>
+
+<div class="pipe">
+  <div class="step done">1 Foundation<small>done 06-30</small></div>
+  <div class="step done">2 Intake + Inventory<small>done 06-30</small></div>
+  <div class="step done">3 Knowledge model<small>done 07-01</small></div>
+  <div class="step partial">4 Recipe corpus<small>4.1–4.3 done · 4.4 parked</small></div>
+  <div class="step next">5 Meal plans<small>ACTIVE — 5.1 audit first</small></div>
+  <div class="step notbuilt">6 Grocery list<small>Instacart</small></div>
+  <div class="step notbuilt">7 Feedback<small>#21 due first</small></div>
+  <div class="step notbuilt">8 Daily UI<small>home surface</small></div>
+  <div class="step notbuilt">9 Ship v0.1<small>#23 gate</small></div>
+</div>
+
+<div class="callout flag">
+<strong>The three deadline flags to keep in view:</strong>
+<ul style="margin:6px 0;">
+  <li><strong>#22 audit logging</strong> — must exist <em>before the first LLM call</em> (step 5). Can't be backfilled.</li>
+  <li><strong>#21 consent capture</strong> — must exist before per-meal feedback (step 7).</li>
+  <li><strong>#23 recipe attribution on screen</strong> — hard gate before shipping v0.1.</li>
+</ul>
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="the-split">2. The two pieces &amp; where they meet</h2>
+
+<p><strong>Track G — Nutrition Guidance</strong> is everything that touches health: screener intake (PHQ-2 / GAD-2 / Hunger Vital Sign), demographics + life-stage + allergens, the clinical side of the knowledge model, DRI/life-stage constraint derivation, allergen &amp; condition gating, evidence tiers, honest-disclosure content, and the constitutional safety rules. It carries all the PHI and answers <em>"what does healthy eating look like for this person, and why."</em></p>
+
+<p><strong>Track M — Meal-Planning &amp; Grocery</strong> is the convenience app: the recipe corpus and its ingest adapters, pantry/fridge/freezer inventory, meal-plan assembly, grocery list + Instacart, cooking-time feedback, and the daily home surface. It carries <em>no health data of its own</em> and answers <em>"what's for dinner, what do I buy, when do I start cooking."</em></p>
+
+<div class="seam">
+  <div class="box g">TRACK G — Nutrition Guidance
+    <small>screeners · clinical atoms · DRI/life-stage constraints · allergen &amp; condition gating · evidence tiers · safety rules</small>
+  </div>
+  <span class="arrow">↓ distills into ↓</span>
+  <span class="iface">ABSTRACTED CONSTRAINTS<br>
+  <span style="font-weight:400; font-size:12.5px;">"avoids X" · "prefers Y" · "prioritize nutrient Z" · "hard-block W" — never raw scores or diagnoses</span></span>
+  <span class="arrow">↓ consumed by ↓</span>
+  <div class="box m">TRACK M — Meal-Planning &amp; Grocery
+    <small>recipes · inventory · planner · grocery/Instacart · time feedback · daily UI</small>
+  </div>
+  <span class="arrow">↑ returns ↑</span>
+  <span class="iface" style="max-width:440px;">BODY-RESPONSE FEEDBACK<br>
+  <span style="font-weight:400; font-size:12.5px;">"how the meal made me feel" goes back to Track G; "liked it / time was right" stays in Track M</span></span>
+</div>
+
+<p>This boundary was already latent in three prior decisions — the abstracted-constraint layer in the schema, the empty PHI envelope on <code>recipe_search</code>, and the C5 feedback split — this page just names it. Practical payoff: Track M stays a plain consumer app (its cloud queries carry zero PHI), and all health-privacy weight concentrates in Track G.</p>
+
+<!-- ==================================================================== -->
+<h2 id="done">3. What has been done <span class="edit-hint" style="font-size:13px;">(the has-been-done ledger)</span></h2>
+
+<table>
+  <tr><th style="width:11%">Date</th><th style="width:13%">Track</th><th style="width:46%">What landed</th><th>Commit · tests</th></tr>
+  <tr><td>06-29</td><td><span class="badge track-s">S</span></td><td>All architecture + schema decisions closed (Stage 3, 3.5, Block A v2); tenant-axis F9 resolved</td><td>docs only</td></tr>
+  <tr><td>06-30</td><td><span class="badge track-s">S</span></td><td>MVP scope locked (Stage 4, all six sub-questions); build order locked</td><td>docs only</td></tr>
+  <tr><td>06-30</td><td><span class="badge track-s">S</span></td><td><strong>Step 1 — Foundation:</strong> app shell, SQLite substrate, migrations, multi-tenant scaffolding, constitutional rule engine, PHI envelope helper, CLI</td><td>—</td></tr>
+  <tr><td>06-30</td><td><span class="badge track-g">G</span> <span class="badge track-m">M</span></td><td><strong>Step 2 — Intake (2.1, Track G):</strong> screener trio + demographics/life-stage/preferences/allergens. <strong>Inventory (2.2, Track M):</strong> pantry/fridge/freezer capture, zero PHI</td><td>—</td></tr>
+  <tr><td>07-01</td><td><span class="badge track-g">G</span></td><td><strong>Step 3 — Knowledge model:</strong> atoms + synthesized entries with provenance/PHI tags; intake→atom sync; abstracted-constraint <em>stub</em> ("avoids X"/"prefers Y" from declared inputs only)</td><td><code>14403d0</code> · 119</td></tr>
+  <tr><td>07-01</td><td><span class="badge track-m">M</span></td><td><strong>Step 4 entry:</strong> ~16 candidate recipe sources verified live; 4 selected (all license-clear); Food.com Kaggle rejected on robots.txt grounds; Cooklang locked as canonical format</td><td><code>b092656</code></td></tr>
+  <tr><td>07-02</td><td><span class="badge track-m">M</span></td><td><strong>4.1 — Recipe foundation + TheMealDB:</strong> corpus vault, 23-field frontmatter, Cooklang converter, allergen detector, PHI-free <code>recipe_search</code> envelope, fetch/list CLI (~300 recipes reachable)</td><td><code>e0960e2</code> · 209</td></tr>
+  <tr><td>07-02</td><td><span class="badge track-s">S</span></td><td><strong>Retrospective audit:</strong> caught the three execution gaps now tracked as #21 / #22 / #23</td><td><code>c4e6371</code></td></tr>
+  <tr><td>07-07</td><td><span class="badge track-m">M</span></td><td><strong>4.2 — NHLBI + MyPlate-via-Wayback:</strong> polite web plumbing; 54 + ~1,072 recipes. Discovered MyPlate.gov was retired 2026-01-07 → ingested from Internet Archive, exercising the preservation layer end-to-end</td><td><code>c07efa0</code> · 264</td></tr>
+  <tr><td>07-15</td><td><span class="badge track-m">M</span></td><td><strong>4.3 — Gutenberg four-book ingest:</strong> per-book segmentation of Beeton 1861 / Farmer 1918 / Forme of Cury 1390 / Golden Age 1917 (~2,599 recipes); <code>historical_context_note</code> disclosure on every one</td><td><code>30b374d</code> · 291</td></tr>
+</table>
+
+<p><strong>Reading the ledger through the track lens:</strong> Track G has its capture and storage complete but no reasoning yet — a well-labeled filing cabinet awaiting its guidance layer. Track M has ~4,000 license-clear recipes and working inventory but no consumer loop — a well-stocked warehouse with no storefront. That was the planned order (recipes before meal plans), and step 5 is where the two tracks meet for the first time.</p>
+
+<!-- ==================================================================== -->
+<h2 id="todo">4. What remains — the to-do roster</h2>
+
+<p><em>Ordered per the Track M focus decision (2026-08-08): full-vision LLM planner, audit gate first, Anthropic as first adapter. DRI refresh + real constraint derivation (Track G) are parked — the planner runs on the existing stub constraints.</em></p>
+
+<h3><span class="badge status-next">ACTIVE</span> 5.1 — Audit logging (#22) <span class="badge track-s">S</span></h3>
+<ul class="checks">
+  <li><code>migrations/operational/</code>: <code>op_event_log</code> + <code>op_llm_request_log</code> tables per schema S8</li>
+  <li>Pre-egress hook writes a row for <em>every</em> crossing, allowed and blocked — must exist before the first LLM call, cannot be backfilled</li>
+  <li>Tenant lifecycle events wired in (closes the deferral note in <code>tenancy.py</code>)</li>
+</ul>
+
+<h3>5.2 — LLM provider adapter <span class="badge track-s">S</span></h3>
+<ul class="checks">
+  <li>Typed request/response + capability-vector routing skeleton per provider-abstraction.md; cloud-primary MVP posture</li>
+  <li>First concrete adapter: <strong>Anthropic</strong> (Gemini pluggable later)</li>
+  <li>Every call flows PHI envelope → rule engine → audit log; <code>meal_plan_generation</code> envelope declared (non-empty — first real exercise of S4-Q2 decomposition: single-slice calls + local aggregation)</li>
+</ul>
+
+<h3>5.3 — Recipe search <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>Index over the ~4,000-recipe vault: allergen hard-blocks, preferences, time-to-cook, ingredients-on-hand</li>
+  <li>Backs the already-registered PHI-free <code>recipe_search</code> envelope; doubles as the candidate-generation stage the LLM planner selects from (the LLM never free-generates recipes)</li>
+</ul>
+
+<h3>5.4 — LLM plan assembly <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>Single meal → weekly plan via LLM, selecting from 5.3 candidates; reads inventory + preferences + abstracted constraints <em>only</em> (never raw clinical atoms)</li>
+  <li>First recipe display surface → <strong>attribution #23 renders here</strong>: TheMealDB credit lines wherever recipes show</li>
+</ul>
+
+<h3>6.1 — Grocery list + export <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>Cross-plan ingredient aggregation with unit/name consolidation (the technical meat: "1 1/2 lb" + "500 g" + "2 breasts" of chicken)</li>
+  <li>Presence-based inventory netting ("you have chicken — enough?") with clarification prompts, per the no-quantity-tracking decision</li>
+  <li>Plain list export (works everywhere, no account needed)</li>
+</ul>
+
+<h3>6.2 — Instacart ordering <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>Cart creation via Instacart developer platform (needs API key/account setup — flagged when we get there)</li>
+  <li>Export from 6.1 remains the fallback for non-US / no-account</li>
+</ul>
+
+<h3><span class="badge status-notbuilt">PARKED</span> 4.4 — URL-scrape adapter <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>schema.org/Recipe JSON-LD from arbitrary URLs → Cooklang; per-fetch robots.txt; Mealie/Tandoor pattern-only. Corpus breadth, not loop function — resumes after the functional loop closes</li>
+</ul>
+
+<h3>Step 7 — Per-meal feedback <span class="badge track-m">M</span> <span class="badge track-g">G</span></h3>
+<ul class="checks">
+  <li><span class="badge track-s">S</span> <strong>Consent capture (#21) first</strong> — feedback is the publication-target data surface; consent must exist before it. Retroactive consent for existing local rows is acceptable</li>
+  <li><span class="badge track-m">M</span> Cooking-experience loop: liked/disliked, time-estimate accuracy, substitutions</li>
+  <li><span class="badge track-g">G</span> Body-response loop: "how it made me feel" → knowledge model. <strong>Two write paths from day one</strong> — this is the seam's return direction</li>
+</ul>
+
+<h3>Step 8 — Daily-cadence surface <span class="badge track-m">M</span></h3>
+<ul class="checks">
+  <li>Adaptive home screen: tonight's meal, time-to-start, "reorient tonight" quick-action</li>
+  <li>Track G's disclosure content (consult-professional, evidence tiers, historical-context notes) renders inside Track M's surfaces</li>
+  <li><em>Standing yellow flag: may need to move earlier if steps 5–7 prove unusable without it</em></li>
+</ul>
+
+<h3>Step 9 — Ship v0.1: the gate checklist <span class="badge track-s">S</span></h3>
+<ul class="checks">
+  <li><strong>#23</strong> — every TheMealDB-sourced recipe shows its credit line wherever rendered</li>
+  <li><strong>#22</strong> — every LLM crossing (allowed and blocked) has an audit row, from call one</li>
+  <li><strong>#21</strong> — consent records exist on all capture surfaces</li>
+  <li>Planner provably reads only abstracted constraints (guard test in place)</li>
+  <li>All Track M query types confirmed PHI-envelope-empty</li>
+  <li>Tests green; real first-use by you</li>
+</ul>
+
+<!-- ==================================================================== -->
+<h2 id="flags">5. Every open flag, in one place</h2>
+
+<h3>Deadline-anchored (block specific steps)</h3>
+<table>
+  <tr><th style="width:8%">Issue</th><th style="width:52%">What</th><th>Due</th></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/22">#22</a></td><td>Audit logging for LLM calls (<code>op_event_log</code> / <code>op_llm_request_log</code>)</td><td><span class="badge status-flag">STEP 5 — before first LLM call</span></td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/21">#21</a></td><td>Consent capture on intake/inventory/knowledge surfaces</td><td><span class="badge status-flag">BEFORE STEP 7</span></td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/23">#23</a></td><td>Recipe attribution rendered on screen (TheMealDB obligation)</td><td><span class="badge status-flag">PRE-SHIP GATE</span></td></tr>
+</table>
+
+<h3>Build-time flags (resolve when their step arrives — mostly step 5+)</h3>
+<table>
+  <tr><th style="width:8%">Issue</th><th style="width:62%">What</th><th>When it bites</th></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/6">#6</a>–<a href="https://github.com/MrPeppersDev/NutriMe/issues/11">#11</a></td><td>Six LLM build-time checks (L1–L6): rule-layer load test, Ollama/MLX verification, fine-tune (LoRA) evaluation, quantization choice, cloud-fallback gating, inference memory tuning</td><td>Step 5 LLM integration + later host migration</td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/12">#12</a></td><td>Transport + auth between iPhone client and Mac server (Block A v2)</td><td>When a non-CLI client exists (post-MVP direction; steps 8+ inform it)</td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/19">#19</a></td><td>Hardware migration trigger — when to move from the 24 GB MBP to the ≥64 GB production host</td><td>Post-MVP; revisit if cloud-primary posture chafes</td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/3">#3</a>, <a href="https://github.com/MrPeppersDev/NutriMe/issues/5">#5</a>, <a href="https://github.com/MrPeppersDev/NutriMe/issues/4">#4</a></td><td>Housekeeping flags: F5 catch-all, S10 build-time tuning, embedding/registry revisits</td><td>Opportunistic during build</td></tr>
+  <tr><td><a href="https://github.com/MrPeppersDev/NutriMe/issues/13">#13</a>–<a href="https://github.com/MrPeppersDev/NutriMe/issues/18">#18</a></td><td>Broader-scope futures (multi-household syndication etc.)</td><td>Post-v0.1, no action during prototype</td></tr>
+</table>
+
+<h3>Watch items (no issue; just don't forget)</h3>
+<ul>
+  <li><strong>Hand-rolled YAML parser can't handle lists-of-dicts</strong> — will bite when <code>image_references</code> or similar lands in recipe frontmatter</li>
+  <li><strong>Abstracted-constraint stub has no guard test</strong> — scheduled to fix at step 5 (in the roster above)</li>
+  <li><strong>Cross-source duplicate recipes</strong> — same federal recipe arrived via both NHLBI and MyPlate; needs recipe-identity resolution eventually</li>
+  <li><strong>RealFood.gov</strong> (MyPlate's successor) — future candidate recipe source</li>
+  <li><strong>NHS Eat Well</strong> — conditional source, pending license confirmation; revisit before v0.2</li>
+  <li><strong>README documents no CLI surface</strong> — quick doc gap</li>
+</ul>
+
+<h3>Deliberately deferred (decided, not forgotten — no action during prototype)</h3>
+<ul>
+  <li><strong>v0.2+:</strong> PSQI-short / AUDIT-C / CCSS screeners (PSQI first back if signal is thin) · wearable data · multi-user household UI (schema already supports it) · in-app video / illustrated recipes · paid recipe APIs · publication pushes (data stays publication-clean meanwhile)</li>
+  <li><strong>Until a consumer exists:</strong> <code>molecule</code> table · substrate recipe index denormalization · full <code>dietary_compatibility</code> regeneration pipeline · allergen-detector supersession by the real ingredient resolver</li>
+</ul>
+
+<!-- ==================================================================== -->
+<h2 id="separation">6. Keeping the two pieces distinct — working rules</h2>
+
+<p><em>Status: proposed, not yet ratified.</em> One entanglement exists today: <code>recipes/allergens.py</code> is Track G safety logic living in Track M's package — fine as a stopgap, moves guidance-side when the real ingredient resolver replaces it. Otherwise the split is clean. Rules to keep it that way:</p>
+<ol>
+  <li><strong>The planner never reads raw clinical atoms</strong> — abstracted constraints only. If the constraint vocabulary is too thin, extend the vocabulary, don't reach past the seam.</li>
+  <li><strong>Track M query types keep empty PHI envelopes.</strong> Any PHI need in a planning/grocery query means it belongs to Track G or must be decomposed.</li>
+  <li><strong>Feedback writes as two paths from birth</strong> — no combined feedback table.</li>
+  <li><strong>Disclosure content is authored by Track G, rendered by Track M</strong> — never hardcoded app copy.</li>
+  <li><strong>New code lands on its side of the seam</strong> — guidance logic under <code>knowledge/</code> (or future <code>guidance/</code>), app logic under <code>recipes/</code> / <code>inventory/</code> / future <code>planner/</code> / <code>grocery/</code>. No retroactive refactors.</li>
+</ol>
+
+<p>Long-term payoff (not a prototype goal): Track M could ship standalone as a plain meal-planning app with a stubbed constraint interface; Track G is the differentiator that plugs in.</p>
+
+<div class="footer">
+NutriMe · research/00-meta/two-track-split.html · personal tracking overview, updated by hand as things land · canonical decisions: <a href="stage3-plan.md">stage3-plan.md</a> + 00-meta markdown · formal dashboard: <a href="project-status.html">project-status.html</a><br>
+Created 2026-08-08 from a full repo survey at commit <code>d2e7546</code> (291/291 tests, sub-commits 4.1–4.3 landed).
+</div>
+
+</main>
+</body>
+</html>
