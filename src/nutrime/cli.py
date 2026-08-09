@@ -12,6 +12,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime recipes fetch``      — seed corpus from an external source (step 4 s.c. 4.1/4.2)
 - ``nutrime recipes list``       — show recipes in the local vault (step 4 s.c. 4.1)
 - ``nutrime audit list``         — show recent operational audit events (step 5 s.c. 5.1)
+- ``nutrime llm ping``           — end-to-end LLM pipeline smoke test (step 5 s.c. 5.2)
 """
 
 from __future__ import annotations
@@ -189,6 +190,42 @@ def _cmd_recipes_list(args: argparse.Namespace) -> int:
         print(f"    cuisine:   {cuisine}")
         print(f"    category:  {categories}")
         print(f"    allergens: {allergens}")
+    return 0
+
+
+def _cmd_llm_ping(args: argparse.Namespace) -> int:
+    from nutrime.llm.anthropic import AnthropicProvider
+    from nutrime.llm.base import ChatMessage, LlmRequest, MissingApiKeyError, ProviderError
+    from nutrime.llm.client import LlmClient
+    from nutrime.llm.phi import LLM_PING
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    provider = AnthropicProvider(model=args.model)
+    client = LlmClient((provider,), app.rule_engine, app.audit)
+    request = LlmRequest(
+        query_type=LLM_PING,
+        messages=(
+            ChatMessage(role="user", content="Reply with the single word: pong"),
+        ),
+        max_tokens=16,
+    )
+    try:
+        response = client.complete(request)
+    except MissingApiKeyError as exc:
+        print(f"config error: {exc}")
+        return 2
+    except ProviderError as exc:
+        print(f"provider error ({exc.outcome}): {exc.detail}")
+        print("(the failed call was audit-logged — see `nutrime audit list`)")
+        return 1
+    print(f"provider:   {response.provider} ({response.model})")
+    print(f"response:   {response.text.strip()}")
+    print(
+        f"tokens:     {response.prompt_tokens} in / {response.completion_tokens} out"
+    )
+    print(f"latency:    {response.latency_ms} ms")
+    print(f"audit row:  {response.llm_request_log_id} (request {response.request_id})")
     return 0
 
 
@@ -400,6 +437,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     aud_list.set_defaults(func=_cmd_audit_list)
+
+    llm = subparsers.add_parser(
+        "llm",
+        help="LLM provider layer (step 5 s.c. 5.2).",
+    )
+    llm_sub = llm.add_subparsers(dest="llm_command", required=True)
+
+    llm_ping = llm_sub.add_parser(
+        "ping",
+        help=(
+            "Send a tiny PHI-free request through the full pipeline"
+            " (envelope -> rules -> provider -> audit log)."
+        ),
+    )
+    llm_ping.add_argument(
+        "--model",
+        default="claude-opus-4-8",
+        help="Anthropic model id (default: claude-opus-4-8).",
+    )
+    llm_ping.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    llm_ping.set_defaults(func=_cmd_llm_ping)
 
     return parser
 
