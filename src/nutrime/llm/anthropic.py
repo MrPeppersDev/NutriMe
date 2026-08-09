@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -38,6 +40,31 @@ API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-opus-4-8"
 API_KEY_ENV = "ANTHROPIC_API_KEY"
+KEYCHAIN_SERVICE = "nutrime-anthropic"
+
+
+def keychain_api_key(service: str = KEYCHAIN_SERVICE) -> str | None:
+    """macOS Keychain lookup — the no-plaintext-on-disk storage path.
+
+    Store once with:
+        security add-generic-password -U -s nutrime-anthropic -a "$USER" -w
+    Returns None off-macOS or when no entry exists.
+    """
+    if sys.platform != "darwin":
+        return None
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-w"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    key = result.stdout.strip()
+    return key or None
 
 _RETRYABLE_OUTCOMES = frozenset({"error_rate_limit", "error_provider", "error_timeout"})
 
@@ -74,10 +101,17 @@ class AnthropicProvider:
         self._sleeper = sleeper
 
     def _resolve_api_key(self) -> str:
-        key = self._api_key or os.environ.get(API_KEY_ENV)
+        key = (
+            self._api_key
+            or os.environ.get(API_KEY_ENV)
+            or keychain_api_key()
+        )
         if not key:
             raise MissingApiKeyError(
-                f"no Anthropic API key: pass api_key= or set ${API_KEY_ENV}"
+                f"no Anthropic API key: pass api_key=, set ${API_KEY_ENV},"
+                f" or store one in the macOS Keychain (service"
+                f" {KEYCHAIN_SERVICE!r}: security add-generic-password -U"
+                f' -s {KEYCHAIN_SERVICE} -a "$USER" -w)'
             )
         return key
 

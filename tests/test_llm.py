@@ -127,10 +127,26 @@ class TestAnthropicProvider:
         assert excinfo.value.outcome == "error_timeout"
 
     def test_missing_api_key(self, monkeypatch):
+        import nutrime.llm.anthropic as anthropic_mod
+
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setattr(anthropic_mod, "keychain_api_key", lambda: None)
         provider = AnthropicProvider()
         with pytest.raises(MissingApiKeyError):
             provider._resolve_api_key()
+
+    def test_key_resolution_order(self, monkeypatch):
+        import nutrime.llm.anthropic as anthropic_mod
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key")
+        monkeypatch.setattr(
+            anthropic_mod, "keychain_api_key", lambda: "keychain-key"
+        )
+        # Explicit param wins over env; env wins over keychain.
+        assert AnthropicProvider(api_key="param")._resolve_api_key() == "param"
+        assert AnthropicProvider()._resolve_api_key() == "env-key"
+        monkeypatch.delenv("ANTHROPIC_API_KEY")
+        assert AnthropicProvider()._resolve_api_key() == "keychain-key"
 
 
 class FakeProvider:
@@ -326,9 +342,11 @@ class TestCli:
         assert "audit row:  llr-" in out
 
     def test_llm_ping_missing_key(self, tmp_path, capsys, monkeypatch):
+        import nutrime.llm.anthropic as anthropic_mod
         from nutrime.cli import main
 
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setattr(anthropic_mod, "keychain_api_key", lambda: None)
         code = main(["llm", "ping", "--data-dir", str(tmp_path / "data")])
         assert code == 2
         assert "config error" in capsys.readouterr().out
