@@ -45,6 +45,11 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
 
 _EXCLUSIONS: set[str] = {"eggplant", "coconut"}
 
+# Canonical top-9 allergen names — the vocabulary used by
+# ``top_allergens_present`` frontmatter and by search's constraint mapping
+# ("avoids shellfish" -> allergen hard-block vs plain ingredient exclusion).
+TOP_ALLERGENS: tuple[str, ...] = tuple(_KEYWORDS)
+
 
 def _boundary_pattern(keyword: str) -> re.Pattern[str]:
     """Word-boundary match; accepts an optional trailing ``s`` for plurals."""

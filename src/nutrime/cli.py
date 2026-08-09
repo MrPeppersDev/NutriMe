@@ -13,6 +13,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime recipes list``       — show recipes in the local vault (step 4 s.c. 4.1)
 - ``nutrime audit list``         — show recent operational audit events (step 5 s.c. 5.1)
 - ``nutrime llm ping``           — end-to-end LLM pipeline smoke test (step 5 s.c. 5.2)
+- ``nutrime recipes search``     — query the vault with filters + ranking (step 5 s.c. 5.3)
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from nutrime.knowledge.store import list_atoms, list_synthesized_entries
 from nutrime.recipes.gutenberg import seed_recipes as gutenberg_seed_recipes
 from nutrime.recipes.myplate_wayback import seed_recipes as myplate_seed_recipes
 from nutrime.recipes.nhlbi import seed_recipes as nhlbi_seed_recipes
+from nutrime.recipes.search import attribution_line
 from nutrime.recipes.store import RecipeVault
 from nutrime.recipes.themealdb import TheMealDBClient, seed_recipes
 from nutrime.recipes.web import Pacer
@@ -190,6 +192,73 @@ def _cmd_recipes_list(args: argparse.Namespace) -> int:
         print(f"    cuisine:   {cuisine}")
         print(f"    category:  {categories}")
         print(f"    allergens: {allergens}")
+        print(f"    {attribution_line(fm)}")
+    return 0
+
+
+def _cmd_recipes_search(args: argparse.Namespace) -> int:
+    from nutrime.knowledge.store import list_synthesized_entries
+    from nutrime.recipes.search import (
+        SearchFilters,
+        filters_from_constraints,
+        search,
+    )
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    vault = RecipeVault(app.corpus_dir)
+
+    def _split(raw: str | None) -> frozenset[str]:
+        if not raw:
+            return frozenset()
+        return frozenset(t.strip() for t in raw.split(",") if t.strip())
+
+    filters = SearchFilters(
+        query=args.query,
+        exclude_allergens=_split(args.exclude_allergen),
+        exclude_ingredients=_split(args.exclude_ingredient),
+        max_total_time_min=args.max_time,
+        meal_category=args.category,
+        cuisine=args.cuisine,
+    )
+    applied: list[str] = []
+    if args.apply_constraints:
+        entries = list_synthesized_entries(
+            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
+        )
+        filters = filters_from_constraints(entries, base=filters)
+        applied.append(f"{len(entries)} abstracted constraint(s)")
+    if args.use_inventory:
+        items = list_items(app.substrate, app.tenant_id)
+        from dataclasses import replace as _replace
+
+        filters = _replace(
+            filters,
+            on_hand=frozenset(item.name for item in items),
+        )
+        applied.append(f"{len(items)} inventory item(s)")
+    if applied:
+        print(f"(applying {', '.join(applied)})")
+
+    results = search(vault, filters, limit=args.limit)
+    if not results:
+        print("(no recipes matched — relax a filter or fetch more sources)")
+        return 0
+    print(f"— {len(results)} result(s) —")
+    for rank, result in enumerate(results, start=1):
+        time_str = (
+            f"{result.total_time_min} min"
+            if result.total_time_min is not None
+            else "time unknown"
+        )
+        allergens = ", ".join(result.allergens) or "none detected"
+        print(f"{rank:>2}. {result.title}  [{result.recipe_id}]")
+        print(f"    {time_str} · allergens: {allergens} · score {result.score:g}")
+        if result.on_hand_matches:
+            print(f"    uses on-hand: {', '.join(result.on_hand_matches)}")
+        if result.prefer_matches:
+            print(f"    matches preference: {', '.join(result.prefer_matches)}")
+        print(f"    {result.attribution}")
     return 0
 
 
@@ -409,6 +478,63 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     rec_list.set_defaults(func=_cmd_recipes_list)
+
+    rec_search = recipes_sub.add_parser(
+        "search",
+        help="Query the vault: filters + on-hand/preference ranking (5.3).",
+    )
+    rec_search.add_argument(
+        "--query", default=None, help="Substring match on recipe title."
+    )
+    rec_search.add_argument(
+        "--exclude-allergen",
+        default=None,
+        help="Comma-separated top-9 allergens to hard-block.",
+    )
+    rec_search.add_argument(
+        "--exclude-ingredient",
+        default=None,
+        help="Comma-separated ingredient terms to exclude.",
+    )
+    rec_search.add_argument(
+        "--max-time",
+        type=int,
+        default=None,
+        help=(
+            "Max estimated total minutes (recipes without a time estimate are"
+            " excluded when set)."
+        ),
+    )
+    rec_search.add_argument(
+        "--category", default=None, help="Meal category filter (exact tag)."
+    )
+    rec_search.add_argument(
+        "--cuisine", default=None, help="Cuisine tag filter (exact tag)."
+    )
+    rec_search.add_argument(
+        "--use-inventory",
+        action="store_true",
+        help="Rank recipes that use what's on hand higher.",
+    )
+    rec_search.add_argument(
+        "--apply-constraints",
+        action="store_true",
+        help=(
+            "Apply the knowledge model's abstracted constraints"
+            " (avoids -> hard-block, prefers -> boost)."
+        ),
+    )
+    rec_search.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Show at most N results (default: 10).",
+    )
+    rec_search.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    rec_search.set_defaults(func=_cmd_recipes_search)
 
     audit = subparsers.add_parser(
         "audit",
