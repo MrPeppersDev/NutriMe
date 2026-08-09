@@ -14,9 +14,11 @@ resolved 2026-06-29):
   before inserting; raises on multi-tenant state because that path uses
   explicit tenant creation rather than bootstrap.
 
-Lifecycle event integration with ``op_event_log`` (F9 Q3) is deferred to the
-sub-commit that lands the operational baseline. When that lands, backfill a
-``tenant_created`` event for any pre-existing tenant row.
+Lifecycle event integration with ``op_event_log`` (F9 Q3) landed with the
+operational baseline (sub-commit 5.1): :meth:`nutrime.audit.AuditLog.\
+ensure_tenant_created` records the ``tenant_created`` event idempotently from
+``app.initialize()``, which also backfills any tenant row bootstrapped before
+5.1.
 """
 
 from __future__ import annotations

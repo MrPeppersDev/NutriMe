@@ -17,6 +17,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from nutrime.audit import AuditLog, attach_pre_egress_audit
 from nutrime.db import apply_migrations, connect
 from nutrime.paths import (
     default_corpus_dir,
@@ -39,6 +40,7 @@ class Application:
     corpus_dir: Path
     rule_engine: RuleEngine
     phi_envelope: PhiEnvelopeRegistry
+    audit: AuditLog
 
 
 def initialize(
@@ -69,8 +71,14 @@ def initialize(
 
     tenant_id = bootstrap_tenant(substrate, name=tenant_name)
 
+    audit = AuditLog(operational)
+    audit.ensure_tenant_created(tenant_id)
+
     phi_envelope = phi_envelope or default_phi_envelope_registry()
     register_recipe_envelopes(phi_envelope)
+
+    engine = rule_engine or default_rule_engine(phi_envelope)
+    attach_pre_egress_audit(engine, audit)
 
     return Application(
         substrate=substrate,
@@ -78,6 +86,7 @@ def initialize(
         tenant_id=tenant_id,
         data_dir=data_dir,
         corpus_dir=corpus_dir,
-        rule_engine=rule_engine or default_rule_engine(phi_envelope),
+        rule_engine=engine,
         phi_envelope=phi_envelope,
+        audit=audit,
     )

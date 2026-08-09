@@ -11,6 +11,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime knowledge list``     — show currently-valid atoms + constraints (step 3)
 - ``nutrime recipes fetch``      — seed corpus from an external source (step 4 s.c. 4.1/4.2)
 - ``nutrime recipes list``       — show recipes in the local vault (step 4 s.c. 4.1)
+- ``nutrime audit list``         — show recent operational audit events (step 5 s.c. 5.1)
 """
 
 from __future__ import annotations
@@ -191,6 +192,28 @@ def _cmd_recipes_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_audit_list(args: argparse.Namespace) -> int:
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    events = app.audit.events(event_kind=args.kind, limit=args.limit)
+    if not events:
+        print("(no audit events yet)")
+        return 0
+    print(f"— {len(events)} most recent event(s), newest first —")
+    for event in events:
+        subkind = f"/{event.event_subkind}" if event.event_subkind else ""
+        request = f"  request={event.request_id}" if event.request_id else ""
+        print(f"  {event.recorded_at}  {event.event_kind}{subkind}"
+              f"  actor={event.actor}{request}")
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(event.payload.items())
+        )
+        if len(summary) > 120:
+            summary = summary[:117] + "..."
+        print(f"    {summary}")
+    return 0
+
+
 def _atom_summary(atom_type: str, payload: dict) -> str:
     if atom_type == "clinical_disclosure":
         return (
@@ -349,6 +372,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     rec_list.set_defaults(func=_cmd_recipes_list)
+
+    audit = subparsers.add_parser(
+        "audit",
+        help="Inspect the operational audit trail (op_event_log).",
+    )
+    audit_sub = audit.add_subparsers(dest="audit_command", required=True)
+
+    aud_list = audit_sub.add_parser(
+        "list",
+        help="Show recent audit events, newest first.",
+    )
+    aud_list.add_argument(
+        "--kind",
+        choices=("audit", "epistemic_trail", "system"),
+        default=None,
+        help="Filter by event kind (default: all kinds).",
+    )
+    aud_list.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Show at most N events (default: 20).",
+    )
+    aud_list.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    aud_list.set_defaults(func=_cmd_audit_list)
 
     return parser
 

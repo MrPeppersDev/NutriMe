@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterable, Protocol
+from typing import TYPE_CHECKING, Callable, Iterable, Protocol
 
 if TYPE_CHECKING:
     from nutrime.phi import PhiEnvelopeRegistry
@@ -39,12 +39,17 @@ class EgressRequest:
     revision" — cloud LLM, cross-tenant, iPhone↔server. The query-type id
     threads back to the PHI envelope helper (next sub-commit) so envelope-aware
     rules can look up declared category limits without re-parsing the payload.
+
+    ``request_id`` correlates the crossing to its ``op_llm_request_log`` row +
+    substrate counterparts per S8 Q8.1; callers that go on to make an LLM call
+    should set it so the audit trail joins up.
     """
 
     destination: str
     query_type: str
     payload: str
     phi_categories: frozenset[str] = field(default_factory=frozenset)
+    request_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -75,22 +80,43 @@ class PreEgressViolation(Exception):
         )
 
 
+PreEgressObserver = Callable[[EgressRequest, "RuleResult"], None]
+
+
 class RuleEngine:
     def __init__(self, rules: Iterable[ConstitutionalRule] | None = None) -> None:
         self._rules: list[ConstitutionalRule] = list(rules or [])
+        self._observers: list[PreEgressObserver] = []
 
     def register(self, rule: ConstitutionalRule) -> None:
         self._rules.append(rule)
+
+    def add_observer(self, observer: PreEgressObserver) -> None:
+        """Observers see every pre-egress verdict — allowed and blocked.
+
+        Wired by :func:`nutrime.audit.attach_pre_egress_audit` per issue #22.
+        An observer exception propagates and therefore blocks the crossing:
+        fail-closed, because an unaudited egress cannot be backfilled.
+        """
+        self._observers.append(observer)
 
     @property
     def rules(self) -> tuple[ConstitutionalRule, ...]:
         return tuple(self._rules)
 
+    def _notify(self, request: EgressRequest, result: RuleResult) -> None:
+        for observer in self._observers:
+            observer(request, result)
+
     def evaluate_pre_egress(self, request: EgressRequest) -> None:
         for rule in self._rules:
             result = rule.evaluate(request)
             if not result.allowed:
+                self._notify(request, result)
                 raise PreEgressViolation(result)
+        self._notify(
+            request, RuleResult(allowed=True, rule_name="pre-egress")
+        )
 
 
 # Starter pattern set per stage3-plan Q2: prompt-injection scanning is one of
