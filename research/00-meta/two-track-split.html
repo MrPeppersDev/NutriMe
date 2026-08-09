@@ -146,7 +146,7 @@ li { margin: 5px 0; }
 <p class="subtitle">Personal tracking page: the state of everything in one read, organized by the two product pieces — <span class="badge track-g">TRACK G · NUTRITION GUIDANCE</span> and <span class="badge track-m">TRACK M · MEAL-PLANNING &amp; GROCERY</span> (+ <span class="badge track-s">SHARED SUBSTRATE</span>). Not canonical — decisions live in the 00-meta markdown; this exists so orientation never requires git or <a href="project-status.html">project-status.html</a>.</p>
 
 <!-- ==================================================================== -->
-<h2 id="glance">1. At a glance <span class="edit-hint" style="font-size:13px;">(updated 2026-08-09 · last commit <code>abc0d7a</code> · 329/329 tests)</span></h2>
+<h2 id="glance">1. At a glance <span class="edit-hint" style="font-size:13px;">(updated 2026-08-09 · last commit <code>5d6802a</code> · 349/349 tests)</span></h2>
 
 <div class="glance">
   <div class="row">
@@ -161,8 +161,8 @@ li { margin: 5px 0; }
   </div>
   <div class="row">
     <div class="lbl"><span class="badge track-m">TRACK M</span> app loop</div>
-    <div class="rail"><div class="fill m" style="width:0%"></div></div>
-    <div class="pct">0% — steps 5–8</div>
+    <div class="rail"><div class="fill m" style="width:25%"></div></div>
+    <div class="pct">search ✓ · plan next</div>
   </div>
   <div class="row">
     <div class="lbl"><span class="badge track-g">TRACK G</span> capture &amp; storage</div>
@@ -192,7 +192,7 @@ li { margin: 5px 0; }
   <div class="step done">2 Intake + Inventory<small>done 06-30</small></div>
   <div class="step done">3 Knowledge model<small>done 07-01</small></div>
   <div class="step partial">4 Recipe corpus<small>4.1–4.3 done · 4.4 parked</small></div>
-  <div class="step next">5 Meal plans<small>5.1+5.2 done · 5.3 search next</small></div>
+  <div class="step next">5 Meal plans<small>5.1–5.3 done · 5.4 planner next</small></div>
   <div class="step notbuilt">6 Grocery list<small>Instacart</small></div>
   <div class="step notbuilt">7 Feedback<small>#21 due first</small></div>
   <div class="step notbuilt">8 Daily UI<small>home surface</small></div>
@@ -251,6 +251,7 @@ li { margin: 5px 0; }
   <tr><td>08-08</td><td><span class="badge track-s">S</span></td><td><strong>Two-track split named + step 5 entry decision:</strong> Track M focus, full-vision LLM planner (Option B), Anthropic first adapter; 4.4 + Track G derivation parked; this overview doc created</td><td><code>97f65ee</code></td></tr>
   <tr><td>08-09</td><td><span class="badge track-s">S</span></td><td><strong>5.1 — Audit persistence (#22 closed):</strong> event-log family migration + <code>AuditLog</code> + pre-egress observer (every crossing audited, fail-closed) + tenant lifecycle events + <code>nutrime audit list</code></td><td><code>7ab41ea</code> · 309</td></tr>
   <tr><td>08-09</td><td><span class="badge track-s">S</span></td><td><strong>5.2 — LLM provider adapter:</strong> capability-vector layer + Anthropic adapter + audited <code>LlmClient</code> pipeline with S4-Q2 single-slice guard; <code>meal_plan_generation</code> envelope; Keychain key storage; <strong>first live LLM call, fully audited</strong></td><td><code>564379e</code>+<code>abc0d7a</code> · 329</td></tr>
+  <tr><td>08-09</td><td><span class="badge track-m">M</span></td><td><strong>5.3 — Recipe search:</strong> vault query surface (allergen/ingredient/time/category/cuisine filters, on-hand + preference ranking), constraint seam live (<code>--apply-constraints</code>), <strong>attribution rendering on all display surfaces (#23 backed)</strong></td><td><code>5d6802a</code> · 349</td></tr>
 </table>
 
 <p><strong>Reading the ledger through the track lens:</strong> Track G has its capture and storage complete but no reasoning yet — a well-labeled filing cabinet awaiting its guidance layer. Track M has ~4,000 license-clear recipes and working inventory but no consumer loop — a well-stocked warehouse with no storefront. That was the planned order (recipes before meal plans), and step 5 is where the two tracks meet for the first time.</p>
@@ -274,13 +275,14 @@ li { margin: 5px 0; }
   <li class="done"><code>meal_plan_generation</code> envelope declared (allergens + demographics only — the seam made concrete); API key lives in the macOS Keychain, never on disk; <strong>first live LLM call made 2026-08-09 — "pong", fully audited</strong> (<code>nutrime llm ping</code>)</li>
 </ul>
 
-<h3><span class="badge status-next">NEXT</span> 5.3 — Recipe search <span class="badge track-m">M</span></h3>
+<h3><span class="badge status-done">DONE 2026-08-09</span> 5.3 — Recipe search <span class="badge track-m">M</span> <span class="edit-hint" style="font-size:13px;">commit <code>5d6802a</code> · 349 tests</span></h3>
 <ul class="checks">
-  <li>Index over the ~4,000-recipe vault: allergen hard-blocks, preferences, time-to-cook, ingredients-on-hand</li>
-  <li>Backs the already-registered PHI-free <code>recipe_search</code> envelope; doubles as the candidate-generation stage the LLM planner selects from (the LLM never free-generates recipes)</li>
+  <li class="done">Vault query surface: title query, top-9 allergen hard-block, ingredient exclusion (plural-tolerant), max-time (unknown times excluded when a budget is set), category/cuisine filters; ranking by on-hand ingredient overlap + preference boosts. <code>nutrime recipes search</code></li>
+  <li class="done">Constraint seam live: <code>--apply-constraints</code> folds "avoids X"/"prefers Y" abstracted constraints into filters — the planner path never reads raw clinical atoms</li>
+  <li class="done"><strong>Attribution now renders on all existing display surfaces</strong> (search + list) — the #23 obligation backed, generalized to every source; pre-ship gate remains for future surfaces</li>
 </ul>
 
-<h3>5.4 — LLM plan assembly <span class="badge track-m">M</span></h3>
+<h3><span class="badge status-next">NEXT</span> 5.4 — LLM plan assembly <span class="badge track-m">M</span></h3>
 <ul class="checks">
   <li>Single meal → weekly plan via LLM, selecting from 5.3 candidates; reads inventory + preferences + abstracted constraints <em>only</em> (never raw clinical atoms)</li>
   <li>First recipe display surface → <strong>attribution #23 renders here</strong>: TheMealDB credit lines wherever recipes show</li>
