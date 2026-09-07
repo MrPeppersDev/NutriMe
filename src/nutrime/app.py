@@ -63,6 +63,7 @@ def initialize(
 
     corpus_dir = default_corpus_dir(data_dir)
     (corpus_dir / "recipes").mkdir(parents=True, exist_ok=True)
+    (corpus_dir / "plans").mkdir(parents=True, exist_ok=True)
 
     substrate = connect(data_dir / "substrate.db")
     apply_migrations(substrate, substrate_migrations)

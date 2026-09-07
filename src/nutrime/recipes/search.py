@@ -40,6 +40,14 @@ class SearchFilters:
     prefer_terms: frozenset[str] = field(default_factory=frozenset)
     max_total_time_min: int | None = None
     meal_category: str | None = None
+    # Corpus ``meal_categories`` are not a clean meal-slot vocabulary — a
+    # source may tag by course (dessert, side), protein (beef, chicken) or
+    # diet (vegetarian) in the same field. ``meal_categories_any`` matches if
+    # ANY listed tag is present; ``exclude_categories`` rejects if any listed
+    # tag is present. Together they express "a main course" as "not a dessert,
+    # side, or breakfast" without enumerating every protein.
+    meal_categories_any: frozenset[str] = field(default_factory=frozenset)
+    exclude_categories: frozenset[str] = field(default_factory=frozenset)
     cuisine: str | None = None
     on_hand: frozenset[str] = field(default_factory=frozenset)
 
@@ -155,9 +163,22 @@ def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
         # excluded rather than optimistically included (safe direction).
         if total is None or int(total) > filters.max_total_time_min:
             return False
-    if filters.meal_category is not None:
-        categories = [str(c).lower() for c in fm.get("meal_categories", ()) or ()]
-        if filters.meal_category.lower() not in categories:
+    if (
+        filters.meal_category is not None
+        or filters.meal_categories_any
+        or filters.exclude_categories
+    ):
+        categories = {str(c).lower() for c in fm.get("meal_categories", ()) or ()}
+        if (
+            filters.meal_category is not None
+            and filters.meal_category.lower() not in categories
+        ):
+            return False
+        if filters.exclude_categories & {c.lower() for c in categories}:
+            return False
+        if filters.meal_categories_any and not (
+            {c.lower() for c in filters.meal_categories_any} & categories
+        ):
             return False
     if filters.cuisine is not None:
         cuisines = [

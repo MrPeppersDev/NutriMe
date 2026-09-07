@@ -14,6 +14,9 @@ adds only the subparser it needs. Current surface:
 - ``nutrime audit list``         — show recent operational audit events (step 5 s.c. 5.1)
 - ``nutrime llm ping``           — end-to-end LLM pipeline smoke test (step 5 s.c. 5.2)
 - ``nutrime recipes search``     — query the vault with filters + ranking (step 5 s.c. 5.3)
+- ``nutrime plans generate``     — assemble a meal plan, one crossing per meal (5.4)
+- ``nutrime plans list``         — show plans in the local vault (5.4)
+- ``nutrime plans show``         — render a plan with per-recipe attribution (5.4)
 """
 
 from __future__ import annotations
@@ -339,6 +342,201 @@ def _atom_summary(atom_type: str, payload: dict) -> str:
     return f"{atom_type}"
 
 
+def _plan_base_filters(app, args) -> tuple[object, list[str]]:
+    """Build the shared search filters for every slot + a note of what applied."""
+    from dataclasses import replace as _replace
+
+    from nutrime.knowledge.store import list_synthesized_entries
+    from nutrime.recipes.search import SearchFilters, filters_from_constraints
+
+    filters = SearchFilters(max_total_time_min=args.max_time)
+    applied: list[str] = []
+    if args.apply_constraints:
+        entries = list_synthesized_entries(
+            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
+        )
+        filters = filters_from_constraints(entries, base=filters)
+        applied.append(f"{len(entries)} abstracted constraint(s)")
+    if args.use_inventory:
+        items = list_items(app.substrate, app.tenant_id)
+        filters = _replace(
+            filters, on_hand=frozenset(item.name for item in items)
+        )
+        applied.append(f"{len(items)} inventory item(s)")
+    return filters, applied
+
+
+def _cmd_plans_generate(args: argparse.Namespace) -> int:
+    from nutrime.audit import _now_iso
+    from nutrime.llm.anthropic import AnthropicProvider
+    from nutrime.llm.base import MissingApiKeyError
+    from nutrime.llm.client import LlmClient
+    from nutrime.plans.assemble import (
+        MEAL_SLOTS,
+        PlanSpec,
+        assemble_plan,
+        candidates_for_slot,
+    )
+    from nutrime.plans.store import PlanVault, new_plan_id, render_plan_body
+
+    slots = tuple(s.strip().lower() for s in args.meals.split(",") if s.strip())
+    unknown = [s for s in slots if s not in MEAL_SLOTS]
+    if unknown:
+        print(f"unknown meal slot(s): {', '.join(unknown)}")
+        print(f"known slots: {', '.join(MEAL_SLOTS)}")
+        return 2
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    vault = RecipeVault(app.corpus_dir)
+
+    try:
+        spec = PlanSpec(
+            days=args.days,
+            slots=slots,
+            servings=args.servings,
+            household_note=args.household or "",
+            candidates_per_slot=args.candidates,
+        )
+    except ValueError as exc:
+        print(f"invalid plan spec: {exc}")
+        return 2
+
+    filters, applied = _plan_base_filters(app, args)
+    if applied:
+        print(f"(applying {', '.join(applied)})")
+
+    print(
+        f"plan: {spec.days} day(s) x {len(spec.slots)} slot(s)"
+        f" = {spec.crossings} LLM crossing(s)"
+    )
+
+    if args.dry_run:
+        print("(dry run — nothing crosses)")
+        for slot in spec.slots:
+            pool = candidates_for_slot(
+                vault, filters, slot, limit=spec.candidates_per_slot
+            )
+            preview = ", ".join(c.title for c in pool[:5]) or "(none)"
+            print(f"  {slot}: {len(pool)} candidate(s) — {preview}")
+        return 0
+
+    provider = AnthropicProvider(model=args.model)
+    client = LlmClient((provider,), app.rule_engine, app.audit)
+
+    def _progress(outcome) -> None:
+        label = f"  day {outcome.day} {outcome.slot}"
+        if outcome.error:
+            print(f"{label}: unfilled — {outcome.error}")
+        else:
+            print(f"{label}: {outcome.entry.title}  [{outcome.entry.recipe_id}]")
+
+    try:
+        plan = assemble_plan(
+            vault, client, spec, filters, on_progress=_progress
+        )
+    except MissingApiKeyError as exc:
+        print(f"config error: {exc}")
+        return 2
+
+    plan_id = new_plan_id()
+    frontmatter = {
+        "plan_id": plan_id,
+        "content_type": "meal_plan",
+        "created_at": _now_iso(),
+        "tenant_id": app.tenant_id,
+        "days": spec.days,
+        "meal_slots": list(spec.slots),
+        "meals_planned": plan.filled,
+        "model": plan.model or args.model,
+        "llm_request_ids": list(plan.request_ids),
+        "llm_request_log_ids": list(plan.llm_request_log_ids),
+        "constraints_applied": applied,
+        "candidate_count": plan.candidate_count,
+    }
+    plan_vault = PlanVault(app.corpus_dir)
+    path = plan_vault.write(
+        plan_id, frontmatter, render_plan_body(plan.entries)
+    )
+
+    print(f"— plan {plan_id} written to {path} —")
+    print(f"{plan.filled} of {spec.crossings} slot(s) filled")
+    if plan.failures:
+        print(
+            f"({len(plan.failures)} slot(s) unfilled — every failed crossing is"
+            " audit-logged; see `nutrime audit list`)"
+        )
+    return 0
+
+
+def _cmd_plans_list(args: argparse.Namespace) -> int:
+    from nutrime.plans.store import PlanVault
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    records = PlanVault(app.corpus_dir).list_plans()[: args.limit]
+    if not records:
+        print("(no plans yet — run `nutrime plans generate`)")
+        return 0
+    print(f"— {len(records)} plan(s), newest first —")
+    for record in records:
+        fm = record.frontmatter
+        slots = ", ".join(str(s) for s in fm.get("meal_slots", ()) or ())
+        print(f"{record.plan_id}")
+        print(
+            f"    {fm.get('created_at', '?')} · {fm.get('days', '?')} day(s)"
+            f" · {slots or 'no slots'} · {fm.get('meals_planned', 0)} meal(s)"
+            f" · {fm.get('model', 'unknown model')}"
+        )
+    return 0
+
+
+def _cmd_plans_show(args: argparse.Namespace) -> int:
+    from nutrime.plans.store import PlanVault
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    plan_vault = PlanVault(app.corpus_dir)
+    if not plan_vault.exists(args.plan_id):
+        print(f"no such plan: {args.plan_id}")
+        return 1
+    record = plan_vault.read(args.plan_id)
+    vault = RecipeVault(app.corpus_dir)
+    fm = record.frontmatter
+
+    print(f"plan {record.plan_id}")
+    print(
+        f"  {fm.get('created_at', '?')} · {fm.get('days', '?')} day(s)"
+        f" · {fm.get('model', 'unknown model')}"
+    )
+    constraints = fm.get("constraints_applied", ()) or ()
+    if constraints:
+        print(f"  applied: {', '.join(str(c) for c in constraints)}")
+    log_ids = fm.get("llm_request_log_ids", ()) or ()
+    print(f"  audit rows: {len(log_ids)} crossing(s) — see `nutrime audit list`")
+    print()
+
+    for entry in record.entries():
+        header = f"Day {entry.day} · {entry.slot}"
+        if not entry.filled:
+            print(f"{header}: (unfilled) {entry.note}".rstrip())
+            print()
+            continue
+        print(f"{header}: {entry.title}  [{entry.recipe_id}]")
+        if entry.note:
+            print(f"    {entry.note}")
+        # Attribution renders adjacent to recipe content on every display
+        # surface (issue #23) — this is the plan-side surface.
+        try:
+            recipe = vault.read(entry.recipe_id)
+        except OSError:
+            print("    Source: (recipe no longer in vault)")
+        else:
+            print(f"    {attribution_line(recipe.frontmatter)}")
+        print()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="nutrime")
     parser.add_argument("--version", action="version", version=__version__)
@@ -587,6 +785,105 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     llm_ping.set_defaults(func=_cmd_llm_ping)
+
+    plans = subparsers.add_parser(
+        "plans",
+        help="Meal-plan assembly (step 5 s.c. 5.4).",
+    )
+    plans_sub = plans.add_subparsers(dest="plans_command", required=True)
+
+    pl_gen = plans_sub.add_parser(
+        "generate",
+        help=(
+            "Assemble a plan of X meals across Y days — one audited LLM"
+            " crossing per meal, selecting only from the licensed corpus."
+        ),
+    )
+    pl_gen.add_argument(
+        "--days", type=int, default=7, help="Number of days to plan (default: 7)."
+    )
+    pl_gen.add_argument(
+        "--meals",
+        default="dinner",
+        help=(
+            "Comma-separated meal slots per day"
+            " (default: dinner; e.g. breakfast,lunch,dinner)."
+        ),
+    )
+    pl_gen.add_argument(
+        "--servings", type=int, default=2, help="Servings per meal (default: 2)."
+    )
+    pl_gen.add_argument(
+        "--household",
+        default=None,
+        help="Free-text household context in place of a plain servings count.",
+    )
+    pl_gen.add_argument(
+        "--candidates",
+        type=int,
+        default=12,
+        help="Candidate recipes offered per slot (default: 12).",
+    )
+    pl_gen.add_argument(
+        "--max-time",
+        type=int,
+        default=None,
+        help=(
+            "Max estimated total minutes per meal (recipes without a time"
+            " estimate are excluded when set)."
+        ),
+    )
+    pl_gen.add_argument(
+        "--use-inventory",
+        action="store_true",
+        help="Rank recipes that use what's on hand higher.",
+    )
+    pl_gen.add_argument(
+        "--apply-constraints",
+        action="store_true",
+        help=(
+            "Apply the knowledge model's abstracted constraints"
+            " (avoids -> hard-block, prefers -> boost)."
+        ),
+    )
+    pl_gen.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show the candidate pools and crossing count without calling out.",
+    )
+    pl_gen.add_argument(
+        "--model",
+        default="claude-opus-4-8",
+        help="Anthropic model id (default: claude-opus-4-8).",
+    )
+    pl_gen.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    pl_gen.set_defaults(func=_cmd_plans_generate)
+
+    pl_list = plans_sub.add_parser(
+        "list", help="Show plans in the vault, newest first."
+    )
+    pl_list.add_argument(
+        "--limit", type=int, default=20, help="Show at most N plans (default: 20)."
+    )
+    pl_list.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    pl_list.set_defaults(func=_cmd_plans_list)
+
+    pl_show = plans_sub.add_parser(
+        "show",
+        help="Render one plan's schedule with per-recipe attribution.",
+    )
+    pl_show.add_argument("plan_id", help="Plan id (pln-...).")
+    pl_show.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    pl_show.set_defaults(func=_cmd_plans_show)
 
     return parser
 

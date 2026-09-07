@@ -258,3 +258,48 @@ class TestCli:
         )
         assert code == 0
         assert "no recipes matched" in capsys.readouterr().out
+
+
+class TestCategorySetFilters:
+    """5.4 additions — corpus categories are not a clean slot vocabulary."""
+
+    @pytest.fixture()
+    def mixed(self, tmp_path):
+        vault = RecipeVault(tmp_path / "mixed")
+        vault.write(
+            "rcp-beef",
+            _frontmatter("rcp-beef", "Beef Main", categories=["beef"]),
+            _body("@beef{1}"),
+        )
+        vault.write(
+            "rcp-cake",
+            _frontmatter("rcp-cake", "Cake", categories=["dessert"]),
+            _body("@flour{1}"),
+        )
+        vault.write(
+            "rcp-eggs",
+            _frontmatter("rcp-eggs", "Eggs", categories=["breakfast"]),
+            _body("@egg{2}"),
+        )
+        return vault
+
+    def test_exclude_categories_rejects_matching(self, mixed):
+        results = search(
+            mixed,
+            SearchFilters(exclude_categories=frozenset({"dessert", "breakfast"})),
+        )
+        assert [r.recipe_id for r in results] == ["rcp-beef"]
+
+    def test_categories_any_matches_on_one(self, mixed):
+        results = search(
+            mixed,
+            SearchFilters(meal_categories_any=frozenset({"dessert", "breakfast"})),
+        )
+        assert {r.recipe_id for r in results} == {"rcp-cake", "rcp-eggs"}
+
+    def test_unset_category_filters_are_inert(self, mixed):
+        assert len(search(mixed, SearchFilters())) == 3
+
+    def test_exact_meal_category_still_works(self, mixed):
+        results = search(mixed, SearchFilters(meal_category="beef"))
+        assert [r.recipe_id for r in results] == ["rcp-beef"]
