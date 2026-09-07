@@ -146,7 +146,7 @@ li { margin: 5px 0; }
 <p class="subtitle">Personal tracking page: the state of everything in one read, organized by the two product pieces — <span class="badge track-g">TRACK G · NUTRITION GUIDANCE</span> and <span class="badge track-m">TRACK M · MEAL-PLANNING &amp; GROCERY</span> (+ <span class="badge track-s">SHARED SUBSTRATE</span>). Not canonical — decisions live in the 00-meta markdown; this exists so orientation never requires git or <a href="project-status.html">project-status.html</a>.</p>
 
 <!-- ==================================================================== -->
-<h2 id="glance">1. At a glance <span class="edit-hint" style="font-size:13px;">(updated 2026-08-09 · last commit <code>5d6802a</code> · 349/349 tests)</span></h2>
+<h2 id="glance">1. At a glance <span class="edit-hint" style="font-size:13px;">(updated 2026-09-07 · last commit <code>760f69e</code> · 390/390 tests)</span></h2>
 
 <div class="glance">
   <div class="row">
@@ -192,8 +192,8 @@ li { margin: 5px 0; }
   <div class="step done">2 Intake + Inventory<small>done 06-30</small></div>
   <div class="step done">3 Knowledge model<small>done 07-01</small></div>
   <div class="step partial">4 Recipe corpus<small>4.1–4.3 done · 4.4 parked</small></div>
-  <div class="step next">5 Meal plans<small>5.1–5.3 done · 5.4 planner next</small></div>
-  <div class="step notbuilt">6 Grocery list<small>Instacart</small></div>
+  <div class="step done">5 Meal plans<small>5.1–5.4 done 09-07</small></div>
+  <div class="step next">6 Grocery list<small>6.1 export next · 6.2 Instacart</small></div>
   <div class="step notbuilt">7 Feedback<small>#21 due first</small></div>
   <div class="step notbuilt">8 Daily UI<small>home surface</small></div>
   <div class="step notbuilt">9 Ship v0.1<small>#23 gate</small></div>
@@ -252,6 +252,7 @@ li { margin: 5px 0; }
   <tr><td>08-09</td><td><span class="badge track-s">S</span></td><td><strong>5.1 — Audit persistence (#22 closed):</strong> event-log family migration + <code>AuditLog</code> + pre-egress observer (every crossing audited, fail-closed) + tenant lifecycle events + <code>nutrime audit list</code></td><td><code>7ab41ea</code> · 309</td></tr>
   <tr><td>08-09</td><td><span class="badge track-s">S</span></td><td><strong>5.2 — LLM provider adapter:</strong> capability-vector layer + Anthropic adapter + audited <code>LlmClient</code> pipeline with S4-Q2 single-slice guard; <code>meal_plan_generation</code> envelope; Keychain key storage; <strong>first live LLM call, fully audited</strong></td><td><code>564379e</code>+<code>abc0d7a</code> · 329</td></tr>
   <tr><td>08-09</td><td><span class="badge track-m">M</span></td><td><strong>5.3 — Recipe search:</strong> vault query surface (allergen/ingredient/time/category/cuisine filters, on-hand + preference ranking), constraint seam live (<code>--apply-constraints</code>), <strong>attribution rendering on all display surfaces (#23 backed)</strong></td><td><code>5d6802a</code> · 349</td></tr>
+  <tr><td>09-07</td><td><span class="badge track-m">M</span></td><td><strong>5.4 — LLM plan assembly (step 5 closed):</strong> plan vault + assembler; <strong>one audited crossing per meal</strong>, each declaring exactly one PHI slice (<code>{demographics}</code>); selection guard rejects any recipe outside that slot's candidate set; fail-soft per slot; <strong>#23 attribution on the plan display surface</strong>; <code>nutrime plans generate|list|show</code></td><td><code>760f69e</code> · 390</td></tr>
 </table>
 
 <p><strong>Reading the ledger through the track lens:</strong> Track G has its capture and storage complete but no reasoning yet — a well-labeled filing cabinet awaiting its guidance layer. Track M has ~4,000 license-clear recipes and working inventory but no consumer loop — a well-stocked warehouse with no storefront. That was the planned order (recipes before meal plans), and step 5 is where the two tracks meet for the first time.</p>
@@ -282,13 +283,19 @@ li { margin: 5px 0; }
   <li class="done"><strong>Attribution now renders on all existing display surfaces</strong> (search + list) — the #23 obligation backed, generalized to every source; pre-ship gate remains for future surfaces</li>
 </ul>
 
-<h3><span class="badge status-next">NEXT</span> 5.4 — LLM plan assembly <span class="badge track-m">M</span></h3>
+<h3><span class="badge status-done">DONE 2026-09-07</span> 5.4 — LLM plan assembly <span class="badge track-m">M</span> <span class="edit-hint" style="font-size:13px;">commit <code>760f69e</code> · 390 tests</span></h3>
 <ul class="checks">
-  <li>Single meal → weekly plan via LLM, selecting from 5.3 candidates; reads inventory + preferences + abstracted constraints <em>only</em> (never raw clinical atoms)</li>
-  <li>First recipe display surface → <strong>attribution #23 renders here</strong>: TheMealDB credit lines wherever recipes show</li>
+  <li class="done"><strong>One crossing per meal, not one per plan</strong> — a plan is X meals across Y days, and each meal is its own workload: own candidate pool, own audit row, own failure domain. <code>nutrime plans generate --days N --meals breakfast,lunch,dinner</code></li>
+  <li class="done"><strong>S4-Q2 concrete at the planner boundary:</strong> each crossing declares exactly one slice, <code>{demographics}</code>. Allergens never cross — 5.3 hard-blocks them at candidate generation, which <em>is</em> the local-aggregation half of decomposition; the prompt names recipes, never constraints</li>
+  <li class="done"><strong>The selection guard:</strong> a returned recipe id must be in that slot's candidate set, so the model can never introduce a recipe the corpus doesn't license. Variety is deterministic too — chosen ids leave later pools rather than being asked for in the prompt</li>
+  <li class="done">Fail-soft per slot (provider error / rejected selection / empty pool leaves that slot unfilled, run continues); variety exhaustion reported distinctly from "no candidates matched"</li>
+  <li class="done"><strong>Attribution #23 backed on the plan display surface</strong> — <code>plans show</code> prints each recipe's source/licence line adjacent to the content</li>
+  <li class="done">Plan vault: markdown-per-plan, frontmatter carries <code>llm_request_log_ids</code> as a <em>list</em>; per-meal detail in the body table (<code>parse_plan_body</code> is the 6.1 hand-off) because the YAML emitter still refuses list-of-dicts</li>
+  <li class="done">Two defects fixed: <code>uuid7()</code> is not monotonic within a millisecond, so plan ordering moved to <code>created_at</code>; and TheMealDB never tags "dinner"/"lunch", so slots now map to category <em>profiles</em> (mains by exclusion) rather than exact tags</li>
+  <li><strong>Live success-path smoke outstanding</strong> — the Anthropic key 403s on both env and Keychain paths, and unmodified 5.2 <code>llm ping</code> 403s identically (credentials, not a 5.4 regression). Verified instead end-to-end against the real 40-recipe corpus with the network seam stubbed; the live <em>failure</em> path did exercise fully</li>
 </ul>
 
-<h3>6.1 — Grocery list + export <span class="badge track-m">M</span></h3>
+<h3><span class="badge status-next">NEXT</span> 6.1 — Grocery list + export <span class="badge track-m">M</span></h3>
 <ul class="checks">
   <li>Cross-plan ingredient aggregation with unit/name consolidation (the technical meat: "1 1/2 lb" + "500 g" + "2 breasts" of chicken)</li>
   <li>Presence-based inventory netting ("you have chicken — enough?") with clarification prompts, per the no-quantity-tracking decision</li>
@@ -353,12 +360,15 @@ li { margin: 5px 0; }
 
 <h3>Watch items (no issue; just don't forget)</h3>
 <ul>
-  <li><strong>Hand-rolled YAML parser can't handle lists-of-dicts</strong> — will bite when <code>image_references</code> or similar lands in recipe frontmatter</li>
-  <li><strong>Abstracted-constraint stub has no guard test</strong> — scheduled to fix at step 5 (in the roster above)</li>
+  <li><strong>Hand-rolled YAML parser can't handle lists-of-dicts</strong> — will bite when <code>image_references</code> or similar lands in recipe frontmatter. Already forced a design choice at 5.4: plan per-meal detail lives in the body table rather than frontmatter</li>
+  <li><strong><code>uuid7()</code> is not monotonic within a millisecond</strong> — <code>rand_a</code> is pure random, so ids minted back-to-back can sort against creation order. Found at 5.4; the plan vault now orders on <code>created_at</code>. <em>Any other caller inferring chronology from a UUIDv7 id string shares this bug</em></li>
+  <li><strong>Corpus <code>meal_categories</code> is not a meal-slot vocabulary</strong> — TheMealDB mixes course, protein and diet in one field and never emits "dinner"/"lunch". 5.4 works around it with slot profiles (mains by exclusion); a real course taxonomy belongs with the S6 ingredient/identity work</li>
+  <li><strong>Abstracted-constraint stub has no guard test</strong> — <em>not</em> done at step 5 as originally scheduled; remains a v0.1 ship gate (§4 checklist)</li>
   <li><strong>Cross-source duplicate recipes</strong> — same federal recipe arrived via both NHLBI and MyPlate; needs recipe-identity resolution eventually</li>
   <li><strong>RealFood.gov</strong> (MyPlate's successor) — future candidate recipe source</li>
   <li><strong>NHS Eat Well</strong> — conditional source, pending license confirmation; revisit before v0.2</li>
-  <li><strong>README documents no CLI surface</strong> — quick doc gap</li>
+  <li><strong>README documents no CLI surface</strong> — quick doc gap; the surface is now 14 commands</li>
+  <li><strong>Anthropic API key 403s</strong> ("Request not allowed") on both the env and Keychain paths as of 2026-09-07 — unmodified 5.2 <code>llm ping</code> fails identically, so no live LLM call has succeeded since 08-09. Needs a working key before 6.x live smoke</li>
 </ul>
 
 <h3>Deliberately deferred (decided, not forgotten — no action during prototype)</h3>
@@ -383,7 +393,7 @@ li { margin: 5px 0; }
 
 <div class="footer">
 NutriMe · research/00-meta/two-track-split.html · personal tracking overview, updated by hand as things land · canonical decisions: <a href="stage3-plan.md">stage3-plan.md</a> + 00-meta markdown · formal dashboard: <a href="project-status.html">project-status.html</a><br>
-Created 2026-08-08 from a full repo survey at commit <code>d2e7546</code> (291/291 tests, sub-commits 4.1–4.3 landed).
+Created 2026-08-08 from a full repo survey at commit <code>d2e7546</code> (291/291 tests, sub-commits 4.1–4.3 landed). Last updated 2026-09-07 at commit <code>760f69e</code> (390/390 tests, step 5 closed — 5.4 landed).
 </div>
 
 </main>
