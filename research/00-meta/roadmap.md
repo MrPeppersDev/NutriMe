@@ -25,6 +25,8 @@ First direct feature request from the primary non-dev household user (Pinterest-
 - **Cycle-phase nutrient needs → recipe search** — "follicular phase + these ingredients" is the two-track seam working as designed: phase stays PHI-local in Track G; only "prefers X" abstracted constraints cross, and `filters_from_constraints` already consumes them. Needs Track G content (phase atom + phase→nutrient-emphasis mapping, evidence-tier-graded — much circulating cycle-syncing lore is low-tier; iron-post-menses is solid). Track G remains PARKED; this records its first concrete user-motivated use case. A clearly-labeled prototype stub (user-entered phase → canned "prefers" constraints) may land earlier without constituting Track G resumption. [issue #25](https://github.com/MrPeppersDev/NutriMe/issues/25) — `broader-scope` until Track G resumes
 - **The fridge-search half of the request is already landed** (5.3 on-hand ranking + 5.4 planner) — noted so future sessions don't re-scope it.
 
+**Prototype LANDED 2026-10-03 (`8e97145`):** `recipes/jsonld.py` (4.4 URL-scrape adapter, MVP cut of #24 — URLs-file front door; API sync + image-pin extraction still open on the issue), `cycles.py` (#25 prototype stub — boosts only, evidence notes rendered, Track G still parked), `webui.py` + `nutrime serve` (stdlib localhost UI per A2: fridge search, phase pills, constraint seam toggle, URL import, attribution-at-render on all surfaces). 429 tests; live smoke incl. real recipe-blog import through the UI. 6.1 grocery remains next in the main sequence.
+
 ## Broader-scope future
 
 Items deferred because the current product is personal-use (user + family + a couple friends):
