@@ -27,6 +27,8 @@ First direct feature request from the primary non-dev household user (Pinterest-
 
 **Prototype LANDED 2026-10-03 (`8e97145`):** `recipes/jsonld.py` (4.4 URL-scrape adapter, MVP cut of #24 — URLs-file front door; API sync + image-pin extraction still open on the issue), `cycles.py` (#25 prototype stub — boosts only, evidence notes rendered, Track G still parked), `webui.py` + `nutrime serve` (stdlib localhost UI per A2: fridge search, phase pills, constraint seam toggle, URL import, attribution-at-render on all surfaces). 429 tests; live smoke incl. real recipe-blog import through the UI. 6.1 grocery remains next in the main sequence.
 
+**Pinterest sync LANDED 2026-10-03 (`5bed3d7`), same-day follow-up:** user sharpened the requirement — "80% of the point is to not have to ever know what you pinned or what is in your recipe corpus" — promoting hands-free sync from nice-to-have to the product. `recipes/pinterest.py` (API v5 pin enumeration → jsonld ingest, idempotent re-sync, Keychain token per the Anthropic pattern) + CLI `--source pinterest [--board]` + web-UI Sync button. 444 tests. Open on #24: continuous-refresh-token flow (30-day token expiry), scheduled background sync, image-pin vision.
+
 ## Broader-scope future
 
 Items deferred because the current product is personal-use (user + family + a couple friends):
