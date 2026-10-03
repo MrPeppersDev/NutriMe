@@ -17,6 +17,14 @@ Features the user has tagged as "would be cool, not now":
 - **One-time CGM trial as diagnostic input to intake** — `stretch` — surfaced in sweep #5, distinct from the real-time use case above
 - **Cuisine-context-aware adaptive intake at finer cultural granularity** — surfaced in sweep #3, broad framework now, deeper per-tradition mapping deferred to corpus-build phase
 
+## Product pull (2026-10-03) — household-user feature request
+
+First direct feature request from the primary non-dev household user (Pinterest-centric recipe saver), captured verbatim-in-shape because it independently specifies the built architecture: personal recipe corpus + ingredient-availability search + health-derived preferences crossing an abstraction seam.
+
+- **Pinterest-saved recipe ingest** — pins are links; ingest = enumerate pin links → fetch → schema.org/Recipe JSON-LD extract. This **unparks sub-commit 4.4** (URL-scrape adapter) with a Pinterest front door. MVP cut: local file of URLs (Pinterest data export), no API; Pinterest API v5 OAuth sync + image-only-pin vision extraction are follow-ups. Preservation-layer principle applies (pinned blogs rot). [issue #24](https://github.com/MrPeppersDev/NutriMe/issues/24) — `build-time`
+- **Cycle-phase nutrient needs → recipe search** — "follicular phase + these ingredients" is the two-track seam working as designed: phase stays PHI-local in Track G; only "prefers X" abstracted constraints cross, and `filters_from_constraints` already consumes them. Needs Track G content (phase atom + phase→nutrient-emphasis mapping, evidence-tier-graded — much circulating cycle-syncing lore is low-tier; iron-post-menses is solid). Track G remains PARKED; this records its first concrete user-motivated use case. A clearly-labeled prototype stub (user-entered phase → canned "prefers" constraints) may land earlier without constituting Track G resumption. [issue #25](https://github.com/MrPeppersDev/NutriMe/issues/25) — `broader-scope` until Track G resumes
+- **The fridge-search half of the request is already landed** (5.3 on-hand ranking + 5.4 planner) — noted so future sessions don't re-scope it.
+
 ## Broader-scope future
 
 Items deferred because the current product is personal-use (user + family + a couple friends):
