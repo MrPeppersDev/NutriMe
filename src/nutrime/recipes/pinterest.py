@@ -44,8 +44,13 @@ from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
 from nutrime.recipes.web import Pacer, TextFetcher
 
 API_BASE = "https://api.pinterest.com/v5"
+OAUTH_AUTHORIZE_URL = "https://www.pinterest.com/oauth/"
+TOKEN_URL = f"{API_BASE}/oauth/token"
+OAUTH_SCOPES = "boards:read,pins:read"
 TOKEN_ENV = "PINTEREST_ACCESS_TOKEN"
 KEYCHAIN_SERVICE = "nutrime-pinterest"
+KEYCHAIN_REFRESH_SERVICE = "nutrime-pinterest-refresh"
+KEYCHAIN_APP_SERVICE = "nutrime-pinterest-app"
 _PAGE_SIZE = 100
 
 # JSON API fetcher: (url, bearer_token) -> parsed payload
@@ -100,6 +105,243 @@ def has_token() -> bool:
     except MissingTokenError:
         return False
     return True
+
+
+# -- OAuth connect flow -------------------------------------------------------
+#
+# `nutrime pinterest connect` runs the full authorization-code dance locally:
+# spin up a one-shot localhost HTTP listener as the redirect_uri, open the
+# Pinterest consent page in the default browser, catch the ?code= redirect,
+# exchange it at /v5/oauth/token, and store both tokens in the Keychain.
+# The app's client id/secret are stored too (service nutrime-pinterest-app,
+# account = client id) so `pinterest refresh` can renew the 30-day access
+# token from the continuous refresh token without re-consent.
+
+
+def _keychain_store(service: str, account: str, secret: str) -> None:
+    if sys.platform != "darwin":
+        raise OSError("Keychain storage requires macOS")
+    result = subprocess.run(
+        [
+            "security", "add-generic-password", "-U",
+            "-s", service, "-a", account, "-w", secret,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        raise OSError(f"Keychain write failed: {result.stderr.strip()}")
+
+
+def _keychain_read(service: str) -> tuple[str, str] | None:
+    """Return (account, secret) for a service, or None."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        shown = subprocess.run(
+            ["security", "find-generic-password", "-s", service],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        secret = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-w"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if shown.returncode != 0 or secret.returncode != 0:
+        return None
+    account = ""
+    for line in shown.stdout.splitlines():
+        line = line.strip()
+        if line.startswith('"acct"'):
+            account = line.split("=", 1)[1].strip().strip('"')
+            # security(1) prints acct as <blob>="value"
+            if account.startswith("<blob>="):
+                account = account[len("<blob>=") :].strip('"')
+    return (account, secret.stdout.strip())
+
+
+def store_tokens(
+    access_token: str,
+    refresh_token: str | None,
+    *,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> None:
+    _keychain_store(KEYCHAIN_SERVICE, os.environ.get("USER", "nutrime"), access_token)
+    if refresh_token:
+        _keychain_store(
+            KEYCHAIN_REFRESH_SERVICE,
+            os.environ.get("USER", "nutrime"),
+            refresh_token,
+        )
+    if client_id and client_secret:
+        _keychain_store(KEYCHAIN_APP_SERVICE, client_id, client_secret)
+
+
+def _token_request(form: dict[str, str], client_id: str, client_secret: str) -> dict[str, Any]:
+    import base64
+
+    basic = base64.b64encode(
+        f"{client_id}:{client_secret}".encode("utf-8")
+    ).decode("ascii")
+    request = urllib.request.Request(
+        TOKEN_URL,
+        data=urllib.parse.urlencode(form).encode("utf-8"),
+        headers={
+            "Authorization": f"Basic {basic}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def exchange_code(
+    code: str, *, client_id: str, client_secret: str, redirect_uri: str
+) -> dict[str, Any]:
+    return _token_request(
+        {
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+        },
+        client_id,
+        client_secret,
+    )
+
+
+def refresh_access_token() -> str:
+    """Renew the access token from the stored continuous refresh token."""
+    refresh = _keychain_read(KEYCHAIN_REFRESH_SERVICE)
+    app = _keychain_read(KEYCHAIN_APP_SERVICE)
+    if refresh is None or app is None:
+        raise MissingTokenError(
+            "no stored refresh token / app credentials — run"
+            " `nutrime pinterest connect` first."
+        )
+    client_id, client_secret = app
+    payload = _token_request(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh[1],
+            "refresh_on": "true",
+        },
+        client_id,
+        client_secret,
+    )
+    access = str(payload.get("access_token") or "")
+    if not access:
+        raise PinterestAuthError(f"token refresh returned no access_token: {payload}")
+    store_tokens(
+        access,
+        str(payload.get("refresh_token") or "") or None,
+    )
+    return access
+
+
+def connect_interactive(
+    client_id: str,
+    client_secret: str,
+    *,
+    port: int = 8766,
+    open_browser: Callable[[str], Any] | None = None,
+    emitter: Callable[[str], None] = print,
+    timeout_s: float = 300.0,
+) -> None:
+    """Run the full OAuth dance; store tokens + app creds in the Keychain.
+
+    The redirect_uri is ``http://localhost:<port>/`` — it must be listed
+    exactly in the Pinterest app's Redirect URIs setting.
+    """
+    import http.server
+    import secrets
+    import socketserver
+    import webbrowser
+
+    redirect_uri = f"http://localhost:{port}/"
+    state = secrets.token_urlsafe(16)
+    auth_url = OAUTH_AUTHORIZE_URL + "?" + urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": OAUTH_SCOPES,
+            "state": state,
+        }
+    )
+
+    captured: dict[str, str] = {}
+
+    class _CallbackHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args) -> None:  # noqa: A002
+            pass
+
+        def do_GET(self) -> None:  # noqa: N802
+            query = urllib.parse.parse_qs(
+                urllib.parse.urlparse(self.path).query
+            )
+            captured["code"] = (query.get("code") or [""])[0]
+            captured["state"] = (query.get("state") or [""])[0]
+            captured["error"] = (query.get("error") or [""])[0]
+            body = (
+                "<html><body style='font-family:sans-serif;padding:40px'>"
+                "<h2>NutriMe is connected to Pinterest.</h2>"
+                "<p>You can close this tab and go back to the recipe page.</p>"
+                "</body></html>"
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    class _ReusableServer(socketserver.TCPServer):
+        # The redirect port lingers in TIME_WAIT after a previous connect
+        # attempt; without reuse a quick retry would fail to bind.
+        allow_reuse_address = True
+
+    with _ReusableServer(("127.0.0.1", port), _CallbackHandler) as httpd:
+        httpd.timeout = timeout_s
+        emitter("Opening Pinterest in your browser — log in as the account")
+        emitter("whose pins you want, and click Allow.")
+        emitter(f"(If nothing opens, visit:\n  {auth_url})")
+        (open_browser or webbrowser.open)(auth_url)
+        httpd.handle_request()  # one-shot: blocks until the redirect lands
+
+    if captured.get("error"):
+        raise PinterestAuthError(f"Pinterest denied access: {captured['error']}")
+    if not captured.get("code"):
+        raise PinterestAuthError(
+            "no authorization code received (timed out or tab closed)"
+        )
+    if captured.get("state") != state:
+        raise PinterestAuthError("OAuth state mismatch — aborting")
+
+    payload = exchange_code(
+        captured["code"],
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+    )
+    access = str(payload.get("access_token") or "")
+    if not access:
+        raise PinterestAuthError(f"token exchange returned no access_token: {payload}")
+    store_tokens(
+        access,
+        str(payload.get("refresh_token") or "") or None,
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+    emitter("Connected. Tokens stored in the macOS Keychain.")
+    emitter("Pins will sync from the recipe page's Sync button, or:")
+    emitter("  nutrime recipes fetch --source pinterest")
 
 
 def _urllib_api_fetch(url: str, token: str) -> dict[str, Any]:

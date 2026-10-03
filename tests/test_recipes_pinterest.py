@@ -185,3 +185,148 @@ class TestSyncPins:
             pacer=self._pacer(),
         )
         assert any("boards/b7/pins" in c for c in api.calls)
+
+
+def _free_port() -> int:
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+class TestConnectFlow:
+    def test_connect_interactive_full_dance(self, monkeypatch, tmp_path) -> None:
+        """Browser-open → localhost redirect → code exchange → token store."""
+        import threading
+        import urllib.parse
+        import urllib.request as urlreq
+
+        from nutrime.recipes import pinterest as pin_mod
+
+        stored: dict[str, tuple[str, str]] = {}
+        monkeypatch.setattr(
+            pin_mod,
+            "_keychain_store",
+            lambda service, account, secret: stored.__setitem__(
+                service, (account, secret)
+            ),
+        )
+
+        exchanged: dict[str, str] = {}
+
+        def fake_token_request(form, client_id, client_secret):
+            exchanged.update(form)
+            exchanged["client_id"] = client_id
+            return {"access_token": "acc-1", "refresh_token": "ref-1"}
+
+        monkeypatch.setattr(pin_mod, "_token_request", fake_token_request)
+
+        def fake_browser(url: str):
+            # Simulate the user clicking Allow: Pinterest redirects the
+            # browser to our localhost listener with code + state.
+            params = dict(
+                urllib.parse.parse_qsl(urllib.parse.urlparse(url).query)
+            )
+            redirect = params["redirect_uri"] + "?" + urllib.parse.urlencode(
+                {"code": "authcode-7", "state": params["state"]}
+            )
+
+            def hit():
+                with urlreq.urlopen(redirect, timeout=10) as resp:
+                    resp.read()
+
+            threading.Thread(target=hit, daemon=True).start()
+            return True
+
+        messages: list[str] = []
+        pin_mod.connect_interactive(
+            "cid",
+            "csec",
+            port=_free_port(),
+            open_browser=fake_browser,
+            emitter=messages.append,
+            timeout_s=10,
+        )
+        assert exchanged["code"] == "authcode-7"
+        assert exchanged["grant_type"] == "authorization_code"
+        assert stored[pin_mod.KEYCHAIN_SERVICE][1] == "acc-1"
+        assert stored[pin_mod.KEYCHAIN_REFRESH_SERVICE][1] == "ref-1"
+        assert stored[pin_mod.KEYCHAIN_APP_SERVICE] == ("cid", "csec")
+        assert any("Connected" in m for m in messages)
+
+    def test_state_mismatch_aborts(self, monkeypatch) -> None:
+        import threading
+        import urllib.parse
+        import urllib.request as urlreq
+
+        from nutrime.recipes import pinterest as pin_mod
+
+        monkeypatch.setattr(
+            pin_mod, "_keychain_store", lambda *a: None
+        )
+
+        def fake_browser(url: str):
+            params = dict(
+                urllib.parse.parse_qsl(urllib.parse.urlparse(url).query)
+            )
+            redirect = params["redirect_uri"] + "?" + urllib.parse.urlencode(
+                {"code": "authcode-7", "state": "WRONG"}
+            )
+
+            def hit():
+                with urlreq.urlopen(redirect, timeout=10) as resp:
+                    resp.read()
+
+            threading.Thread(target=hit, daemon=True).start()
+            return True
+
+        with pytest.raises(pin_mod.PinterestAuthError, match="state mismatch"):
+            pin_mod.connect_interactive(
+                "cid", "csec", port=_free_port(),
+                open_browser=fake_browser, emitter=lambda m: None,
+                timeout_s=10,
+            )
+
+
+class TestRefreshFlow:
+    def test_refresh_uses_stored_credentials(self, monkeypatch) -> None:
+        from nutrime.recipes import pinterest as pin_mod
+
+        reads = {
+            pin_mod.KEYCHAIN_REFRESH_SERVICE: ("me", "ref-old"),
+            pin_mod.KEYCHAIN_APP_SERVICE: ("cid", "csec"),
+        }
+        monkeypatch.setattr(
+            pin_mod, "_keychain_read", lambda service: reads.get(service)
+        )
+        stored: dict[str, tuple[str, str]] = {}
+        monkeypatch.setattr(
+            pin_mod,
+            "_keychain_store",
+            lambda service, account, secret: stored.__setitem__(
+                service, (account, secret)
+            ),
+        )
+        sent: dict[str, str] = {}
+
+        def fake_token_request(form, client_id, client_secret):
+            sent.update(form)
+            assert (client_id, client_secret) == ("cid", "csec")
+            return {"access_token": "acc-new", "refresh_token": "ref-new"}
+
+        monkeypatch.setattr(pin_mod, "_token_request", fake_token_request)
+
+        token = pin_mod.refresh_access_token()
+        assert token == "acc-new"
+        assert sent["grant_type"] == "refresh_token"
+        assert sent["refresh_token"] == "ref-old"
+        assert stored[pin_mod.KEYCHAIN_SERVICE][1] == "acc-new"
+        assert stored[pin_mod.KEYCHAIN_REFRESH_SERVICE][1] == "ref-new"
+
+    def test_refresh_without_stored_creds_raises(self, monkeypatch) -> None:
+        from nutrime.recipes import pinterest as pin_mod
+
+        monkeypatch.setattr(pin_mod, "_keychain_read", lambda service: None)
+        with pytest.raises(pin_mod.MissingTokenError, match="connect"):
+            pin_mod.refresh_access_token()

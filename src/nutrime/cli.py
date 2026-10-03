@@ -585,6 +585,51 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_pinterest_connect(args: argparse.Namespace) -> int:
+    from nutrime.recipes.pinterest import PinterestAuthError, connect_interactive
+
+    client_id = args.client_id or input("Pinterest app ID: ").strip()
+    client_secret = args.client_secret or input("Pinterest app secret: ").strip()
+    if not client_id or not client_secret:
+        print("both the app ID and secret are required")
+        return 2
+    try:
+        connect_interactive(client_id, client_secret, port=args.port)
+    except PinterestAuthError as err:
+        print(str(err))
+        return 1
+    except OSError as err:
+        print(f"connect failed: {err}")
+        return 1
+    return 0
+
+
+def _cmd_pinterest_refresh(args: argparse.Namespace) -> int:
+    from nutrime.recipes.pinterest import (
+        MissingTokenError,
+        PinterestAuthError,
+        refresh_access_token,
+    )
+
+    try:
+        refresh_access_token()
+    except (MissingTokenError, PinterestAuthError) as err:
+        print(str(err))
+        return 1
+    print("Access token refreshed and stored in the Keychain.")
+    return 0
+
+
+def _cmd_pinterest_status(args: argparse.Namespace) -> int:
+    from nutrime.recipes.pinterest import has_token
+
+    if has_token():
+        print("connected (access token present)")
+        return 0
+    print("not connected — run `nutrime pinterest connect`")
+    return 1
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from nutrime.webui import serve
 
@@ -965,6 +1010,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     pl_show.set_defaults(func=_cmd_plans_show)
+
+    pinterest = subparsers.add_parser(
+        "pinterest",
+        help="Connect + maintain the Pinterest link (#24).",
+    )
+    pinterest_sub = pinterest.add_subparsers(
+        dest="pinterest_command", required=True
+    )
+    pin_connect = pinterest_sub.add_parser(
+        "connect",
+        help="One-time OAuth: opens the browser, stores tokens in the"
+        " Keychain.",
+    )
+    pin_connect.add_argument(
+        "--client-id", default=None, help="Pinterest app ID (prompted if omitted)."
+    )
+    pin_connect.add_argument(
+        "--client-secret",
+        default=None,
+        help="Pinterest app secret (prompted if omitted).",
+    )
+    pin_connect.add_argument(
+        "--port",
+        type=int,
+        default=8766,
+        help="Localhost OAuth redirect port — the app's Redirect URI must be"
+        " http://localhost:<port>/ (default: 8766).",
+    )
+    pin_connect.set_defaults(func=_cmd_pinterest_connect)
+    pin_refresh = pinterest_sub.add_parser(
+        "refresh",
+        help="Renew the 30-day access token from the stored refresh token.",
+    )
+    pin_refresh.set_defaults(func=_cmd_pinterest_refresh)
+    pin_status = pinterest_sub.add_parser(
+        "status", help="Show whether Pinterest is connected."
+    )
+    pin_status.set_defaults(func=_cmd_pinterest_status)
 
     serve = subparsers.add_parser(
         "serve",

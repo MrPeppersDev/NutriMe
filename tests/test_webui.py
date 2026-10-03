@@ -233,7 +233,7 @@ class TestPinterestApi:
         )
         data = _get(server, "/api/pinterest/status")
         assert data["connected"] is False
-        assert "nutrime-pinterest" in data["how_to_connect"]
+        assert "nutrime pinterest connect" in data["how_to_connect"]
 
     def test_sync_without_token_errors(self, server, monkeypatch) -> None:
         monkeypatch.delenv("PINTEREST_ACCESS_TOKEN", raising=False)

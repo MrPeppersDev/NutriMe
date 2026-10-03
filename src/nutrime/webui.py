@@ -405,16 +405,15 @@ class _Handler(BaseHTTPRequestHandler):
     # -- API: Pinterest sync (#24) ------------------------------------------------
 
     def _api_pinterest_status(self) -> None:
-        from nutrime.recipes.pinterest import KEYCHAIN_SERVICE, TOKEN_ENV, has_token
+        from nutrime.recipes.pinterest import has_token
 
         self._json(
             {
                 "connected": has_token(),
                 "how_to_connect": (
-                    "Create a free Pinterest developer app (pins:read +"
-                    f" boards:read), then either set ${TOKEN_ENV} or run:"
-                    f" security add-generic-password -U -s {KEYCHAIN_SERVICE}"
-                    ' -a "$USER" -w'
+                    "One-time setup in a terminal: nutrime pinterest connect"
+                    " (it opens Pinterest in the browser — log in, click"
+                    " Allow, done)."
                 ),
             }
         )
@@ -435,20 +434,30 @@ class _Handler(BaseHTTPRequestHandler):
         except MissingTokenError as err:
             self._json({"error": str(err)}, status=400)
             return
-        client = PinterestClient(
-            token=token,
-            fetcher=self.server.pinterest_api_fetcher,
-            pacer=self.server.ingest_pacer,
-        )
-        try:
-            sync = sync_pins(
+        def _run(tok: str):
+            client = PinterestClient(
+                token=tok,
+                fetcher=self.server.pinterest_api_fetcher,
+                pacer=self.server.ingest_pacer,
+            )
+            return sync_pins(
                 client,
                 self.server.vault,
                 board_name=board,
                 page_fetcher=self.server.ingest_fetcher,
                 pacer=self.server.ingest_pacer or Pacer(delay_s=1.0),
             )
-        except (PinterestAuthError, ValueError) as err:
+
+        try:
+            try:
+                sync = _run(token)
+            except PinterestAuthError:
+                # 30-day access token likely expired — renew from the stored
+                # refresh token and retry once before bothering the user.
+                from nutrime.recipes.pinterest import refresh_access_token
+
+                sync = _run(refresh_access_token())
+        except (MissingTokenError, PinterestAuthError, ValueError) as err:
             self._json({"error": str(err)}, status=400)
             return
         self._json(
