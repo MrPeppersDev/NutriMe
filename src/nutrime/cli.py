@@ -17,6 +17,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime plans generate``     — assemble a meal plan, one crossing per meal (5.4)
 - ``nutrime plans list``         — show plans in the local vault (5.4)
 - ``nutrime plans show``         — render a plan with per-recipe attribution (5.4)
+- ``nutrime serve``              — localhost web UI prototype (product pull 2026-10-03)
 """
 
 from __future__ import annotations
@@ -32,6 +33,10 @@ from nutrime.inventory.store import by_location, list_items
 from nutrime.knowledge.derivation import sync_from_intake
 from nutrime.knowledge.store import list_atoms, list_synthesized_entries
 from nutrime.recipes.gutenberg import seed_recipes as gutenberg_seed_recipes
+from nutrime.recipes.jsonld import (
+    read_urls_file,
+    seed_recipes as jsonld_seed_recipes,
+)
 from nutrime.recipes.myplate_wayback import seed_recipes as myplate_seed_recipes
 from nutrime.recipes.nhlbi import seed_recipes as nhlbi_seed_recipes
 from nutrime.recipes.search import attribution_line
@@ -154,10 +159,18 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
         outcome = gutenberg_seed_recipes(
             vault, pacer=pacer, books=books, limit=args.limit
         )
+    elif args.source == "urls":
+        if not args.urls_file:
+            print("--source urls requires --urls-file <path> (one URL per line)")
+            return 2
+        urls = read_urls_file(Path(args.urls_file).expanduser())
+        outcome = jsonld_seed_recipes(
+            vault, urls, pacer=pacer, limit=args.limit
+        )
     else:
         print(
             f"unknown --source {args.source!r}; wired sources:"
-            " themealdb, nhlbi, myplate_wayback, gutenberg"
+            " themealdb, nhlbi, myplate_wayback, gutenberg, urls"
         )
         return 2
     print(
@@ -169,6 +182,8 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
             f"Skipped {len(outcome.skipped_upstream_ids)} already-ingested"
             " upstream id(s)."
         )
+    for url, reason in getattr(outcome, "failures", ()):
+        print(f"  ! {url} — {reason}")
     return 0
 
 
@@ -537,6 +552,22 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from nutrime.webui import serve
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    server = serve(data_dir=data_dir, host=args.host, port=args.port)
+    print(f"NutriMe web UI: http://{args.host}:{args.port}/")
+    print("Press Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopped.")
+    finally:
+        server.server_close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="nutrime")
     parser.add_argument("--version", action="version", version=__version__)
@@ -627,7 +658,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="themealdb",
         help=(
             "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2),"
-            " gutenberg (4.3)."
+            " gutenberg (4.3), urls (4.4 schema.org JSON-LD scrape)."
+        ),
+    )
+    rec_fetch.add_argument(
+        "--urls-file",
+        default=None,
+        help=(
+            "For --source urls: file with one recipe-page URL per line"
+            " (# comments allowed) — e.g. links from a Pinterest export."
         ),
     )
     rec_fetch.add_argument(
@@ -884,6 +923,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     pl_show.set_defaults(func=_cmd_plans_show)
+
+    serve = subparsers.add_parser(
+        "serve",
+        help="Run the localhost web UI prototype (fridge search + phase"
+        " boosts + URL import).",
+    )
+    serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default: 127.0.0.1 — localhost only).",
+    )
+    serve.add_argument(
+        "--port", type=int, default=8765, help="Port (default: 8765)."
+    )
+    serve.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    serve.set_defaults(func=_cmd_serve)
 
     return parser
 
