@@ -614,6 +614,49 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_grocery_build(args: argparse.Namespace) -> int:
+    from nutrime.grocery.build import (
+        build_grocery_list,
+        render_markdown,
+        render_text,
+    )
+    from nutrime.inventory.store import list_items
+    from nutrime.plans.store import PlanVault
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    plan_vault = PlanVault(app.corpus_dir)
+
+    plan_id = args.plan_id
+    if plan_id is None:
+        plans = plan_vault.list_plans()
+        if not plans:
+            print("(no plans yet — run `nutrime plans generate`)")
+            return 1
+        plan_id = plans[-1].plan_id  # list_plans orders by created_at
+    if not plan_vault.exists(plan_id):
+        print(f"no such plan: {plan_id}")
+        return 1
+
+    inventory = [
+        item.name for item in list_items(app.substrate, app.tenant_id)
+    ]
+    groceries = build_grocery_list(
+        plan_vault.read(plan_id),
+        RecipeVault(app.corpus_dir),
+        inventory_names=inventory,
+    )
+    render = render_markdown if args.format == "markdown" else render_text
+    text = render(groceries)
+    if args.out:
+        out_path = Path(args.out).expanduser()
+        out_path.write_text(text, encoding="utf-8")
+        print(f"wrote {out_path}")
+    else:
+        print(text, end="")
+    return 0
+
+
 def _cmd_pinterest_connect(args: argparse.Namespace) -> int:
     from nutrime.recipes.pinterest import PinterestAuthError, connect_interactive
 
@@ -1048,6 +1091,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     pl_show.set_defaults(func=_cmd_plans_show)
+
+    grocery = subparsers.add_parser(
+        "grocery",
+        help="Build a grocery list from a meal plan (6.1).",
+    )
+    grocery_sub = grocery.add_subparsers(dest="grocery_command", required=True)
+    gr_build = grocery_sub.add_parser(
+        "build",
+        help="Aggregate a plan's recipes into a consolidated list.",
+    )
+    gr_build.add_argument(
+        "--plan-id",
+        default=None,
+        help="Plan to shop for (default: most recent plan).",
+    )
+    gr_build.add_argument(
+        "--format",
+        choices=("text", "markdown"),
+        default="text",
+        help="Output format (default: text checklist).",
+    )
+    gr_build.add_argument(
+        "--out",
+        default=None,
+        help="Write to a file instead of stdout.",
+    )
+    gr_build.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    gr_build.set_defaults(func=_cmd_grocery_build)
 
     pinterest = subparsers.add_parser(
         "pinterest",
