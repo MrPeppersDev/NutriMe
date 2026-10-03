@@ -114,9 +114,11 @@ class NutriMeWebServer(HTTPServer):
         self.data_dir = data_dir
         self._app = None
         self._app_lock = threading.Lock()
-        # Injectable for tests: the ingest fetcher + pacer
+        # Injectable for tests: the ingest fetcher + pacer, and the
+        # Pinterest JSON-API fetcher
         self.ingest_fetcher = None
         self.ingest_pacer: Pacer | None = None
+        self.pinterest_api_fetcher = None
 
     @property
     def app(self):
@@ -181,6 +183,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_inventory_list()
             elif route == "/api/phases":
                 self._api_phases()
+            elif route == "/api/pinterest/status":
+                self._api_pinterest_status()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -197,6 +201,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_inventory_remove()
             elif parsed.path == "/api/import":
                 self._api_import()
+            elif parsed.path == "/api/pinterest/sync":
+                self._api_pinterest_sync()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
@@ -390,6 +396,71 @@ class _Handler(BaseHTTPRequestHandler):
                 "failures": [
                     {"url": url, "reason": reason}
                     for url, reason in outcome.failures
+                ],
+                "corpus_count": self.server.vault.count(),
+            }
+        )
+
+
+    # -- API: Pinterest sync (#24) ------------------------------------------------
+
+    def _api_pinterest_status(self) -> None:
+        from nutrime.recipes.pinterest import KEYCHAIN_SERVICE, TOKEN_ENV, has_token
+
+        self._json(
+            {
+                "connected": has_token(),
+                "how_to_connect": (
+                    "Create a free Pinterest developer app (pins:read +"
+                    f" boards:read), then either set ${TOKEN_ENV} or run:"
+                    f" security add-generic-password -U -s {KEYCHAIN_SERVICE}"
+                    ' -a "$USER" -w'
+                ),
+            }
+        )
+
+    def _api_pinterest_sync(self) -> None:
+        from nutrime.recipes.pinterest import (
+            MissingTokenError,
+            PinterestAuthError,
+            PinterestClient,
+            resolve_token,
+            sync_pins,
+        )
+
+        payload = self._read_json_body()
+        board = str(payload.get("board") or "").strip() or None
+        try:
+            token = resolve_token()
+        except MissingTokenError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        client = PinterestClient(
+            token=token,
+            fetcher=self.server.pinterest_api_fetcher,
+            pacer=self.server.ingest_pacer,
+        )
+        try:
+            sync = sync_pins(
+                client,
+                self.server.vault,
+                board_name=board,
+                page_fetcher=self.server.ingest_fetcher,
+                pacer=self.server.ingest_pacer or Pacer(delay_s=1.0),
+            )
+        except (PinterestAuthError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(
+            {
+                "pins_seen": sync.pins_seen,
+                "pins_with_links": sync.pins_with_links,
+                "pins_without_links": sync.pins_without_links,
+                "written": sync.ingest.written,
+                "skipped": len(sync.ingest.skipped_upstream_ids),
+                "failures": [
+                    {"url": url, "reason": reason}
+                    for url, reason in sync.ingest.failures
                 ],
                 "corpus_count": self.server.vault.count(),
             }
@@ -676,16 +747,28 @@ PAGE = """<!doctype html>
   </section>
 
   <section class="importer">
-    <h2 class="serif">Bring in your saved recipes</h2>
-    <p class="hint">Paste links to recipe pages — for example the links behind your
-    Pinterest pins (open a pin → visit site → copy the address). One per line.
-    They're saved into the household collection, credited to their source.</p>
-    <textarea id="importUrls" placeholder="https://..."></textarea>
-    <div class="importRow">
-      <button class="btn-go" id="importGo">Import recipes</button>
-      <span class="hint" id="importBusy" style="display:none">fetching — about a second per link…</span>
+    <h2 class="serif">Your Pinterest, searchable</h2>
+    <div id="pinBox">
+      <p class="hint" id="pinHint"></p>
+      <div class="importRow" id="pinRow" style="display:none">
+        <button class="btn-go" id="pinSync">Sync my pins</button>
+        <input type="text" id="pinBoard" placeholder="board name (optional — all pins if blank)"
+               style="flex:1 1 220px;font-size:14.5px;padding:11px 14px;border:1.5px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-family:inherit">
+        <span class="hint" id="pinBusy" style="display:none">syncing — about a second per new pin…</span>
+      </div>
+      <div class="importReport" id="pinReport"></div>
     </div>
-    <div class="importReport" id="importReport"></div>
+    <details style="margin-top:18px">
+      <summary class="hint" style="cursor:pointer">Or paste recipe links by hand</summary>
+      <div style="margin-top:10px">
+      <textarea id="importUrls" placeholder="https://..."></textarea>
+      <div class="importRow">
+        <button class="btn-go" id="importGo">Import recipes</button>
+        <span class="hint" id="importBusy" style="display:none">fetching — about a second per link…</span>
+      </div>
+      <div class="importReport" id="importReport"></div>
+      </div>
+    </details>
   </section>
 </main>
 
@@ -864,6 +947,40 @@ $("importGo").onclick = async () => {
   if (data.written) { $("importUrls").value = ""; doSearch(); }
 };
 
+/* -- pinterest sync -- */
+async function loadPinterestStatus() {
+  const s = await jget("/api/pinterest/status");
+  if (s.connected) {
+    $("pinHint").textContent = "Pinterest is connected. Sync pulls in any new pins" +
+      " \\u2014 already-saved recipes are skipped automatically, so run it any time.";
+    $("pinRow").style.display = "flex";
+  } else {
+    $("pinHint").textContent = "Not connected yet. One-time setup on this machine: " +
+      s.how_to_connect;
+  }
+}
+$("pinSync").onclick = async () => {
+  $("pinBusy").style.display = "inline";
+  $("pinReport").textContent = "";
+  const data = await jpost("/api/pinterest/sync", {board: $("pinBoard").value.trim()});
+  $("pinBusy").style.display = "none";
+  if (data.error) { $("pinReport").innerHTML = '<span class="bad">' + esc(data.error) + "</span>"; return; }
+  let msg = "Looked at " + data.pins_seen + " pin" + (data.pins_seen === 1 ? "" : "s") +
+    " \\u00b7 saved " + data.written + " new recipe" + (data.written === 1 ? "" : "s") +
+    " (" + data.corpus_count + " in the collection).";
+  if (data.skipped) msg += " " + data.skipped + " already saved.";
+  if (data.pins_without_links) msg += " " + data.pins_without_links +
+    " pin" + (data.pins_without_links === 1 ? " is" : "s are") +
+    " image-only (no recipe page to read yet).";
+  $("pinReport").textContent = msg;
+  if (data.failures.length) {
+    const lines = data.failures.map(f => f.url + " \\u2014 " + f.reason);
+    $("pinReport").innerHTML += '<br><span class="bad">Couldn\\u2019t read ' +
+      data.failures.length + ":</span><br>" + lines.map(esc).join("<br>");
+  }
+  if (data.written) doSearch();
+};
+
 $("go").onclick = doSearch;
 $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
 ["useInventory", "applyConstraints", "maxTime"].forEach(id =>
@@ -871,6 +988,7 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 
 loadPhases();
 loadInventory();
+loadPinterestStatus();
 doSearch();
 </script>
 </body>

@@ -159,6 +159,39 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
         outcome = gutenberg_seed_recipes(
             vault, pacer=pacer, books=books, limit=args.limit
         )
+    elif args.source == "pinterest":
+        from nutrime.recipes.pinterest import (
+            MissingTokenError,
+            PinterestAuthError,
+            PinterestClient,
+            resolve_token,
+            sync_pins,
+        )
+
+        try:
+            token = resolve_token()
+        except MissingTokenError as err:
+            print(str(err))
+            return 2
+        client = PinterestClient(token=token, pacer=pacer)
+        try:
+            sync = sync_pins(
+                client,
+                vault,
+                board_name=args.board,
+                limit=args.limit,
+                pacer=pacer,
+            )
+        except (PinterestAuthError, ValueError) as err:
+            print(str(err))
+            return 2
+        print(
+            f"Pinterest: {sync.pins_seen} pin(s) seen,"
+            f" {sync.pins_with_links} with recipe links,"
+            f" {sync.pins_without_links} without usable links"
+            " (image-only pins stay on the #24 follow-up)."
+        )
+        outcome = sync.ingest
     elif args.source == "urls":
         if not args.urls_file:
             print("--source urls requires --urls-file <path> (one URL per line)")
@@ -170,7 +203,7 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
     else:
         print(
             f"unknown --source {args.source!r}; wired sources:"
-            " themealdb, nhlbi, myplate_wayback, gutenberg, urls"
+            " themealdb, nhlbi, myplate_wayback, gutenberg, urls, pinterest"
         )
         return 2
     print(
@@ -658,7 +691,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="themealdb",
         help=(
             "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2),"
-            " gutenberg (4.3), urls (4.4 schema.org JSON-LD scrape)."
+            " gutenberg (4.3), urls (4.4 schema.org JSON-LD scrape),"
+            " pinterest (board sync via API, #24)."
+        ),
+    )
+    rec_fetch.add_argument(
+        "--board",
+        default=None,
+        help=(
+            "For --source pinterest: sync only the named board"
+            " (default: all pins on the account)."
         ),
     )
     rec_fetch.add_argument(

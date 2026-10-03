@@ -223,3 +223,60 @@ class TestPhasesApi:
         assert keys == ["menstrual", "follicular", "ovulatory", "luteal"]
         assert all(p["evidence_note"] for p in data["phases"])
         assert "prototype" in data["disclosure"]
+
+
+class TestPinterestApi:
+    def test_status_disconnected(self, server, monkeypatch) -> None:
+        monkeypatch.delenv("PINTEREST_ACCESS_TOKEN", raising=False)
+        monkeypatch.setattr(
+            "nutrime.recipes.pinterest.keychain_token", lambda: None
+        )
+        data = _get(server, "/api/pinterest/status")
+        assert data["connected"] is False
+        assert "nutrime-pinterest" in data["how_to_connect"]
+
+    def test_sync_without_token_errors(self, server, monkeypatch) -> None:
+        monkeypatch.delenv("PINTEREST_ACCESS_TOKEN", raising=False)
+        monkeypatch.setattr(
+            "nutrime.recipes.pinterest.keychain_token", lambda: None
+        )
+        err = _post(server, "/api/pinterest/sync", {})
+        assert "error" in err
+
+    def test_sync_end_to_end(self, server, monkeypatch) -> None:
+        monkeypatch.setenv("PINTEREST_ACCESS_TOKEN", "tkn")
+
+        def fake_api(url: str, token: str) -> dict:
+            assert token == "tkn"
+            return {
+                "items": [
+                    {"id": "1", "link": "https://pin.example.com/soup",
+                     "title": "", "board_id": "b1"},
+                    {"id": "2", "link": "", "title": "", "board_id": "b1"},
+                ],
+                "bookmark": None,
+            }
+
+        node = {
+            "@type": "Recipe",
+            "name": "Synced Soup",
+            "recipeIngredient": ["1 onion"],
+            "recipeInstructions": "Simmer.",
+            "recipeYield": "2",
+        }
+        page = (
+            '<script type="application/ld+json">'
+            + json.dumps(node)
+            + "</script>"
+        )
+        server.pinterest_api_fetcher = fake_api
+        server.ingest_fetcher = lambda url: page
+        server.ingest_pacer = Pacer(delay_s=0, sleep=lambda _: None)
+
+        data = _post(server, "/api/pinterest/sync", {})
+        assert data["pins_seen"] == 2
+        assert data["written"] == 1
+        assert data["pins_without_links"] == 1
+
+        found = _get(server, "/api/search?q=Synced")
+        assert found["results"][0]["title"] == "Synced Soup"
