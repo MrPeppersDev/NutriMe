@@ -192,6 +192,34 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
             " (image-only pins stay on the #24 follow-up)."
         )
         outcome = sync.ingest
+    elif args.source == "board":
+        from nutrime.recipes.pinboard import (
+            GalleryDlUnavailable,
+            backfill_board,
+        )
+
+        if not args.board_url:
+            print("--source board requires --board-url <public board URL>")
+            return 2
+        try:
+            backfill = backfill_board(
+                args.board_url,
+                vault,
+                app.data_dir,
+                pacer=pacer,
+                limit=args.limit,
+            )
+        except (GalleryDlUnavailable, RuntimeError) as err:
+            print(str(err))
+            return 2
+        print(
+            f"Board: {backfill.pins_seen} pin(s) seen,"
+            f" {backfill.pins_with_links} with recipe links,"
+            f" {backfill.image_only_total} image-only"
+            f" ({backfill.image_only_queued} newly queued for vision"
+            " extraction)."
+        )
+        outcome = backfill.ingest
     elif args.source == "urls":
         if not args.urls_file:
             print("--source urls requires --urls-file <path> (one URL per line)")
@@ -203,7 +231,8 @@ def _cmd_recipes_fetch(args: argparse.Namespace) -> int:
     else:
         print(
             f"unknown --source {args.source!r}; wired sources:"
-            " themealdb, nhlbi, myplate_wayback, gutenberg, urls, pinterest"
+            " themealdb, nhlbi, myplate_wayback, gutenberg, urls,"
+            " pinterest, board"
         )
         return 2
     print(
@@ -737,7 +766,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Seed source: themealdb (4.1), nhlbi or myplate_wayback (4.2),"
             " gutenberg (4.3), urls (4.4 schema.org JSON-LD scrape),"
-            " pinterest (board sync via API, #24)."
+            " pinterest (board sync via API, #24),"
+            " board (public-board backfill via gallery-dl, #24)."
+        ),
+    )
+    rec_fetch.add_argument(
+        "--board-url",
+        default=None,
+        help=(
+            "For --source board: public Pinterest board URL"
+            " (pin.it short links are followed)."
         ),
     )
     rec_fetch.add_argument(
