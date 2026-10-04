@@ -1,0 +1,244 @@
+<title>NutriMe Plan Ledger</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --paper: #F7F2E8;
+    --card: #FFFDF7;
+    --ink: #2B2620;
+    --ink-soft: #6F6557;
+    --line: #E2D8C4;
+    --accent: #BC4B27;      /* left / needs-attention */
+    --built: #47603F;       /* done */
+    --built-soft: #EBEFE3;
+    --partial: #B98A2E;     /* partially built */
+    --partial-soft: #F7EED8;
+    --left-soft: #F7E3DA;
+    --parked: #8A8070;      /* deliberately parked */
+    --parked-soft: #EFEAE0;
+    --blocked-soft: #F3D9D2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #211C16;
+      --card: #2A241D;
+      --ink: #EDE6D8;
+      --ink-soft: #A89C88;
+      --line: #3D362C;
+      --accent: #E07A52;
+      --built: #9DB88A;
+      --built-soft: #32392B;
+      --partial: #D9B05E;
+      --partial-soft: #3D3524;
+      --left-soft: #42291F;
+      --parked: #9A907E;
+      --parked-soft: #353027;
+      --blocked-soft: #4A2B21;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #211C16;
+    --card: #2A241D;
+    --ink: #EDE6D8;
+    --ink-soft: #A89C88;
+    --line: #3D362C;
+    --accent: #E07A52;
+    --built: #9DB88A;
+    --built-soft: #32392B;
+    --partial: #D9B05E;
+    --partial-soft: #3D3524;
+    --left-soft: #42291F;
+    --parked: #9A907E;
+    --parked-soft: #353027;
+    --blocked-soft: #4A2B21;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 15.5px/1.55 "Public Sans", -apple-system, "Segoe UI", sans-serif;
+    padding: 48px 20px 80px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--built); font-weight: 700;
+  }
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: clamp(30px, 4.5vw, 44px);
+    font-weight: 500; line-height: 1.1; margin: 10px 0 8px;
+    text-wrap: balance;
+  }
+  .sub { color: var(--ink-soft); max-width: 62ch; }
+  .sub b { color: var(--ink); }
+
+  /* summary band */
+  .band {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin: 28px 0 8px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat .n {
+    font-family: "Fraunces", Georgia, serif; font-size: 30px; font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .stat .l { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  .stat.built .n { color: var(--built); }
+  .stat.partial .n { color: var(--partial); }
+  .stat.left .n { color: var(--accent); }
+  .stat.parked .n { color: var(--parked); }
+
+  h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 23px; font-weight: 600; margin: 44px 0 4px;
+  }
+  .h2note { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 14px; max-width: 70ch; }
+
+  /* ledger rows */
+  .ledger { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 13px 16px 13px 13px; display: flex; gap: 14px; align-items: flex-start;
+    border-left-width: 4px;
+  }
+  .row.built   { border-left-color: var(--built); }
+  .row.partial { border-left-color: var(--partial); }
+  .row.left    { border-left-color: var(--accent); }
+  .row.parked  { border-left-color: var(--parked); }
+  .row .body { flex: 1; min-width: 0; }
+  .row h3 { font-size: 15.5px; font-weight: 600; display: inline; }
+  .row p { font-size: 13.5px; color: var(--ink-soft); margin-top: 3px; }
+  .row p b { color: var(--ink); font-weight: 600; }
+  .chip {
+    flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
+    margin-top: 1px; white-space: nowrap;
+  }
+  .chip.built   { background: var(--built-soft);   color: var(--built); }
+  .chip.partial { background: var(--partial-soft); color: var(--partial); }
+  .chip.left    { background: var(--left-soft);    color: var(--accent); }
+  .chip.parked  { background: var(--parked-soft);  color: var(--parked); }
+  .chip.blocked { background: var(--blocked-soft); color: var(--accent); }
+  .tag {
+    display: inline-block; font-size: 11.5px; color: var(--ink-soft);
+    border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px;
+    margin-left: 6px; vertical-align: 1px;
+  }
+
+  /* the left-column grid for "what's left" taxonomy */
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+  .col {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px;
+  }
+  .col h3 {
+    font-family: "Fraunces", Georgia, serif; font-size: 17px; font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .col .why { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 12px; }
+  .col ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .col li { font-size: 13.5px; padding-left: 14px; position: relative; }
+  .col li::before {
+    content: ""; position: absolute; left: 0; top: 7px;
+    width: 6px; height: 6px; border-radius: 999px; background: var(--accent);
+  }
+  .col.parkedcol li::before { background: var(--parked); }
+  .col.blockedcol li::before { background: var(--accent); }
+  .col li .d { color: var(--ink-soft); }
+  .col li .iss { color: var(--ink-soft); font-size: 12px; }
+
+  .foot {
+    margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-soft); max-width: 75ch;
+  }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0 0; }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">NutriMe &middot; Stage 6 build vs. the original plan &middot; 2026-10-04</div>
+  <h1>What was promised, what's built, what's left</h1>
+  <p class="sub">The original promise = the April genesis dialogue (product-framing.md) + the 9-step Stage&nbsp;6 plan + the architecture decisions (Blocks A&ndash;E). Current state: <b>581 tests</b>, <b>4,817-recipe vetted corpus</b> (725 of them her pins), the full pin&nbsp;&rarr;&nbsp;search&nbsp;&rarr;&nbsp;cook&nbsp;&rarr;&nbsp;learn&nbsp;&rarr;&nbsp;shop loop running at localhost:8765.</p>
+
+  <div class="legend">
+    <span class="chip built">Built</span>
+    <span class="chip partial">Partial</span>
+    <span class="chip left">Left</span>
+    <span class="chip parked">Parked by decision</span>
+    <span class="chip blocked">Blocked on key</span>
+  </div>
+
+  <div class="band">
+    <div class="stat built"><div class="n">7&frac12;</div><div class="l">of 9 plan steps built</div></div>
+    <div class="stat built"><div class="n">6/7</div><div class="l">genesis promises running</div></div>
+    <div class="stat left"><div class="n">3</div><div class="l">core items left (6.2, full C5, ship)</div></div>
+    <div class="stat parked"><div class="n">2</div><div class="l">whole tracks parked (G, local LLM)</div></div>
+  </div>
+
+  <h2>The nine-step build plan</h2>
+  <p class="h2note">stage3-plan.md's Stage 6 sequence &mdash; the operational "OG plan."</p>
+  <div class="ledger">
+    <div class="row built"><div class="body"><h3>1 &middot; Foundation</h3><p>Dual SQLite + migrations, tenancy, constitutional rule layer, PHI envelope. Hardened since: L1 adversarial gate (41-payload corpus), SSRF guard.</p></div><span class="chip built">Built</span></div>
+    <div class="row built"><div class="body"><h3>2 &middot; Intake</h3><p>Screener trio + profile (2.1), pantry/fridge/freezer inventory (2.2). Consent-clean retroactively via #21.</p></div><span class="chip built">Built</span></div>
+    <div class="row built"><div class="body"><h3>3 &middot; Knowledge model</h3><p>Atom + synthesized-entry tables, intake derivation, abstracted-constraint stub. <b>Molecule table deliberately skipped</b> (no consumers yet &mdash; by design, not drift).</p></div><span class="chip built">Built</span></div>
+    <div class="row built"><div class="body"><h3>4 &middot; Recipe sourcing</h3><p>All four seed adapters + the once-parked 4.4 URL-scrape (now the Pinterest path). Corpus vetted: 76 titles normalized, 108 junk entries quarantined.</p></div><span class="chip built">Built</span></div>
+    <div class="row partial"><div class="body"><h3>5 &middot; LLM meal-plan generation</h3><p>Planner, per-meal crossings, selection guard, audit trail &mdash; all built and tested against stubs. <b>Live success-path has never run</b>: the Anthropic key 403s (pre-dates 5.4; console-side).</p></div><span class="chip blocked">Blocked on key</span></div>
+    <div class="row partial"><div class="body"><h3>6 &middot; Grocery</h3><p><b>6.1 built</b> (merge-gate aggregation, provenance ledger, presence netting, text/markdown export, web API). <b>6.2 Instacart cart hand-off not started</b> &mdash; the last leg of "boom, shows up at my door."</p></div><span class="chip partial">Partial</span></div>
+    <div class="row built"><div class="body"><h3>7 &middot; Per-meal feedback</h3><p>C5 two-stage capture (cooking experience now, body response later), consent-gated, and &mdash; via the vision audit &mdash; it now <b>feeds back into ranking</b>.</p></div><span class="chip built">Built</span></div>
+    <div class="row partial"><div class="body"><h3>8 &middot; Daily-cadence interaction</h3><p>Tonight panel built: tonight's meal, cooked-capture, pending feel-prompt, use-soon strip. <b>Left: adaptive time-of-day home surface, notifications, "reorient tonight's meal" quick-action.</b></p></div><span class="chip partial">Partial</span></div>
+    <div class="row left"><div class="body"><h3>9 &middot; v0.1 ship + iterate</h3><p>The next real milestone: hand it to the household, let real use drive the roadmap. Nothing technical blocks a localhost "ship" today.</p></div><span class="chip left">Left</span></div>
+  </div>
+
+  <h2>The genesis promises</h2>
+  <p class="h2note">product-framing.md's seven-part product definition, from the April dialogue.</p>
+  <div class="ledger">
+    <div class="row built"><div class="body"><h3>Intelligent intake</h3><p>Baseline built. The "periodic 5&ndash;15 min check-ins" refinement rides with Track&nbsp;G (#25).</p></div><span class="chip built">Built</span></div>
+    <div class="row parked"><div class="body"><h3>Holistic dietary education</h3><p>Evidence tiers, audit-as-education, epistemic-trail UX &mdash; the heart of Track&nbsp;G, parked whole with it. The honesty <i>plumbing</i> (audit events, evidence notes on cycle phases) exists.</p></div><span class="chip parked">Parked (Track G)</span></div>
+    <div class="row built"><div class="body"><h3>Meal planning that honors + broadens</h3><p>Planner honors constraints/preferences; vision-audit added the broadening half (novelty nudge, new-cuisine tags).</p></div><span class="chip built">Built</span></div>
+    <div class="row partial"><div class="body"><h3>"Boom, shows up at my door"</h3><p>List-building: yes. Door: no &mdash; that's 6.2 Instacart.</p></div><span class="chip partial">Partial</span></div>
+    <div class="row left"><div class="body"><h3>Guided cooking execution</h3><p>Recipes carry steps, times, equipment, your-real-time correction. The orchestration layer ("when to start the rice") was <b>never a numbered step</b> &mdash; the one genesis promise with no plan slot. Honest gap; sits near the not-a-cooking-class boundary.</p></div><span class="chip left">Left (unplanned)</span></div>
+    <div class="row built"><div class="body"><h3>Passive confirmation + semantic feedback</h3><p>Built end to end, including the learning-loop consumers the audit caught missing.</p></div><span class="chip built">Built</span></div>
+    <div class="row partial"><div class="body"><h3>Epistemic trail of honesty</h3><p>System-side trail is real (audited crossings, request-id correlation, consent records, evidence notes). User-facing "show your work" surface awaits Track&nbsp;G.</p></div><span class="chip partial">Partial</span></div>
+  </div>
+
+  <h2>What's left, by why it's left</h2>
+  <p class="h2note">Three different kinds of "not built" &mdash; conflating them is how plans rot.</p>
+  <div class="cols">
+    <div class="col">
+      <h3>Open by sequence</h3>
+      <div class="why">Next in line; nothing stops them but hours.</div>
+      <ul>
+        <li><b>6.2 Instacart cart integration</b> <span class="d">&mdash; recipe-link IDP hand-off; closes the door-delivery promise</span></li>
+        <li><b>Full C5 daily surface</b> <span class="d">&mdash; adaptive home screen, notifications, reorient-tonight</span></li>
+        <li><b>Step 9: ship v0.1</b> <span class="d">&mdash; household use; real feedback drives everything after</span></li>
+        <li><b>Cooking orchestration</b> <span class="d">&mdash; needs a scope decision first (it never had a plan slot)</span></li>
+      </ul>
+    </div>
+    <div class="col blockedcol">
+      <h3>Blocked on the key</h3>
+      <div class="why">One console-side 403 gates all of it. Everything downstream is wired.</div>
+      <ul>
+        <li><b>Live LLM plan generation</b> <span class="d">&mdash; the step-5 success path has never run for real</span></li>
+        <li><b>Vision extraction queue</b> <span class="d">&mdash; 70 image-only pins + the no-JSON-LD old blogs; design posted on #24</span></li>
+        <li><b>LLM ingredient-parse upgrade</b> <span class="d">&mdash; the swappable-backend seam is waiting</span></li>
+      </ul>
+    </div>
+    <div class="col parkedcol">
+      <h3>Parked by decision</h3>
+      <div class="why">Deliberate calls, each with a recorded resume trigger.</div>
+      <ul>
+        <li><b>Track G entirely</b> <span class="d">&mdash; DRI/life-stage constraint derivation, evidence-tier UX, CAT/IRT intake, real cycle-phase mapping</span> <span class="iss">(#25, #14, #15)</span></li>
+        <li><b>Local LLM tier</b> <span class="d">&mdash; the A3-v2 two-tier privacy architecture; awaits the &ge;64&nbsp;GB production host</span> <span class="iss">(#7&ndash;#11, #19)</span></li>
+        <li><b>Pinterest official API</b> <span class="d">&mdash; built + dormant; resume = business acct + landing page + resubmit</span> <span class="iss">(#24)</span></li>
+        <li><b>Transport/auth for home server + iPhone</b> <span class="d">&mdash; post-MVP per A-v2</span> <span class="iss">(#12)</span></li>
+        <li><b>Substrate vector index + local embeddings</b> <span class="d">&mdash; deferred until lexical scan hurts</span> <span class="iss">(#13, #16, #4)</span></li>
+        <li><b>Publication tracks</b> <span class="d">&mdash; data capture stays publication-clean; push waits for a named opportunity</span></li>
+        <li><b>E4 quarterly corpus re-verification + S6 ingredient resolver</b> <span class="d">&mdash; refresh cadence designed, not yet due</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="foot">Sources: stage3-plan.md (step statuses + landed notes), product-framing.md (genesis promises), roadmap.md (vision-audit + product-pull sections), architecture.md Blocks A&ndash;E, open GitHub issues as of 2026-10-04. The one-line read: <b>the convenience loop the product was pitched on is fully operational; what remains is the delivery leg (6.2), the daily-ritual polish (C5), the guidance track that was consciously parked &mdash; and shipping it to its first real user.</b></p>
+</div>
