@@ -77,3 +77,34 @@ class TestConstants:
         stamp = now_iso()
         assert stamp.endswith("Z")
         assert "T" in stamp
+
+
+class TestSsrfGuard:
+    def test_localhost_refused(self) -> None:
+        from nutrime.recipes.web import UnsafeUrlError, check_url_safety
+
+        import pytest
+
+        for url in (
+            "http://127.0.0.1/admin",
+            "http://localhost:8765/api/inventory",
+            "http://169.254.169.254/latest/meta-data/",
+            "file:///etc/passwd",
+        ):
+            with pytest.raises(UnsafeUrlError):
+                check_url_safety(url)
+
+    def test_private_ranges_refused(self) -> None:
+        from nutrime.recipes.web import UnsafeUrlError, check_url_safety
+
+        import pytest
+
+        for url in ("http://10.0.0.5/x", "http://192.168.1.1/x"):
+            with pytest.raises(UnsafeUrlError):
+                check_url_safety(url)
+
+    def test_public_host_passes(self) -> None:
+        from nutrime.recipes.web import check_url_safety
+
+        # Resolves live; example.com is stable public infrastructure.
+        check_url_safety("https://example.com/recipe")

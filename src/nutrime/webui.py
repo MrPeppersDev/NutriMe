@@ -189,6 +189,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_pinterest_status()
             elif route == "/api/sources":
                 self._api_sources()
+            elif route == "/api/tonight":
+                self._api_tonight()
+            elif route == "/api/grocery":
+                self._api_grocery(query)
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -207,6 +211,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_import()
             elif parsed.path == "/api/pinterest/sync":
                 self._api_pinterest_sync()
+            elif parsed.path == "/api/meals/cooked":
+                self._api_meals_cooked()
+            elif parsed.path == "/api/meals/feel":
+                self._api_meals_feel()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
@@ -414,6 +422,202 @@ class _Handler(BaseHTTPRequestHandler):
             }
         )
 
+
+    # -- API: tonight (step 8 daily-cadence slice) + feedback (step 7) --------
+
+    def _api_tonight(self) -> None:
+        """Daily-cadence slice (C5 Q5.1): tonight's planned meal if a plan
+        covers today, latest cooked meal awaiting its body-response prompt,
+        and recent history — the home-screen payload."""
+        from nutrime.feedback import meal_history
+        from nutrime.plans.store import PlanVault, parse_plan_body
+
+        app = self.server.app
+        plan_vault = PlanVault(app.corpus_dir)
+        tonight = None
+        plans = plan_vault.list_plans() if plan_vault.root.exists() else []
+        if plans:
+            latest = plans[-1]
+            entries = [e for e in latest.entries() if e.filled]
+            if entries:
+                from datetime import date, datetime
+
+                created = str(latest.frontmatter.get("created_at", ""))[:10]
+                try:
+                    day_index = (
+                        date.today() - datetime.fromisoformat(created).date()
+                    ).days + 1
+                except ValueError:
+                    day_index = 1
+                todays = [e for e in entries if e.day == day_index]
+                pick = todays[0] if todays else None
+                if pick is not None:
+                    detail = {}
+                    if self.server.vault.exists(pick.recipe_id):
+                        record = self.server.vault.read(pick.recipe_id)
+                        detail = {
+                            "total_time_min": record.frontmatter.get(
+                                "estimated_total_time_min"
+                            ),
+                            "attribution": attribution_line(record.frontmatter),
+                        }
+                    tonight = {
+                        "plan_id": latest.plan_id,
+                        "day": pick.day,
+                        "slot": pick.slot,
+                        "recipe_id": pick.recipe_id,
+                        "title": pick.title,
+                        **detail,
+                    }
+        history = meal_history(app.substrate, app.tenant_id, limit=8)
+        awaiting_feel = next(
+            (e for e in history if e.body_response is None), None
+        )
+        self._json(
+            {
+                "tonight": tonight,
+                "awaiting_feel": (
+                    {
+                        "meal_event_id": awaiting_feel.meal_event_id,
+                        "recipe_title": awaiting_feel.recipe_title,
+                        "cooked_at": awaiting_feel.cooked_at,
+                    }
+                    if awaiting_feel
+                    else None
+                ),
+                "history": [
+                    {
+                        "meal_event_id": e.meal_event_id,
+                        "recipe_id": e.recipe_id,
+                        "recipe_title": e.recipe_title,
+                        "cooked_at": e.cooked_at,
+                        "ease_rating": e.ease_rating,
+                        "enjoyment_rating": e.enjoyment_rating,
+                        "body_response": e.body_response,
+                        "actual_time_min": e.actual_time_min,
+                    }
+                    for e in history
+                ],
+            }
+        )
+
+    def _api_meals_cooked(self) -> None:
+        from nutrime.consent import ConsentError
+        from nutrime.feedback import (
+            record_cooking_experience,
+            record_meal_event,
+            record_time_feedback,
+        )
+
+        payload = self._read_json_body()
+        recipe_id = str(payload.get("recipe_id") or "").strip()
+        if not recipe_id or not self.server.vault.exists(recipe_id):
+            self._json({"error": "recipe not found"}, status=404)
+            return
+        record = self.server.vault.read(recipe_id)
+        app = self.server.app
+        try:
+            meal_event_id = record_meal_event(
+                app.substrate,
+                app.tenant_id,
+                recipe_id=recipe_id,
+                recipe_title=str(record.frontmatter.get("title", "")),
+                plan_id=str(payload.get("plan_id") or "") or None,
+            )
+            ease = payload.get("ease")
+            enjoyment = payload.get("enjoyment")
+            if ease is not None and enjoyment is not None:
+                record_cooking_experience(
+                    app.substrate,
+                    app.tenant_id,
+                    meal_event_id=meal_event_id,
+                    ease_rating=int(ease),
+                    enjoyment_rating=int(enjoyment),
+                    freetext_notes=str(payload.get("notes") or "") or None,
+                )
+            actual = payload.get("actual_minutes")
+            if actual is not None:
+                estimated = record.frontmatter.get("estimated_total_time_min")
+                record_time_feedback(
+                    app.substrate,
+                    app.tenant_id,
+                    meal_event_id=meal_event_id,
+                    estimated_time_min=(
+                        int(estimated) if estimated is not None else None
+                    ),
+                    actual_time_min=int(actual),
+                )
+        except (ConsentError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json({"meal_event_id": meal_event_id})
+
+    def _api_meals_feel(self) -> None:
+        from nutrime.consent import ConsentError
+        from nutrime.feedback import record_body_response
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            atom_id = record_body_response(
+                app.substrate,
+                app.tenant_id,
+                meal_event_id=str(payload.get("meal_event_id") or ""),
+                freetext_response=str(payload.get("response") or ""),
+                energy_rating=payload.get("energy"),
+                digestion_rating=payload.get("digestion"),
+                fullness_rating=payload.get("fullness"),
+                mood_rating=payload.get("mood"),
+            )
+        except (ConsentError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json({"recorded": atom_id})
+
+    def _api_grocery(self, query: dict[str, list[str]]) -> None:
+        from nutrime.grocery.aggregate import display_amount
+        from nutrime.grocery.build import build_grocery_list
+        from nutrime.plans.store import PlanVault
+
+        app = self.server.app
+        plan_vault = PlanVault(app.corpus_dir)
+        plan_id = (query.get("plan_id") or [""])[0].strip()
+        plans = plan_vault.list_plans() if plan_vault.root.exists() else []
+        if not plan_id:
+            if not plans:
+                self._json({"error": "no plans yet"}, status=404)
+                return
+            plan_id = plans[-1].plan_id
+        if not plan_vault.exists(plan_id):
+            self._json({"error": f"no such plan: {plan_id}"}, status=404)
+            return
+        inventory = [
+            item.name for item in list_items(app.substrate, app.tenant_id)
+        ]
+        groceries = build_grocery_list(
+            plan_vault.read(plan_id),
+            self.server.vault,
+            inventory_names=inventory,
+        )
+
+        def _line(line) -> dict[str, Any]:
+            return {
+                "food": line.food,
+                "amount": display_amount(line),
+                "notes": line.notes,
+                "recipes": sorted(
+                    {c.recipe_title for c in line.contributions}
+                ),
+            }
+
+        self._json(
+            {
+                "plan_id": groceries.plan_id,
+                "to_buy": [_line(l) for l in groceries.to_buy],
+                "have": [_line(l) for l in groceries.have],
+                "missing_recipe_ids": list(groceries.missing_recipe_ids),
+            }
+        )
 
     def _api_sources(self) -> None:
         counts: dict[str, int] = {}
@@ -748,6 +952,11 @@ PAGE = """<!doctype html>
 </header>
 
 <main>
+  <section class="ask" id="tonightBox" style="display:none;margin-bottom:0">
+    <label class="lbl">Tonight</label>
+    <div id="tonightBody"></div>
+  </section>
+
   <section class="ask">
     <label class="lbl" for="have">I have…</label>
     <div class="haveRow">
@@ -1024,6 +1233,58 @@ $("importGo").onclick = async () => {
   if (data.written) { $("importUrls").value = ""; doSearch(); }
 };
 
+/* -- tonight panel (step 8 slice) + feedback (step 7) -- */
+async function loadTonight() {
+  const data = await jget("/api/tonight");
+  const box = $("tonightBox"), body = $("tonightBody");
+  const parts = [];
+  if (data.tonight) {
+    const t = data.tonight;
+    parts.push(
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
+      '<span class="serif" style="font-size:21px">' + esc(t.title) + "</span>" +
+      (t.total_time_min ? '<span class="hint">\\u23f1 ' + t.total_time_min + " min</span>" : "") +
+      '<button class="btn-quiet" onclick="openDetail(\\'' + esc(t.recipe_id) + '\\')">view recipe</button>' +
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="markCooked(\\'' +
+      esc(t.recipe_id) + '\\',\\'' + esc(t.plan_id) + '\\')">We cooked it</button>' +
+      "</div>"
+    );
+  }
+  if (data.awaiting_feel) {
+    const a = data.awaiting_feel;
+    parts.push(
+      '<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">' +
+      '<span class="hint">About ' + esc(a.recipe_title) + ' \\u2014 how did it make your body feel?</span><br>' +
+      '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
+      '<input type="text" id="feelText" placeholder="e.g. great energy all evening"' +
+      ' style="flex:1 1 260px;font-size:14.5px;padding:10px 13px;border:1.5px solid var(--line);border-radius:9px;font-family:inherit">' +
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="sendFeel(\\'' +
+      esc(a.meal_event_id) + '\\')">Save</button></div></div>'
+    );
+  }
+  if (!parts.length) { box.style.display = "none"; return; }
+  body.innerHTML = parts.join("");
+  box.style.display = "block";
+}
+async function markCooked(recipeId, planId) {
+  const ease = prompt("How easy was it to make? (1-5, blank to skip)");
+  let payload = {recipe_id: recipeId, plan_id: planId};
+  if (ease) {
+    const fun = prompt("How enjoyable to make? (1-5)");
+    if (fun) { payload.ease = parseInt(ease); payload.enjoyment = parseInt(fun); }
+  }
+  const mins = prompt("Actual minutes it took? (blank to skip)");
+  if (mins) payload.actual_minutes = parseInt(mins);
+  const res = await jpost("/api/meals/cooked", payload);
+  if (res.error) alert(res.error); else loadTonight();
+}
+async function sendFeel(mealEventId) {
+  const text = $("feelText").value.trim();
+  if (!text) return;
+  const res = await jpost("/api/meals/feel", {meal_event_id: mealEventId, response: text});
+  if (res.error) alert(res.error); else loadTonight();
+}
+
 /* -- pinterest sync -- */
 async function loadPinterestStatus() {
   const s = await jget("/api/pinterest/status");
@@ -1067,6 +1328,7 @@ loadPhases();
 loadSources();
 loadInventory();
 loadPinterestStatus();
+loadTonight();
 doSearch();
 </script>
 </body>

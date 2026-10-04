@@ -16,6 +16,7 @@ from __future__ import annotations
 import html as html_lib
 import re
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -29,7 +30,45 @@ USER_AGENT = (
 TextFetcher = Callable[[str], str]
 
 
+class UnsafeUrlError(Exception):
+    """URL resolves to a private/internal address — refused (SSRF guard)."""
+
+
+def check_url_safety(url: str) -> None:
+    """Reject URLs whose host resolves to non-public address space.
+
+    Sweep #16 security pattern (stdlib cut): the web UI accepts arbitrary
+    user-pasted URLs, so a crafted link must not be able to make the
+    server fetch localhost/LAN/cloud-metadata addresses. Every resolved
+    address must be globally routable. (Connection pinning to the
+    validated IP is deferred — single-household localhost server; DNS
+    rebinding within the fetch window is out of threat model at MVP.)
+    """
+    import ipaddress
+    import socket
+
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise UnsafeUrlError(f"unsupported scheme: {parsed.scheme!r}")
+    host = parsed.hostname or ""
+    if not host:
+        raise UnsafeUrlError("URL has no host")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError as exc:
+        raise UnsafeUrlError(f"cannot resolve host {host!r}: {exc}") from exc
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0])
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+            address = address.ipv4_mapped
+        if not address.is_global:
+            raise UnsafeUrlError(
+                f"host {host!r} resolves to non-public address {address}"
+            )
+
+
 def _urllib_fetch_text(url: str) -> str:
+    check_url_safety(url)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=30) as response:
         charset = response.headers.get_content_charset() or "utf-8"

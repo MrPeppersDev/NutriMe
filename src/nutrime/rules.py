@@ -119,19 +119,64 @@ class RuleEngine:
         )
 
 
-# Starter pattern set per stage3-plan Q2: prompt-injection scanning is one of
-# the three pre-egress validation surfaces (alongside banned content + PHI
-# category limits). Not exhaustive — the L1 load-test gate will expand this.
+# Pattern set per stage3-plan Q2: prompt-injection scanning is one of the
+# three pre-egress validation surfaces (alongside banned content + PHI
+# category limits). Expanded 2026-10-04 by the L1 adversarial harness
+# (tests/test_rules_adversarial.py — issue #6): obfuscation-tolerant
+# separators, role-override, exfiltration-bait and tag-smuggling families
+# added after the harness demonstrated bypasses of the starter set.
+# \W* between tokens defeats zero-width/punctuation splitting after the
+# payload is NFKC-normalized by normalize_for_scan().
 _PROMPT_INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
-        r"(ignore|disregard)\s+(the\s+|all\s+|any\s+)?(previous|prior|above)"
-        r"\s+instructions",
+        r"(ignore|disregard|bypass|override)[\W_]*(the[\W_]*|all[\W_]*|any[\W_]*)?"
+        r"(previous|prior|above|earlier|preceding|original)[\W_]*"
+        r"(instruction|rule|constraint|direction|prompt|guideline)",
         re.I,
     ),
-    re.compile(r"forget\s+(everything|all)\b.{0,30}?\b(told|instructed|trained)", re.I),
-    re.compile(r"system\s*prompt\s*:\s*", re.I),
-    re.compile(r"</?\s*system\s*>", re.I),
+    re.compile(
+        r"forget[\W_]*(everything|all)\b.{0,40}?\b(told|instructed|trained|said)",
+        re.I | re.S,
+    ),
+    re.compile(r"system[\W_]*prompt[\W_]*[:=]", re.I),
+    re.compile(r"<[\W_]*/?[\W_]*(system|assistant|instructions?)[\W_]*>", re.I),
+    re.compile(r"\[[\W_]*(system|inst)[\W_]*\]", re.I),
+    # Role-override family: "you are now…", "act as…", "new persona"
+    re.compile(
+        r"\byou[\W_]*are[\W_]*(now|no[\W_]*longer)\b.{0,60}?"
+        r"\b(assistant|ai|model|rule|restriction|filter|unrestricted)",
+        re.I | re.S,
+    ),
+    re.compile(
+        r"\b(act|behave|respond)[\W_]*as[\W_]*(if[\W_]*)?(an?[\W_]*)?"
+        r"(unrestricted|unfiltered|jailbroken|developer[\W_]*mode|dan\b)",
+        re.I,
+    ),
+    # Exfiltration bait: asking the downstream model to echo hidden context
+    re.compile(
+        r"\b(repeat|print|reveal|output|show)\b.{0,40}?"
+        r"\b(system[\W_]*prompt|hidden|initial[\W_]*instruction|above[\W_]*text|"
+        r"everything[\W_]*before)",
+        re.I | re.S,
+    ),
+    # Instruction-smuggling markers common in indirect injection via content
+    re.compile(r"\bAI[\W_]*:[\W_]*(you|please|now)\b", re.I),
+    re.compile(r"\bimportant[\W_]*(new|updated)[\W_]*instructions?\b", re.I),
 )
+
+_ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿"), None)
+
+
+def normalize_for_scan(payload: str) -> str:
+    """Canonicalize before pattern matching (L1 hardening).
+
+    NFKC folds fullwidth/stylized unicode back to ASCII ("ｉｇｎｏｒｅ" →
+    "ignore"); zero-width characters are stripped so they can't split
+    tokens invisibly. Patterns then tolerate visible separators via \\W*.
+    """
+    import unicodedata
+
+    return unicodedata.normalize("NFKC", payload).translate(_ZERO_WIDTH)
 
 
 class PromptInjectionGuard:
@@ -143,8 +188,13 @@ class PromptInjectionGuard:
         self._patterns = tuple(patterns)
 
     def evaluate(self, request: EgressRequest) -> RuleResult:
+        normalized = normalize_for_scan(request.payload)
+        # Second scan surface: everything non-alphanumeric stripped, which
+        # collapses per-character splitting ("i.g.n.o.r.e …") that survives
+        # token-level \W* tolerance. Patterns' [\W_]* match empty here.
+        condensed = re.sub(r"[^a-z0-9]", "", normalized.lower())
         for pattern in self._patterns:
-            if pattern.search(request.payload):
+            if pattern.search(normalized) or pattern.search(condensed):
                 return RuleResult(
                     allowed=False,
                     rule_name=self.name,

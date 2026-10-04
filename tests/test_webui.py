@@ -280,3 +280,68 @@ class TestPinterestApi:
 
         found = _get(server, "/api/search?q=Synced")
         assert found["results"][0]["title"] == "Synced Soup"
+
+
+class TestTonightAndFeedbackApi:
+    def test_tonight_empty_state(self, server) -> None:
+        data = _get(server, "/api/tonight")
+        assert data["tonight"] is None
+        assert data["awaiting_feel"] is None
+        assert data["history"] == []
+
+    def test_cook_then_feel_roundtrip(self, server) -> None:
+        found = _get(server, "/api/search?have=beef")
+        recipe_id = found["results"][0]["recipe_id"]
+
+        cooked = _post(
+            server, "/api/meals/cooked",
+            {"recipe_id": recipe_id, "ease": 4, "enjoyment": 5,
+             "actual_minutes": 35},
+        )
+        assert cooked["meal_event_id"].startswith("mev-")
+
+        tonight = _get(server, "/api/tonight")
+        assert tonight["awaiting_feel"] is not None
+        assert tonight["history"][0]["ease_rating"] == 4
+
+        felt = _post(
+            server, "/api/meals/feel",
+            {"meal_event_id": cooked["meal_event_id"],
+             "response": "felt great"},
+        )
+        assert "recorded" in felt
+
+        after = _get(server, "/api/tonight")
+        assert after["awaiting_feel"] is None
+        assert after["history"][0]["body_response"] == "felt great"
+
+    def test_cook_unknown_recipe_404(self, server) -> None:
+        err = _post(server, "/api/meals/cooked", {"recipe_id": "rcp-nope"})
+        assert "error" in err
+
+
+class TestSourcesApi:
+    def test_sources_counts(self, server) -> None:
+        data = _get(server, "/api/sources")
+        by_key = {s["key"]: s for s in data["sources"]}
+        assert by_key["themealdb"]["count"] == 2
+
+    def test_search_source_filter(self, server) -> None:
+        data = _get(server, "/api/search?sources=pins")
+        assert data["results"] == []
+        data = _get(server, "/api/search?sources=themealdb")
+        assert len(data["results"]) == 2
+
+
+class TestGroceryApi:
+    def test_no_plans_404(self, server) -> None:
+        import urllib.error
+        import urllib.request as urlreq
+
+        port = server.server_address[1]
+        try:
+            urlreq.urlopen(f"http://127.0.0.1:{port}/api/grocery")
+        except urllib.error.HTTPError as err:
+            assert err.code == 404
+        else:
+            pytest.fail("expected 404")
