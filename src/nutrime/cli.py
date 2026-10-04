@@ -615,6 +615,31 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_recipes_vet(args: argparse.Namespace) -> int:
+    from nutrime.recipes.vetting import vet_vault
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    vault = RecipeVault(app.corpus_dir)
+    if args.list_quarantined:
+        shown = 0
+        for record in vault.iter_recipes():
+            if record.frontmatter.get("vetting_status") == "quarantined":
+                shown += 1
+                print(f"  {record.recipe_id}")
+                print(f"    title:  {record.frontmatter.get('title')}")
+                print(f"    reason: {record.frontmatter.get('vetting_reason')}")
+        print(f"— {shown} quarantined recipe(s) —")
+        return 0
+    outcome = vet_vault(vault, revet=args.revet)
+    print(
+        f"Examined {outcome.examined}; normalized {outcome.titles_normalized}"
+        f" title(s); quarantined {outcome.quarantined};"
+        f" {outcome.already_vetted} already vetted."
+    )
+    return 0
+
+
 def _cmd_meals_cooked(args: argparse.Namespace) -> int:
     from nutrime.consent import ConsentError
     from nutrime.feedback import (
@@ -1104,6 +1129,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     rec_search.set_defaults(func=_cmd_recipes_search)
+
+    rec_vet = recipes_sub.add_parser(
+        "vet",
+        help="Normalize titles + quarantine junk entries (idempotent).",
+    )
+    rec_vet.add_argument(
+        "--revet", action="store_true", help="Re-examine already-vetted rows."
+    )
+    rec_vet.add_argument(
+        "--list-quarantined",
+        action="store_true",
+        help="Show quarantined entries instead of running the pass.",
+    )
+    rec_vet.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    rec_vet.set_defaults(func=_cmd_recipes_vet)
 
     audit = subparsers.add_parser(
         "audit",
