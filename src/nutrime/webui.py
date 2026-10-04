@@ -105,6 +105,7 @@ def recipe_detail(record) -> dict[str, Any]:
         "categories": list(fm.get("meal_categories", ()) or ()),
         "source_url": (fm.get("attribution") or {}).get("source_url", ""),
         "attribution": attribution_line(fm),
+        "equipment": list(fm.get("equipment_required", ()) or ()),
     }
 
 
@@ -215,6 +216,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_meals_cooked()
             elif parsed.path == "/api/meals/feel":
                 self._api_meals_feel()
+            elif parsed.path == "/api/meals/cooked/used-up":
+                self._api_meals_used_up()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
@@ -270,12 +273,41 @@ class _Handler(BaseHTTPRequestHandler):
             if s.strip()
         )
 
+        # V1: cook history always consults (boosts + personal time).
+        from nutrime.feedback import cooked_cuisines, experience_summaries
+
+        experience = experience_summaries(app.substrate, app.tenant_id)
+
+        # V2: expiring inventory names tilt ranking when inventory is in play.
+        expiring: frozenset[str] = frozenset()
+        if use_inventory:
+            from datetime import date
+
+            from nutrime.inventory.store import expiring_names
+
+            expiring = frozenset(
+                item.name.lower()
+                for item in expiring_names(
+                    app.substrate, app.tenant_id, today=date.today().isoformat()
+                )
+            )
+
+        # V3: novelty is opt-in on the search surface (broaden=1).
+        novelty: frozenset[str] | None = None
+        if first("broaden") == "1":
+            novelty = frozenset(
+                cooked_cuisines(app.substrate, app.tenant_id, self.server.vault)
+            )
+
         filters = SearchFilters(
             query=first("q") or None,
             max_total_time_min=max_time,
             on_hand=frozenset(on_hand),
             prefer_terms=frozenset(prefer),
             sources=sources,
+            expiring=expiring,
+            experience=experience,
+            cooked_cuisines=novelty,
         )
         if first("apply_constraints") == "1":
             from nutrime.knowledge.store import list_synthesized_entries
@@ -301,6 +333,11 @@ class _Handler(BaseHTTPRequestHandler):
                         "attribution": r.attribution,
                         "source": r.source,
                         "source_label": SOURCE_LABELS.get(r.source, r.source),
+                        "times_cooked": r.times_cooked,
+                        "avg_enjoyment": r.avg_enjoyment,
+                        "personal_time_min": r.personal_time_min,
+                        "expiring_matches": list(r.expiring_matches),
+                        "novel_cuisine": r.novel_cuisine,
                     }
                     for r in results
                 ],
@@ -473,9 +510,30 @@ class _Handler(BaseHTTPRequestHandler):
         awaiting_feel = next(
             (e for e in history if e.body_response is None), None
         )
+        # V2: use-soon strip (expiring window, soonest first, cap 6).
+        from datetime import date
+
+        from nutrime.inventory.store import expiring_names
+
+        today = date.today().isoformat()
+        use_soon = sorted(
+            expiring_names(app.substrate, app.tenant_id, today=today),
+            key=lambda item: item.best_by_date or "",
+        )[:6]
         self._json(
             {
                 "tonight": tonight,
+                "use_soon": [
+                    {
+                        "name": item.name,
+                        "best_by_date": item.best_by_date,
+                        "days_left": (
+                            date.fromisoformat(item.best_by_date)
+                            - date.today()
+                        ).days,
+                    }
+                    for item in use_soon
+                ],
                 "awaiting_feel": (
                     {
                         "meal_event_id": awaiting_feel.meal_event_id,
@@ -550,7 +608,72 @@ class _Handler(BaseHTTPRequestHandler):
         except (ConsentError, ValueError) as err:
             self._json({"error": str(err)}, status=400)
             return
-        self._json({"meal_event_id": meal_event_id})
+
+        # V2 decrement, ask-don't-assume: if the caller confirmed names,
+        # consume them; always return the recipe∩inventory candidates so
+        # the surface can ask.
+        from nutrime.grocery.parse import normalize_food
+        from nutrime.inventory.store import list_items, remove_items_by_name
+
+        used_up = payload.get("used_up")
+        removed: list[str] = []
+        if isinstance(used_up, list) and used_up:
+            removed = remove_items_by_name(
+                app.substrate, app.tenant_id, [str(n) for n in used_up]
+            )
+            for name in removed:
+                app.audit.record_event(
+                    event_kind="system",
+                    event_subkind="inventory_item_consumed",
+                    actor="webui",
+                    payload={
+                        "name": name,
+                        "meal_event_id": meal_event_id,
+                        "recipe_id": recipe_id,
+                    },
+                )
+        from nutrime.recipes.search import ingredient_names
+
+        recipe_foods = {
+            normalize_food(n) for n in ingredient_names(record.body)
+        }
+        candidates = sorted(
+            item.name
+            for item in list_items(app.substrate, app.tenant_id)
+            if normalize_food(item.name) in recipe_foods
+        )
+        self._json(
+            {
+                "meal_event_id": meal_event_id,
+                "used_candidates": candidates,
+                "removed": removed,
+            }
+        )
+
+    def _api_meals_used_up(self) -> None:
+        """V2 decrement confirmation — user ticked which items were used."""
+        from nutrime.inventory.store import remove_items_by_name
+
+        payload = self._read_json_body()
+        names = payload.get("names")
+        if not isinstance(names, list) or not names:
+            self._json({"error": "names required"}, status=400)
+            return
+        app = self.server.app
+        removed = remove_items_by_name(
+            app.substrate, app.tenant_id, [str(n) for n in names]
+        )
+        for name in removed:
+            app.audit.record_event(
+                event_kind="system",
+                event_subkind="inventory_item_consumed",
+                actor="webui",
+                payload={
+                    "name": name,
+                    "meal_event_id": str(payload.get("meal_event_id") or ""),
+                },
+            )
+        self._json({"removed": removed})
 
     def _api_meals_feel(self) -> None:
         from nutrime.consent import ConsentError
@@ -969,6 +1092,8 @@ PAGE = """<!doctype html>
         include my kitchen list</label>
       <label class="opt"><input type="checkbox" id="applyConstraints" checked>
         respect household avoid-list</label>
+      <label class="opt"><input type="checkbox" id="broaden">
+        nudge toward new cuisines</label>
       <label class="opt">ready in
         <select id="maxTime">
           <option value="">any time</option>
@@ -1149,6 +1274,7 @@ async function doSearch() {
   if ($("useInventory").checked) params.set("use_inventory", "1");
   if ($("applyConstraints").checked) params.set("apply_constraints", "1");
   if ($("maxTime").value) params.set("max_time", $("maxTime").value);
+  if ($("broaden").checked) params.set("broaden", "1");
   if (PHASE) params.set("phase", PHASE);
   if (SOURCES.size) params.set("sources", [...SOURCES].join(","));
   const data = await jget("/api/search?" + params.toString());
@@ -1167,14 +1293,22 @@ async function doSearch() {
     const card = document.createElement("div");
     card.className = "card";
     let tags = "";
-    for (const m of r.on_hand_matches) tags += '<span class="tag have">\\u2713 ' + esc(m) + "</span>";
+    for (const m of r.on_hand_matches) {
+      const urgent = (r.expiring_matches || []).includes(m);
+      tags += '<span class="tag have">' + (urgent ? "\\u23f3 " : "\\u2713 ") + esc(m) +
+        (urgent ? " soon!" : "") + "</span>";
+    }
     for (const m of r.prefer_matches) tags += '<span class="tag boost">\\u2191 ' + esc(m) + "</span>";
+    if (r.times_cooked) tags += '<span class="tag boost">\\u2665 cooked ' + r.times_cooked + "x" +
+      (r.avg_enjoyment ? " \\u00b7 " + r.avg_enjoyment + "/5" : "") + "</span>";
+    if (r.novel_cuisine) tags += '<span class="tag boost">\\u2726 new cuisine</span>';
     for (const a of r.allergens) tags += '<span class="tag warn">' + esc(a) + "</span>";
     card.innerHTML =
       "<h3>" + esc(r.title) + "</h3>" +
       (tags ? '<div class="matchLine">' + tags + "</div>" : "") +
       '<div class="cardFoot"><span>' +
-      (r.total_time_min ? "\\u23f1 " + r.total_time_min + " min" : "") +
+      (r.personal_time_min ? "\\u23f1 ~" + r.personal_time_min + " min for you" :
+       r.total_time_min ? "\\u23f1 " + r.total_time_min + " min" : "") +
       "</span><span>" +
       (r.on_hand_matches.length ? r.on_hand_matches.length + " on hand \\u00b7 " : "") +
       esc(r.source_label || "") + "</span></div>" +
@@ -1199,6 +1333,8 @@ async function openDetail(id) {
     '<button class="closeX" onclick="closeDetail()" aria-label="Close">\\u00d7</button>' +
     "<h3>" + esc(d.title) + "</h3>" +
     '<div class="meta">' + esc(meta.join(" \\u00b7 ")) + "</div>" +
+    (d.equipment && d.equipment.length ?
+      '<div class="meta" style="margin-top:8px">Equipment: ' + d.equipment.map(esc).join(", ") + "</div>" : "") +
     "<h4>Ingredients</h4><ul>" +
     d.ingredients.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>" +
     "<h4>Steps</h4><ol>" +
@@ -1238,10 +1374,25 @@ async function loadTonight() {
   const data = await jget("/api/tonight");
   const box = $("tonightBox"), body = $("tonightBody");
   const parts = [];
+  if (data.use_soon && data.use_soon.length) {
+    const chips = data.use_soon.map(u => {
+      const label = u.days_left < 0 ? "past date" :
+        u.days_left === 0 ? "today" : u.days_left + "d left";
+      return '<span class="tag warn">\\u23f3 ' + esc(u.name) + " \\u00b7 " + label + "</span>";
+    }).join(" ");
+    const names = data.use_soon.map(u => u.name).join(", ");
+    parts.push(
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<span class="hint">Use soon:</span> ' + chips +
+      '<button class="btn-quiet" onclick="$(\\'have\\').value=' +
+      JSON.stringify(names).replace(/"/g, "&quot;") + ';doSearch()">find recipes</button></div>'
+    );
+  }
   if (data.tonight) {
     const t = data.tonight;
     parts.push(
-      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">' +
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap' +
+      (parts.length ? ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)' : '') + '">' +
       '<span class="serif" style="font-size:21px">' + esc(t.title) + "</span>" +
       (t.total_time_min ? '<span class="hint">\\u23f1 ' + t.total_time_min + " min</span>" : "") +
       '<button class="btn-quiet" onclick="openDetail(\\'' + esc(t.recipe_id) + '\\')">view recipe</button>' +
@@ -1276,7 +1427,18 @@ async function markCooked(recipeId, planId) {
   const mins = prompt("Actual minutes it took? (blank to skip)");
   if (mins) payload.actual_minutes = parseInt(mins);
   const res = await jpost("/api/meals/cooked", payload);
-  if (res.error) alert(res.error); else loadTonight();
+  if (res.error) { alert(res.error); return; }
+  // V2 ask-don't-assume decrement: offer the recipe∩inventory names.
+  if (res.used_candidates && res.used_candidates.length) {
+    const names = res.used_candidates.join(", ");
+    if (confirm("Used these up from the kitchen? " + names +
+                "\\n\\nOK removes them from your inventory; Cancel keeps them.")) {
+      await jpost("/api/meals/cooked/used-up",
+                  {meal_event_id: res.meal_event_id, names: res.used_candidates});
+      loadInventory();
+    }
+  }
+  loadTonight();
 }
 async function sendFeel(mealEventId) {
   const text = $("feelText").value.trim();
@@ -1321,7 +1483,7 @@ $("pinSync").onclick = async () => {
 
 $("go").onclick = doSearch;
 $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
-["useInventory", "applyConstraints", "maxTime"].forEach(id =>
+["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
   $(id).addEventListener("change", doSearch));
 
 loadPhases();

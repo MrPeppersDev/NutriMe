@@ -143,6 +143,49 @@ def list_items(
     ]
 
 
+EXPIRING_WINDOW_DAYS = 4
+
+
+def expiring_names(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    *,
+    today: str,
+    window_days: int = EXPIRING_WINDOW_DAYS,
+) -> list[InventoryItem]:
+    """Items whose best_by_date falls within the window (V2 use-it-up).
+
+    ``today`` is ISO YYYY-MM-DD; string comparison is safe for ISO dates.
+    Past-due items are included — "use or toss" still deserves surfacing.
+    """
+    from datetime import date, timedelta
+
+    limit = (date.fromisoformat(today) + timedelta(days=window_days)).isoformat()
+    return [
+        item
+        for item in list_items(conn, tenant_id)
+        if item.best_by_date is not None and item.best_by_date <= limit
+    ]
+
+
+def remove_items_by_name(
+    conn: sqlite3.Connection, tenant_id: str, names: list[str]
+) -> list[str]:
+    """Presence-level consumption: delete items matching the given names
+    (case-insensitive exact). Returns the names actually removed (V2 cook
+    decrement — caller confirms the list with the user first)."""
+    removed: list[str] = []
+    for item in list_items(conn, tenant_id):
+        if any(item.name.lower() == n.strip().lower() for n in names):
+            conn.execute(
+                "DELETE FROM inventory_item WHERE tenant_id = ? AND id = ?",
+                (tenant_id, item.id),
+            )
+            removed.append(item.name)
+    conn.commit()
+    return removed
+
+
 def remove_item(
     conn: sqlite3.Connection, tenant_id: str, item_id: int
 ) -> bool:

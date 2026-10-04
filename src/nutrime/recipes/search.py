@@ -30,6 +30,16 @@ _INGREDIENT_LINE = re.compile(r"^@(?P<braced>[^@{}]+)\{|^@(?P<bare>\S+)$")
 
 _ON_HAND_POINTS = 2.0
 _PREFER_POINTS = 1.5
+# V2 (#27): expiring-soon on-hand matches earn this ON TOP of on-hand
+# points — tilts score, never reorders match counts (count sorts first).
+_EXPIRING_POINTS = 2.0
+# V1 (#26): experience boost capped at one on-hand ingredient's weight —
+# history never outweighs what's in the fridge. Symmetric boost-down for
+# disliked; never a filter.
+_EXPERIENCE_POINTS_PER_STAR = 1.0
+# V3 (#28): never-cooked cuisine nudge — deliberately below preference
+# weight; broadening nudges, never overrides stated taste.
+_NOVELTY_POINTS = 0.5
 
 
 @dataclass(frozen=True)
@@ -53,6 +63,16 @@ class SearchFilters:
     # Source-collection facet: keys from SOURCE_COLLECTIONS ("pins",
     # "themealdb", ...). Empty = all sources.
     sources: frozenset[str] = field(default_factory=frozenset)
+    # V2: subset of on_hand names whose best_by_date is near — matches
+    # earn _EXPIRING_POINTS on top of on-hand points.
+    expiring: frozenset[str] = field(default_factory=frozenset)
+    # V1: recipe_id → experience summary (feedback.experience_summaries
+    # shape). None = no history consulted.
+    experience: Any = None
+    # V3: cuisines already cooked; None disables novelty scoring. Only
+    # the planner passes this by default ("what can I make right now" is
+    # not the broadening moment) — search surfaces opt in.
+    cooked_cuisines: frozenset[str] | None = None
 
 
 # ingestion_method → user-facing collection key. Her pins are stored under
@@ -92,6 +112,15 @@ class SearchResult:
     prefer_matches: tuple[str, ...]
     attribution: str
     source: str = "other"
+    # V1: cook-history surface fields (None/0 when no history)
+    times_cooked: int = 0
+    avg_enjoyment: float | None = None
+    # "usually takes ~N min for you" — stated + avg delta; never
+    # overwrites total_time_min (the source's claim stays visible).
+    personal_time_min: int | None = None
+    # V2/V3 surface flags
+    expiring_matches: tuple[str, ...] = ()
+    novel_cuisine: bool = False
 
 
 def normalize_term(term: str) -> str:
@@ -195,6 +224,14 @@ def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
                     return False
     if filters.max_total_time_min is not None:
         total = fm.get("estimated_total_time_min")
+        # V1: her real times beat the blog's optimism — when history has
+        # an avg delta, the time budget filters on the corrected value.
+        if total is not None and filters.experience is not None:
+            summary = filters.experience.get(
+                str(fm.get("canonical_id", ""))
+            )
+            if summary and summary.get("avg_time_delta_min") is not None:
+                total = int(total) + int(summary["avg_time_delta_min"])
         # Unknown time cannot be verified to fit an explicit time budget —
         # excluded rather than optimistically included (safe direction).
         if total is None or int(total) > filters.max_total_time_min:
@@ -225,11 +262,19 @@ def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
     return True
 
 
-def _score(
-    record: RecipeRecord, filters: SearchFilters
-) -> tuple[float, tuple[str, ...], tuple[str, ...]]:
+@dataclass(frozen=True)
+class _ScoreDetail:
+    score: float
+    on_hand_matches: tuple[str, ...]
+    prefer_matches: tuple[str, ...]
+    expiring_matches: tuple[str, ...]
+    novel_cuisine: bool
+
+
+def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
     names = ingredient_names(record.body)
-    title = str(record.frontmatter.get("title", ""))
+    fm = record.frontmatter
+    title = str(fm.get("title", ""))
     on_hand_matches = tuple(
         sorted(
             item
@@ -245,11 +290,37 @@ def _score(
             or any(_terms_match(term, name) for name in names)
         )
     )
+    expiring_matches = tuple(
+        item for item in on_hand_matches if item in filters.expiring
+    )
     score = (
         _ON_HAND_POINTS * len(on_hand_matches)
         + _PREFER_POINTS * len(prefer_matches)
+        + _EXPIRING_POINTS * len(expiring_matches)
     )
-    return score, on_hand_matches, prefer_matches
+    # V1: experience boost/boost-down around the 3-star midpoint.
+    if filters.experience is not None:
+        summary = filters.experience.get(str(fm.get("canonical_id", "")))
+        if summary and summary.get("avg_enjoyment") is not None:
+            score += _EXPERIENCE_POINTS_PER_STAR * (
+                summary["avg_enjoyment"] - 3.0
+            )
+    # V3: novelty nudge for never-cooked cuisines (planner opt-in).
+    novel = False
+    if filters.cooked_cuisines is not None:
+        tags = {
+            str(c).lower() for c in fm.get("cuisine_tradition_tags", ()) or ()
+        }
+        if tags and not (tags & filters.cooked_cuisines):
+            novel = True
+            score += _NOVELTY_POINTS
+    return _ScoreDetail(
+        score=score,
+        on_hand_matches=on_hand_matches,
+        prefer_matches=prefer_matches,
+        expiring_matches=expiring_matches,
+        novel_cuisine=novel,
+    )
 
 
 def search(
@@ -263,22 +334,38 @@ def search(
     for record in vault.iter_recipes():
         if not _passes(record, filters):
             continue
-        score, on_hand_matches, prefer_matches = _score(record, filters)
+        detail = _score(record, filters)
         fm = record.frontmatter
         total = fm.get("estimated_total_time_min")
+        times_cooked = 0
+        avg_enjoyment = None
+        personal_time = None
+        if filters.experience is not None:
+            summary = filters.experience.get(record.recipe_id)
+            if summary:
+                times_cooked = summary.get("times_cooked", 0)
+                avg_enjoyment = summary.get("avg_enjoyment")
+                delta = summary.get("avg_time_delta_min")
+                if total is not None and delta is not None:
+                    personal_time = int(total) + int(delta)
         results.append(
             SearchResult(
                 recipe_id=record.recipe_id,
                 title=str(fm.get("title", "(untitled)")),
-                score=score,
+                score=detail.score,
                 total_time_min=int(total) if total is not None else None,
                 allergens=tuple(
                     str(a) for a in fm.get("top_allergens_present", ()) or ()
                 ),
-                on_hand_matches=on_hand_matches,
-                prefer_matches=prefer_matches,
+                on_hand_matches=detail.on_hand_matches,
+                prefer_matches=detail.prefer_matches,
                 attribution=attribution_line(fm),
                 source=source_collection(fm),
+                times_cooked=times_cooked,
+                avg_enjoyment=avg_enjoyment,
+                personal_time_min=personal_time,
+                expiring_matches=detail.expiring_matches,
+                novel_cuisine=detail.novel_cuisine,
             )
         )
     # On-hand match COUNT dominates the ordering: when the user says what

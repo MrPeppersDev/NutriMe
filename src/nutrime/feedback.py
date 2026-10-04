@@ -248,6 +248,52 @@ def meal_history(
     return entries[:limit]
 
 
+def experience_summaries(
+    conn: sqlite3.Connection, tenant_id: str
+) -> dict[str, dict[str, Any]]:
+    """All recipes' experience summaries in one history pass (V1).
+
+    The search/planner consumers call this once per query and do O(1)
+    lookups per candidate; shape matches recipe_experience_summary.
+    """
+    history = meal_history(conn, tenant_id, limit=100000)
+    by_recipe: dict[str, list[MealHistoryEntry]] = {}
+    for entry in history:
+        by_recipe.setdefault(entry.recipe_id, []).append(entry)
+
+    def _avg(values: list[int]) -> float | None:
+        return round(sum(values) / len(values), 2) if values else None
+
+    return {
+        recipe_id: {
+            "times_cooked": len(entries),
+            "avg_ease": _avg([e.ease_rating for e in entries if e.ease_rating]),
+            "avg_enjoyment": _avg(
+                [e.enjoyment_rating for e in entries if e.enjoyment_rating]
+            ),
+            "avg_time_delta_min": _avg(
+                [e.time_delta_min for e in entries if e.time_delta_min is not None]
+            ),
+        }
+        for recipe_id, entries in by_recipe.items()
+    }
+
+
+def cooked_cuisines(conn: sqlite3.Connection, tenant_id: str, vault) -> set[str]:
+    """Cuisines the household has actually cooked (V3 novelty baseline).
+
+    Joined to vault frontmatter at call time — no denormalization.
+    """
+    cuisines: set[str] = set()
+    for entry in meal_history(conn, tenant_id, limit=100000):
+        if not entry.recipe_id or not vault.exists(entry.recipe_id):
+            continue
+        fm = vault.read(entry.recipe_id).frontmatter
+        for tag in fm.get("cuisine_tradition_tags", ()) or ():
+            cuisines.add(str(tag).lower())
+    return cuisines
+
+
 def recipe_experience_summary(
     conn: sqlite3.Connection, tenant_id: str, recipe_id: str
 ) -> dict[str, Any] | None:

@@ -345,3 +345,64 @@ class TestGroceryApi:
             assert err.code == 404
         else:
             pytest.fail("expected 404")
+
+
+class TestVisionGapWebFlows:
+    def test_cooked_returns_used_candidates_and_decrement(self, server) -> None:
+        # Put matching + non-matching items in inventory
+        _post(server, "/api/inventory", {"name": "beef", "location": "freezer"})
+        _post(server, "/api/inventory", {"name": "chocolate", "location": "pantry"})
+
+        found = _get(server, "/api/search?q=Beef%20Stew")
+        recipe_id = found["results"][0]["recipe_id"]
+        cooked = _post(server, "/api/meals/cooked", {"recipe_id": recipe_id})
+        assert "beef" in cooked["used_candidates"]
+        assert "chocolate" not in cooked["used_candidates"]
+
+        removed = _post(
+            server, "/api/meals/cooked/used-up",
+            {"meal_event_id": cooked["meal_event_id"], "names": ["beef"]},
+        )
+        assert removed["removed"] == ["beef"]
+        items = _get(server, "/api/inventory")["items"]
+        assert all(i["name"] != "beef" for i in items)
+
+    def test_tonight_use_soon_strip(self, server) -> None:
+        from datetime import date, timedelta
+
+        soon = (date.today() + timedelta(days=2)).isoformat()
+        port = server.server_address[1]
+        # add_item via API doesn't take best_by; write directly
+        import sqlite3
+
+        from nutrime.app import initialize as _init
+
+        # go through the server's own app to share the connection thread-
+        # safely: use the HTTP inventory add then update the row via a
+        # second connection (safe: server is idle between requests).
+        added = _post(server, "/api/inventory", {"name": "herbs", "location": "fridge"})
+        import nutrime.paths  # noqa — data dir fixed by fixture
+
+        conn = sqlite3.connect(server.app.data_dir / "substrate.db")
+        conn.execute(
+            "UPDATE inventory_item SET best_by_date = ? WHERE id = ?",
+            (soon, added["id"]),
+        )
+        conn.commit()
+        conn.close()
+
+        data = _get(server, "/api/tonight")
+        names = [u["name"] for u in data["use_soon"]]
+        assert "herbs" in names
+        entry = next(u for u in data["use_soon"] if u["name"] == "herbs")
+        assert entry["days_left"] == 2
+
+    def test_search_personal_time_and_history_chip_fields(self, server) -> None:
+        found = _get(server, "/api/search?q=Beef%20Stew")
+        recipe_id = found["results"][0]["recipe_id"]
+        _post(server, "/api/meals/cooked",
+              {"recipe_id": recipe_id, "ease": 5, "enjoyment": 5})
+        data = _get(server, "/api/search?q=Beef%20Stew")
+        top = data["results"][0]
+        assert top["times_cooked"] == 1
+        assert top["avg_enjoyment"] == 5.0

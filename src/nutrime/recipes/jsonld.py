@@ -168,6 +168,28 @@ def _extract_steps(value: Any) -> list[str]:
     return steps
 
 
+def _extract_equipment(node: dict[str, Any]) -> list[str]:
+    """schema.org ``tool`` → equipment names (V4, populate-where-stated).
+
+    Shapes in the wild: string, list of strings, HowToTool dicts (name
+    key). No inference from instruction text — stated-only per the
+    honesty discipline.
+    """
+    value = node.get("tool")
+    items = value if isinstance(value, list) else [value] if value else []
+    out: list[str] = []
+    for item in items:
+        name = ""
+        if isinstance(item, str):
+            name = strip_tags(item)
+        elif isinstance(item, dict):
+            name = strip_tags(str(item.get("name") or ""))
+        name = name.strip()
+        if name and name.lower() not in {n.lower() for n in out}:
+            out.append(name)
+    return out
+
+
 def _extract_yield(value: Any) -> Yields:
     candidates = value if isinstance(value, list) else [value]
     for candidate in candidates:
@@ -270,6 +292,9 @@ def convert_recipe_node(
         },
         ingredient_resolution_status="unresolved_pending_review",
     )
+    equipment = _extract_equipment(node)
+    if equipment:
+        frontmatter["equipment_required"] = equipment
     recipe = Recipe(
         title=title,
         ingredients=tuple(ingredients),

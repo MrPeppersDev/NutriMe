@@ -303,6 +303,14 @@ def _cmd_recipes_search(args: argparse.Namespace) -> int:
         sources=_split(getattr(args, "source_filter", None)),
     )
     applied: list[str] = []
+    # V1: cook history always consults on the search surface too.
+    from dataclasses import replace as _history_replace
+
+    from nutrime.feedback import experience_summaries
+
+    experience = experience_summaries(app.substrate, app.tenant_id)
+    if experience:
+        filters = _history_replace(filters, experience=experience)
     if args.apply_constraints:
         entries = list_synthesized_entries(
             app.substrate, app.tenant_id, entry_type="abstracted_constraint"
@@ -441,6 +449,34 @@ def _plan_base_filters(app, args) -> tuple[object, list[str]]:
             filters, on_hand=frozenset(item.name for item in items)
         )
         applied.append(f"{len(items)} inventory item(s)")
+        # V2: expiring items tilt candidate pools toward use-it-up.
+        from datetime import date
+
+        from nutrime.inventory.store import expiring_names
+
+        expiring = expiring_names(
+            app.substrate, app.tenant_id, today=date.today().isoformat()
+        )
+        if expiring:
+            filters = _replace(
+                filters,
+                expiring=frozenset(i.name.lower() for i in expiring),
+            )
+            applied.append(f"{len(expiring)} expiring item(s) prioritized")
+    # V1: cook history boosts candidate pools (loved up, disliked down).
+    from nutrime.feedback import cooked_cuisines, experience_summaries
+
+    experience = experience_summaries(app.substrate, app.tenant_id)
+    if experience:
+        filters = _replace(filters, experience=experience)
+        applied.append(f"experience from {len(experience)} cooked recipe(s)")
+    # V3: novelty nudge is planner-default (broadening is a planning-time
+    # concern, not a what-can-I-make-right-now concern).
+    vault = RecipeVault(app.corpus_dir)
+    cooked = cooked_cuisines(app.substrate, app.tenant_id, vault)
+    if cooked:
+        filters = _replace(filters, cooked_cuisines=frozenset(cooked))
+        applied.append("novelty nudge (new-cuisine candidates boosted)")
     return filters, applied
 
 
