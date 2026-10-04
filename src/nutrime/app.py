@@ -76,6 +76,13 @@ def initialize(
     audit = AuditLog(operational)
     audit.ensure_tenant_created(tenant_id)
 
+    # Consent baseline (#21): idempotent; grants local_operation
+    # (retroactive over pre-#21 captures) and stores explicit declines
+    # for publication purposes so fail-closed is a recorded decision.
+    from nutrime.consent import bootstrap_baseline
+
+    bootstrap_baseline(substrate, tenant_id)
+
     phi_envelope = phi_envelope or default_phi_envelope_registry()
     register_recipe_envelopes(phi_envelope)
     register_llm_envelopes(phi_envelope)

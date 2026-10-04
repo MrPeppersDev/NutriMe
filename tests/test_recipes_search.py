@@ -303,3 +303,69 @@ class TestCategorySetFilters:
     def test_exact_meal_category_still_works(self, mixed):
         results = search(mixed, SearchFilters(meal_category="beef"))
         assert [r.recipe_id for r in results] == ["rcp-beef"]
+
+
+class TestSourceFacetAndOrdering:
+    def _write(self, vault, title, method, ingredients):
+        from nutrime.recipes.frontmatter import (
+            Attribution,
+            Yields,
+            build_recipe_frontmatter,
+        )
+        from nutrime.recipes.ids import new_recipe_id
+
+        rid = new_recipe_id()
+        fm = build_recipe_frontmatter(
+            recipe_id=rid,
+            title=title,
+            attribution=Attribution(
+                source_name="x",
+                source_url="https://example.com/r",
+                source_license="test",
+                ingested_at="2026-10-04T00:00:00Z",
+                ingestion_method=method,
+            ),
+            source_status="live",
+            last_source_check_at="2026-10-04T00:00:00Z",
+            yields=Yields(count=2),
+            top_allergens_present=[],
+        )
+        body = "\n".join(f"@{name}{{1}}" for name in ingredients)
+        vault.write(rid, fm, body)
+        return rid
+
+    def test_source_filter(self, tmp_path):
+        from nutrime.recipes.search import SearchFilters, search
+        from nutrime.recipes.store import RecipeVault
+
+        vault = RecipeVault(tmp_path)
+        vault.ensure()
+        self._write(vault, "Pinned", "schema_org_jsonld_v1", ["beef"])
+        self._write(vault, "Mealdb", "themealdb_api_v1", ["beef"])
+        results = search(vault, SearchFilters(sources=frozenset({"pins"})))
+        assert [r.title for r in results] == ["Pinned"]
+        assert results[0].source == "pins"
+
+    def test_on_hand_count_dominates_boost_score(self, tmp_path):
+        from nutrime.recipes.search import SearchFilters, search
+        from nutrime.recipes.store import RecipeVault
+
+        vault = RecipeVault(tmp_path)
+        vault.ensure()
+        # 1 on-hand match but 3 preference boosts (score 2.0 + 4.5 = 6.5)
+        self._write(
+            vault, "Boosted One-Match", "themealdb_api_v1",
+            ["chicken", "salmon", "kale", "berry mix"],
+        )
+        # 3 on-hand matches, no boosts (score 6.0 — lower than 6.5)
+        self._write(
+            vault, "Three Match", "themealdb_api_v1",
+            ["chicken", "onion", "carrot"],
+        )
+        filters = SearchFilters(
+            on_hand=frozenset({"chicken", "onion", "carrot"}),
+            prefer_terms=frozenset({"salmon", "kale", "berry"}),
+        )
+        results = search(vault, filters)
+        assert results[0].title == "Three Match"
+        assert len(results[0].on_hand_matches) == 3

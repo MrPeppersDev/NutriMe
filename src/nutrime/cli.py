@@ -300,6 +300,7 @@ def _cmd_recipes_search(args: argparse.Namespace) -> int:
         max_total_time_min=args.max_time,
         meal_category=args.category,
         cuisine=args.cuisine,
+        sources=_split(getattr(args, "source_filter", None)),
     )
     applied: list[str] = []
     if args.apply_constraints:
@@ -614,6 +615,161 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_meals_cooked(args: argparse.Namespace) -> int:
+    from nutrime.consent import ConsentError
+    from nutrime.feedback import (
+        record_cooking_experience,
+        record_meal_event,
+        record_time_feedback,
+    )
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    vault = RecipeVault(app.corpus_dir)
+    if not vault.exists(args.recipe_id):
+        print(f"no such recipe: {args.recipe_id}")
+        return 1
+    record = vault.read(args.recipe_id)
+    title = str(record.frontmatter.get("title", "(untitled)"))
+    try:
+        meal_event_id = record_meal_event(
+            app.substrate,
+            app.tenant_id,
+            recipe_id=args.recipe_id,
+            recipe_title=title,
+            plan_id=args.plan_id,
+        )
+        print(f"cooked: {title}  [{meal_event_id}]")
+        if args.ease is not None and args.enjoyment is not None:
+            record_cooking_experience(
+                app.substrate,
+                app.tenant_id,
+                meal_event_id=meal_event_id,
+                ease_rating=args.ease,
+                enjoyment_rating=args.enjoyment,
+                freetext_notes=args.notes,
+            )
+            print("  cooking-experience feedback recorded")
+        if args.actual_minutes is not None:
+            estimated = record.frontmatter.get("estimated_total_time_min")
+            record_time_feedback(
+                app.substrate,
+                app.tenant_id,
+                meal_event_id=meal_event_id,
+                estimated_time_min=(
+                    int(estimated) if estimated is not None else None
+                ),
+                actual_time_min=args.actual_minutes,
+            )
+            print("  time feedback recorded")
+    except ConsentError as err:
+        print(str(err))
+        return 2
+    except ValueError as err:
+        print(str(err))
+        return 2
+    return 0
+
+
+def _cmd_meals_feel(args: argparse.Namespace) -> int:
+    from nutrime.consent import ConsentError
+    from nutrime.feedback import meal_history, record_body_response
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    meal_event_id = args.meal_event_id
+    if meal_event_id is None:
+        history = meal_history(app.substrate, app.tenant_id, limit=1)
+        if not history:
+            print("(no cooked meals yet — `nutrime meals cooked <recipe-id>`)")
+            return 1
+        meal_event_id = history[0].meal_event_id
+        print(f"(latest meal: {history[0].recipe_title})")
+    try:
+        record_body_response(
+            app.substrate,
+            app.tenant_id,
+            meal_event_id=meal_event_id,
+            freetext_response=args.response,
+            energy_rating=args.energy,
+            digestion_rating=args.digestion,
+            fullness_rating=args.fullness,
+            mood_rating=args.mood,
+        )
+    except (ConsentError, ValueError) as err:
+        print(str(err))
+        return 2
+    print("body-response feedback recorded")
+    return 0
+
+
+def _cmd_meals_history(args: argparse.Namespace) -> int:
+    from nutrime.feedback import meal_history
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    entries = meal_history(app.substrate, app.tenant_id, limit=args.limit)
+    if not entries:
+        print("(no cooked meals yet)")
+        return 0
+    for entry in entries:
+        line = f"  {entry.cooked_at}  {entry.recipe_title}"
+        details = []
+        if entry.ease_rating:
+            details.append(
+                f"ease {entry.ease_rating}/5, fun {entry.enjoyment_rating}/5"
+            )
+        if entry.actual_time_min:
+            delta = (
+                f" ({entry.time_delta_min:+d} vs estimate)"
+                if entry.time_delta_min is not None
+                else ""
+            )
+            details.append(f"{entry.actual_time_min} min{delta}")
+        if entry.body_response:
+            details.append(f'felt: "{entry.body_response}"')
+        if details:
+            line += "  — " + "; ".join(details)
+        print(line)
+    return 0
+
+
+def _cmd_consent_list(args: argparse.Namespace) -> int:
+    from nutrime.consent import list_current
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    for record in list_current(app.substrate, app.tenant_id):
+        state = "granted" if record.granted else "declined"
+        retro = " (retroactive)" if record.retroactive else ""
+        print(
+            f"  {record.data_category:>24} / {record.purpose:<22}"
+            f" {state}{retro} — {record.granted_at}"
+        )
+    return 0
+
+
+def _cmd_consent_set(args: argparse.Namespace) -> int:
+    from nutrime.consent import record_decision
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        consent_id = record_decision(
+            app.substrate,
+            app.tenant_id,
+            data_category=args.category,
+            purpose=args.purpose,
+            granted=args.decision == "grant",
+            note=args.note,
+        )
+    except ValueError as err:
+        print(str(err))
+        return 2
+    print(f"recorded {consent_id}: {args.category}/{args.purpose} {args.decision}")
+    return 0
+
+
 def _cmd_grocery_build(args: argparse.Namespace) -> int:
     from nutrime.grocery.build import (
         build_grocery_list,
@@ -917,6 +1073,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--cuisine", default=None, help="Cuisine tag filter (exact tag)."
     )
     rec_search.add_argument(
+        "--source-filter",
+        default=None,
+        help=(
+            "Comma-separated source collections: pins, themealdb, myplate,"
+            " nhlbi, historical."
+        ),
+    )
+    rec_search.add_argument(
         "--use-inventory",
         action="store_true",
         help="Rank recipes that use what's on hand higher.",
@@ -1091,6 +1255,70 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     pl_show.set_defaults(func=_cmd_plans_show)
+
+    meals = subparsers.add_parser(
+        "meals",
+        help="Record cooked meals + feedback (step 7, C5 two-stage).",
+    )
+    meals_sub = meals.add_subparsers(dest="meals_command", required=True)
+    ml_cooked = meals_sub.add_parser(
+        "cooked",
+        help="Confirm a cook; optionally rate it and report actual time.",
+    )
+    ml_cooked.add_argument("recipe_id", help="Recipe that was cooked.")
+    ml_cooked.add_argument("--plan-id", default=None)
+    ml_cooked.add_argument(
+        "--ease", type=int, default=None, help="1-5: how easy to make."
+    )
+    ml_cooked.add_argument(
+        "--enjoyment", type=int, default=None, help="1-5: how fun to make."
+    )
+    ml_cooked.add_argument("--notes", default=None)
+    ml_cooked.add_argument(
+        "--actual-minutes", type=int, default=None, help="Actual cook time."
+    )
+    ml_cooked.add_argument("--data-dir")
+    ml_cooked.set_defaults(func=_cmd_meals_cooked)
+    ml_feel = meals_sub.add_parser(
+        "feel",
+        help="Later prompt: how did the meal make your body feel?",
+    )
+    ml_feel.add_argument("response", help="Free text — the feeling is the data.")
+    ml_feel.add_argument(
+        "--meal-event-id", default=None, help="Default: the latest meal."
+    )
+    ml_feel.add_argument("--energy", type=int, default=None)
+    ml_feel.add_argument("--digestion", type=int, default=None)
+    ml_feel.add_argument("--fullness", type=int, default=None)
+    ml_feel.add_argument("--mood", type=int, default=None)
+    ml_feel.add_argument("--data-dir")
+    ml_feel.set_defaults(func=_cmd_meals_feel)
+    ml_history = meals_sub.add_parser("history", help="Cooked-meal log.")
+    ml_history.add_argument("--limit", type=int, default=20)
+    ml_history.add_argument("--data-dir")
+    ml_history.set_defaults(func=_cmd_meals_history)
+
+    consent = subparsers.add_parser(
+        "consent",
+        help="Inspect + change standing consent decisions (E2, #21).",
+    )
+    consent_sub = consent.add_subparsers(dest="consent_command", required=True)
+    cn_list = consent_sub.add_parser("list", help="Show current decisions.")
+    cn_list.add_argument("--data-dir")
+    cn_list.set_defaults(func=_cmd_consent_list)
+    cn_set = consent_sub.add_parser("set", help="Record a decision.")
+    cn_set.add_argument("category", help="Data category (see `consent list`).")
+    cn_set.add_argument(
+        "decision", choices=("grant", "decline"), help="The decision."
+    )
+    cn_set.add_argument(
+        "--purpose",
+        default="local_operation",
+        choices=("local_operation", "publication_aggregate"),
+    )
+    cn_set.add_argument("--note", default=None)
+    cn_set.add_argument("--data-dir")
+    cn_set.set_defaults(func=_cmd_consent_set)
 
     grocery = subparsers.add_parser(
         "grocery",

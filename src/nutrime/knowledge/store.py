@@ -87,6 +87,7 @@ def _insert(
     source_identity: str | None,
     phi_categories: Iterable[PhiCategory],
     valid_from: str,
+    consent_record_id: str | None = None,
 ) -> None:
     now = _now_iso()
     conn.execute(
@@ -96,9 +97,9 @@ def _insert(
             provenance, source_identity,
             valid_from, recorded_at,
             system_version, payload_schema_version,
-            phi_categories, payload
+            phi_categories, payload, consent_record_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             entry_id,
@@ -114,6 +115,7 @@ def _insert(
             payload_schema_version,
             json.dumps(sorted(c.value for c in phi_categories)),
             json.dumps(payload),
+            consent_record_id,
         ),
     )
     conn.commit()
@@ -132,6 +134,7 @@ def insert_atom(
     source_identity: str | None = None,
     phi_categories: Iterable[PhiCategory] = (),
     valid_from: str | None = None,
+    consent_record_id: str | None = None,
 ) -> str:
     """Insert an atom row; returns the generated ``atm-...`` id."""
     entry_id = new_atom_id()
@@ -149,6 +152,7 @@ def insert_atom(
         source_identity=source_identity,
         phi_categories=phi_categories,
         valid_from=valid_from or _now_iso(),
+        consent_record_id=consent_record_id,
     )
     return entry_id
 

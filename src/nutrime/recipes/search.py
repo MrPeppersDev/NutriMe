@@ -50,6 +50,35 @@ class SearchFilters:
     exclude_categories: frozenset[str] = field(default_factory=frozenset)
     cuisine: str | None = None
     on_hand: frozenset[str] = field(default_factory=frozenset)
+    # Source-collection facet: keys from SOURCE_COLLECTIONS ("pins",
+    # "themealdb", ...). Empty = all sources.
+    sources: frozenset[str] = field(default_factory=frozenset)
+
+
+# ingestion_method → user-facing collection key. Her pins are stored under
+# each blog's own source_name (attribution honesty), so the facet groups by
+# HOW a recipe arrived, which matches how the household thinks about it.
+SOURCE_COLLECTIONS: dict[str, str] = {
+    "schema_org_jsonld_v1": "pins",
+    "themealdb_api_v1": "themealdb",
+    "myplate_wayback_html_v1": "myplate",
+    "nhlbi_html_v1": "nhlbi",
+    "gutenberg_text_v1": "historical",
+}
+
+SOURCE_LABELS: dict[str, str] = {
+    "pins": "My saved pins",
+    "themealdb": "TheMealDB",
+    "myplate": "USDA MyPlate",
+    "nhlbi": "NHLBI heart-healthy",
+    "historical": "Historical cookbooks",
+    "other": "Other",
+}
+
+
+def source_collection(frontmatter: dict[str, Any]) -> str:
+    method = (frontmatter.get("attribution") or {}).get("ingestion_method", "")
+    return SOURCE_COLLECTIONS.get(method, "other")
 
 
 @dataclass(frozen=True)
@@ -62,6 +91,7 @@ class SearchResult:
     on_hand_matches: tuple[str, ...]
     prefer_matches: tuple[str, ...]
     attribution: str
+    source: str = "other"
 
 
 def normalize_term(term: str) -> str:
@@ -143,6 +173,8 @@ def filters_from_constraints(
 
 def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
     fm = record.frontmatter
+    if filters.sources and source_collection(fm) not in filters.sources:
+        return False
     if filters.query:
         if filters.query.lower() not in str(fm.get("title", "")).lower():
             return False
@@ -242,7 +274,19 @@ def search(
                 on_hand_matches=on_hand_matches,
                 prefer_matches=prefer_matches,
                 attribution=attribution_line(fm),
+                source=source_collection(fm),
             )
         )
-    results.sort(key=lambda r: (-r.score, r.title.lower(), r.recipe_id))
+    # On-hand match COUNT dominates the ordering: when the user says what
+    # they have, "uses most of my ingredients" beats any boost arithmetic —
+    # a 3-match recipe always outranks a 1-match recipe regardless of
+    # preference boosts. Score (which folds in boosts) breaks ties.
+    results.sort(
+        key=lambda r: (
+            -len(r.on_hand_matches),
+            -r.score,
+            r.title.lower(),
+            r.recipe_id,
+        )
+    )
     return results[:limit]

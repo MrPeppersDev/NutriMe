@@ -50,10 +50,12 @@ from nutrime.cycles import (
 from nutrime.inventory.store import InventoryItem, add_item, list_items, remove_item
 from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
 from nutrime.recipes.search import (
+    SOURCE_LABELS,
     SearchFilters,
     attribution_line,
     filters_from_constraints,
     search,
+    source_collection,
 )
 from nutrime.recipes.store import RecipeVault
 from nutrime.recipes.web import Pacer
@@ -185,6 +187,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_phases()
             elif route == "/api/pinterest/status":
                 self._api_pinterest_status()
+            elif route == "/api/sources":
+                self._api_sources()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -252,11 +256,18 @@ class _Handler(BaseHTTPRequestHandler):
             except ValueError:
                 max_time = None
 
+        sources = frozenset(
+            s.strip()
+            for s in (query.get("sources") or [""])[0].split(",")
+            if s.strip()
+        )
+
         filters = SearchFilters(
             query=first("q") or None,
             max_total_time_min=max_time,
             on_hand=frozenset(on_hand),
             prefer_terms=frozenset(prefer),
+            sources=sources,
         )
         if first("apply_constraints") == "1":
             from nutrime.knowledge.store import list_synthesized_entries
@@ -280,6 +291,8 @@ class _Handler(BaseHTTPRequestHandler):
                         "on_hand_matches": list(r.on_hand_matches),
                         "prefer_matches": list(r.prefer_matches),
                         "attribution": r.attribution,
+                        "source": r.source,
+                        "source_label": SOURCE_LABELS.get(r.source, r.source),
                     }
                     for r in results
                 ],
@@ -401,6 +414,26 @@ class _Handler(BaseHTTPRequestHandler):
             }
         )
 
+
+    def _api_sources(self) -> None:
+        counts: dict[str, int] = {}
+        for record in self.server.vault.iter_recipes():
+            key = source_collection(record.frontmatter)
+            counts[key] = counts.get(key, 0) + 1
+        self._json(
+            {
+                "sources": [
+                    {
+                        "key": key,
+                        "label": SOURCE_LABELS.get(key, key),
+                        "count": count,
+                    }
+                    for key, count in sorted(
+                        counts.items(), key=lambda kv: -kv[1]
+                    )
+                ]
+            }
+        )
 
     # -- API: Pinterest sync (#24) ------------------------------------------------
 
@@ -740,6 +773,10 @@ PAGE = """<!doctype html>
       <div class="pillRow" id="phasePills"></div>
       <div class="phaseNote" id="phaseNote"></div>
     </div>
+    <div class="phases">
+      <label class="lbl">From</label>
+      <div class="pillRow" id="sourcePills"></div>
+    </div>
   </section>
 
   <section class="kitchen">
@@ -801,6 +838,34 @@ async function jpost(url, body) {
   const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
                               body: JSON.stringify(body)});
   return r.json();
+}
+
+/* -- source filter -- */
+let SOURCES = new Set();
+async function loadSources() {
+  const data = await jget("/api/sources");
+  const row = $("sourcePills");
+  row.innerHTML = "";
+  const all = document.createElement("button");
+  all.className = "pill on"; all.textContent = "Everything"; all.dataset.key = "";
+  all.onclick = () => { SOURCES.clear(); syncSourcePills(); doSearch(); };
+  row.appendChild(all);
+  for (const s of data.sources) {
+    const b = document.createElement("button");
+    b.className = "pill"; b.dataset.key = s.key;
+    b.textContent = s.label + " (" + s.count + ")";
+    b.onclick = () => {
+      if (SOURCES.has(s.key)) SOURCES.delete(s.key); else SOURCES.add(s.key);
+      syncSourcePills(); doSearch();
+    };
+    row.appendChild(b);
+  }
+}
+function syncSourcePills() {
+  document.querySelectorAll("#sourcePills .pill").forEach(p => {
+    const key = p.dataset.key;
+    p.classList.toggle("on", key === "" ? SOURCES.size === 0 : SOURCES.has(key));
+  });
 }
 
 /* -- phases -- */
@@ -876,6 +941,7 @@ async function doSearch() {
   if ($("applyConstraints").checked) params.set("apply_constraints", "1");
   if ($("maxTime").value) params.set("max_time", $("maxTime").value);
   if (PHASE) params.set("phase", PHASE);
+  if (SOURCES.size) params.set("sources", [...SOURCES].join(","));
   const data = await jget("/api/search?" + params.toString());
   const box = $("resultsBox");
   $("resultMeta").textContent = data.results.length + " of " + data.corpus_count +
@@ -900,7 +966,9 @@ async function doSearch() {
       (tags ? '<div class="matchLine">' + tags + "</div>" : "") +
       '<div class="cardFoot"><span>' +
       (r.total_time_min ? "\\u23f1 " + r.total_time_min + " min" : "") +
-      "</span><span>" + (r.score > 0 ? r.on_hand_matches.length + " on hand" : "") + "</span></div>" +
+      "</span><span>" +
+      (r.on_hand_matches.length ? r.on_hand_matches.length + " on hand \\u00b7 " : "") +
+      esc(r.source_label || "") + "</span></div>" +
       '<div class="attr">' + esc(r.attribution) + "</div>";
     card.onclick = () => openDetail(r.recipe_id);
     grid.appendChild(card);
@@ -996,6 +1064,7 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
   $(id).addEventListener("change", doSearch));
 
 loadPhases();
+loadSources();
 loadInventory();
 loadPinterestStatus();
 doSearch();
