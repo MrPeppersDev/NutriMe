@@ -95,6 +95,13 @@ SOURCE_LABELS: dict[str, str] = {
     "other": "Other",
 }
 
+# User direction 2026-10-04: the historical corpus (1861 measurements,
+# pre-food-safety guidance) isn't applicable to everyday cooking — it is
+# opt-in only. With no explicit source selection, these collections are
+# excluded from search and planner pools alike; selecting the pill
+# includes them.
+OPT_IN_SOURCES = frozenset({"historical"})
+
 
 def source_collection(frontmatter: dict[str, Any]) -> str:
     method = (frontmatter.get("attribution") or {}).get("ingestion_method", "")
@@ -206,7 +213,11 @@ def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
     # Un-vetted rows (no stamp yet) pass — new ingests stay searchable.
     if fm.get("vetting_status") == "quarantined":
         return False
-    if filters.sources and source_collection(fm) not in filters.sources:
+    collection = source_collection(fm)
+    if filters.sources:
+        if collection not in filters.sources:
+            return False
+    elif collection in OPT_IN_SOURCES:
         return False
     if filters.query:
         if filters.query.lower() not in str(fm.get("title", "")).lower():
@@ -323,11 +334,34 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
     )
 
 
+@dataclass(frozen=True)
+class SearchPage:
+    """A page of results plus the total matched (for pagination UX)."""
+
+    results: tuple[SearchResult, ...]
+    total: int
+
+
+def search_page(
+    vault: RecipeVault,
+    filters: SearchFilters,
+    *,
+    limit: int = 24,
+    offset: int = 0,
+) -> SearchPage:
+    """Paginated variant of :func:`search` — same scan, windowed slice."""
+    ranked = search(vault, filters, limit=None)
+    return SearchPage(
+        results=tuple(ranked[offset : offset + limit]),
+        total=len(ranked),
+    )
+
+
 def search(
     vault: RecipeVault,
     filters: SearchFilters,
     *,
-    limit: int = 10,
+    limit: int | None = 10,
 ) -> list[SearchResult]:
     """Scan the vault, hard-filter, then rank by on-hand + preference score."""
     results: list[SearchResult] = []
@@ -380,4 +414,4 @@ def search(
             r.recipe_id,
         )
     )
-    return results[:limit]
+    return results if limit is None else results[:limit]

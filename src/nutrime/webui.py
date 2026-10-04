@@ -54,7 +54,7 @@ from nutrime.recipes.search import (
     SearchFilters,
     attribution_line,
     filters_from_constraints,
-    search,
+    search_page,
     source_collection,
 )
 from nutrime.recipes.store import RecipeVault
@@ -317,10 +317,18 @@ class _Handler(BaseHTTPRequestHandler):
             )
             filters = filters_from_constraints(entries, filters)
 
-        limit = 24
-        results = search(self.server.vault, filters, limit=limit)
+        try:
+            offset = max(0, int(first("offset") or 0))
+        except ValueError:
+            offset = 0
+        page = search_page(
+            self.server.vault, filters, limit=24, offset=offset
+        )
+        results = page.results
         self._json(
             {
+                "total": page.total,
+                "offset": offset,
                 "results": [
                     {
                         "recipe_id": r.recipe_id,
@@ -1267,7 +1275,8 @@ async function loadInventory() {
 }
 
 /* -- search -- */
-async function doSearch() {
+let OFFSET = 0;
+function searchParams() {
   const params = new URLSearchParams();
   const have = $("have").value.trim();
   if (have) params.set("have", have);
@@ -1277,18 +1286,30 @@ async function doSearch() {
   if ($("broaden").checked) params.set("broaden", "1");
   if (PHASE) params.set("phase", PHASE);
   if (SOURCES.size) params.set("sources", [...SOURCES].join(","));
+  return params;
+}
+async function doSearch(append) {
+  if (!append) OFFSET = 0;
+  const params = searchParams();
+  if (OFFSET) params.set("offset", OFFSET);
   const data = await jget("/api/search?" + params.toString());
   const box = $("resultsBox");
-  $("resultMeta").textContent = data.results.length + " of " + data.corpus_count +
-    " recipes in the collection" +
+  const shown = OFFSET + data.results.length;
+  $("resultMeta").textContent = "showing " + shown + " of " + data.total +
+    " matching \\u00b7 " + data.corpus_count + " recipes in the collection" +
     (data.on_hand_count ? " \\u00b7 matching against " + data.on_hand_count + " ingredients you have" : "");
-  if (!data.results.length) {
+  if (!data.total) {
     box.innerHTML = '<div class="empty">Nothing matched those filters \\u2014 try fewer' +
       ' restrictions, or import more of your saved recipes below.</div>';
     return;
   }
-  const grid = document.createElement("div");
-  grid.className = "grid";
+  let grid;
+  if (append) {
+    grid = box.querySelector(".grid");
+    const old = box.querySelector(".moreRow");
+    if (old) old.remove();
+  }
+  if (!grid) { grid = document.createElement("div"); grid.className = "grid"; }
   for (const r of data.results) {
     const card = document.createElement("div");
     card.className = "card";
@@ -1316,8 +1337,19 @@ async function doSearch() {
     card.onclick = () => openDetail(r.recipe_id);
     grid.appendChild(card);
   }
-  box.innerHTML = "";
-  box.appendChild(grid);
+  if (!append) { box.innerHTML = ""; box.appendChild(grid); }
+  OFFSET = shown;
+  if (shown < data.total) {
+    const row = document.createElement("div");
+    row.className = "moreRow";
+    row.style.cssText = "text-align:center;margin-top:16px";
+    const btn = document.createElement("button");
+    btn.className = "btn-go";
+    btn.textContent = "Show more (" + (data.total - shown) + " left)";
+    btn.onclick = () => doSearch(true);
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
 }
 
 /* -- detail -- */
@@ -1481,10 +1513,10 @@ $("pinSync").onclick = async () => {
   if (data.written) doSearch();
 };
 
-$("go").onclick = doSearch;
+$("go").onclick = () => doSearch();
 $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
-  $(id).addEventListener("change", doSearch));
+  $(id).addEventListener("change", () => doSearch()));
 
 loadPhases();
 loadSources();

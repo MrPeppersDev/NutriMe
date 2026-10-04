@@ -369,3 +369,49 @@ class TestSourceFacetAndOrdering:
         results = search(vault, filters)
         assert results[0].title == "Three Match"
         assert len(results[0].on_hand_matches) == 3
+
+
+class TestOptInSourcesAndPagination:
+    def test_historical_excluded_by_default(self, tmp_path):
+        from nutrime.recipes.search import SearchFilters, search
+        from nutrime.recipes.store import RecipeVault
+
+        t = TestSourceFacetAndOrdering()
+        vault = RecipeVault(tmp_path)
+        vault.ensure()
+        t._write(vault, "Beeton Pudding", "gutenberg_text_v1", ["suet"])
+        t._write(vault, "Modern Stew", "themealdb_api_v1", ["beef"])
+        results = search(vault, SearchFilters())
+        assert [r.title for r in results] == ["Modern Stew"]
+
+    def test_historical_included_when_selected(self, tmp_path):
+        from nutrime.recipes.search import SearchFilters, search
+        from nutrime.recipes.store import RecipeVault
+
+        t = TestSourceFacetAndOrdering()
+        vault = RecipeVault(tmp_path)
+        vault.ensure()
+        t._write(vault, "Beeton Pudding", "gutenberg_text_v1", ["suet"])
+        results = search(
+            vault, SearchFilters(sources=frozenset({"historical"}))
+        )
+        assert [r.title for r in results] == ["Beeton Pudding"]
+
+    def test_search_page_windows_and_totals(self, tmp_path):
+        from nutrime.recipes.search import SearchFilters, search_page
+        from nutrime.recipes.store import RecipeVault
+
+        t = TestSourceFacetAndOrdering()
+        vault = RecipeVault(tmp_path)
+        vault.ensure()
+        for i in range(30):
+            t._write(vault, f"Recipe {i:02d}", "themealdb_api_v1", ["beef"])
+        first = search_page(vault, SearchFilters(), limit=24, offset=0)
+        assert first.total == 30
+        assert len(first.results) == 24
+        second = search_page(vault, SearchFilters(), limit=24, offset=24)
+        assert len(second.results) == 6
+        # no overlap between pages
+        ids1 = {r.recipe_id for r in first.results}
+        ids2 = {r.recipe_id for r in second.results}
+        assert not ids1 & ids2
