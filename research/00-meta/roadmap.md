@@ -44,6 +44,8 @@ Audit of the April-2026 genesis conversation + product-framing.md against the sh
 
 Items 1–3 are the "absolutely now" tier (the learning loop and the two inventory promises are what make daily use compound); 4–5 are fast follows; 6 waits for Track G.
 
+**Items 1–5 LANDED 2026-10-04 (`a3bbbbd`, plan in `vision-gap-build-plan.md`) — #26/#27/#28 closed.** Same session, V0 corpus hygiene landed first (`6aa8cd8`, user direction): `recipes/vetting.py` title normalization (SHOUTING-CAPS, entity decode, trailing "Recipe" noise; `title_original` preserved) + quarantine pass (segmentation artifacts, no-content fragments; narrative historical recipes pass) — live run normalized 76 titles, quarantined 108 of 4,817; search skips quarantined; CLI `recipes vet`. Item 6 rides with Track G (#25).
+
 Items deferred because the current product is personal-use (user + family + a couple friends):
 
 - **Children as cooks (children's nutrition + cooking education)** — out per [product-framing.md](product-framing.md). Currently kids are eaters in households, never cooks. A separate product entirely.
