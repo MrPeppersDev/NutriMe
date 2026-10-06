@@ -722,13 +722,16 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         else:
             print(f"{label}: {outcome.entry.title}  [{outcome.entry.recipe_id}]")
 
-    from nutrime.plans.service import generate_and_store
+    from nutrime.plans.service import PlanRefusedError, generate_and_store
 
     try:
         plan_id, path, plan = generate_and_store(
             app, client, spec, filters, applied,
             model_hint=args.model, on_progress=_progress, seed=seed,
         )
+    except PlanRefusedError as exc:
+        print(str(exc))
+        return 3
     except MissingApiKeyError as exc:
         print(f"config error: {exc}")
         return 2

@@ -50,6 +50,9 @@ class IntakeProfile:
     weight_kg: float | None = None
     dietary_preferences: tuple[str, ...] = field(default_factory=tuple)
     allergens: tuple[str, ...] = field(default_factory=tuple)
+    # Disclosed health conditions (sweep #10) — free text; gating behavior
+    # is computed from nutrime.conditions at use time, never stored.
+    conditions: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not 1900 <= self.year_of_birth <= 2100:
@@ -107,9 +110,9 @@ def save_member_profile(
         INSERT INTO intake_profile_v2 (
             tenant_id, member_id, year_of_birth, sex_assigned_at_birth,
             height_cm, weight_kg, life_stage,
-            dietary_preferences, allergens, created_at, updated_at
+            dietary_preferences, allergens, conditions, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, member_id) DO UPDATE SET
             year_of_birth         = excluded.year_of_birth,
             sex_assigned_at_birth = excluded.sex_assigned_at_birth,
@@ -118,6 +121,7 @@ def save_member_profile(
             life_stage            = excluded.life_stage,
             dietary_preferences   = excluded.dietary_preferences,
             allergens             = excluded.allergens,
+            conditions            = excluded.conditions,
             updated_at            = excluded.updated_at
         """,
         (
@@ -130,6 +134,7 @@ def save_member_profile(
             profile.life_stage,
             json.dumps(list(profile.dietary_preferences)),
             json.dumps(list(profile.allergens)),
+            json.dumps(list(profile.conditions)),
             now,
             now,
         ),
@@ -147,6 +152,7 @@ def profile_to_dict(profile: IntakeProfile) -> dict:
         "weight_kg": profile.weight_kg,
         "dietary_preferences": list(profile.dietary_preferences),
         "allergens": list(profile.allergens),
+        "conditions": list(profile.conditions),
     }
 
 
@@ -159,7 +165,7 @@ def save_profile(
 
 _PROFILE_COLS = (
     "member_id, year_of_birth, sex_assigned_at_birth, life_stage,"
-    " height_cm, weight_kg, dietary_preferences, allergens"
+    " height_cm, weight_kg, dietary_preferences, allergens, conditions"
 )
 
 
@@ -172,6 +178,7 @@ def _row_to_profile(row: tuple) -> IntakeProfile:
         weight_kg=row[5],
         dietary_preferences=tuple(json.loads(row[6])),
         allergens=tuple(json.loads(row[7])),
+        conditions=tuple(json.loads(row[8])),
     )
 
 

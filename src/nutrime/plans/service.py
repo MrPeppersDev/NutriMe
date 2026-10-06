@@ -26,6 +26,11 @@ LOCAL_MODEL_SETUP = (
 )
 
 
+class PlanRefusedError(Exception):
+    """A refuse-level disclosed condition blocks plan generation
+    (sweep #10 behavior framework — deterministic, outside any LLM)."""
+
+
 def plan_base_filters(
     app,
     *,
@@ -85,9 +90,38 @@ def generate_and_store(
     on_progress: Callable[[SlotOutcome], None] | None = None,
     seed: int | None = None,
 ) -> tuple[str, Path, AssembledPlan]:
-    """Run the planner, audit surface findings, write the plan."""
+    """Run the planner, audit surface findings, write the plan.
+
+    Raises :class:`PlanRefusedError` before any LLM crossing when a
+    household member disclosed a refuse-level condition (sweep #10).
+    Gate-level conditions inject their constraint lines into every
+    crossing's household note instead.
+    """
     from nutrime.audit import _now_iso
+    from nutrime.conditions import household_gates
     from nutrime.surface_rules import household_sensitivities
+
+    gates = household_gates(app.substrate, app.tenant_id)
+    if gates.refused:
+        app.audit.record_event(
+            event_kind="audit",
+            event_subkind="condition_gate",
+            actor=actor,
+            payload={
+                "action": "refused",
+                "conditions": [c.canonical for c in gates.refusals],
+            },
+        )
+        raise PlanRefusedError(gates.refusal_message())
+    if gates.plan_notes:
+        base = spec.household_note.strip() or f"{spec.servings} servings"
+        spec = replace(
+            spec,
+            household_note=base + "; " + "; ".join(gates.plan_notes),
+        )
+        applied = applied + [
+            f"condition rails ({len(gates.plan_notes)})"
+        ]
 
     vault = RecipeVault(app.corpus_dir)
     plan = assemble_plan(

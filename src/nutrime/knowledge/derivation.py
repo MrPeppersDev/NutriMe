@@ -81,12 +81,16 @@ class DerivationOutcome:
 
 def _load_profiles(
     conn: sqlite3.Connection, tenant_id: str
-) -> dict[str, tuple[list[str], list[str]]]:
-    """member_id → (allergens, preferences) for active members."""
+) -> dict[str, tuple[list[str], list[str], list[str]]]:
+    """member_id → (allergens, preferences, conditions) for active members."""
     from nutrime.intake.store import household_profiles
 
     return {
-        member_id: (list(p.allergens), list(p.dietary_preferences))
+        member_id: (
+            list(p.allergens),
+            list(p.dietary_preferences),
+            list(p.conditions),
+        )
         for member_id, p in household_profiles(conn, tenant_id).items()
     }
 
@@ -166,6 +170,49 @@ def _sync_allergens(
                 "disclosure_source": "self_reported_intake",
             },
             phi_categories=(PhiCategory.ALLERGENS,),
+            source_identity=f"intake_profile:{member_id}",
+            subject_id=member_id,
+        )
+        outcome.bump_atom("clinical_disclosure")
+
+
+def _sync_conditions(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    member_id: str,
+    conditions: list[str],
+    outcome: DerivationOutcome,
+) -> None:
+    """Condition disclosures (sweep #10) mirror the allergen pattern:
+    one ``clinical_disclosure`` atom per disclosure, retracted when the
+    profile no longer lists it. ``household_sensitivities`` reads these,
+    so Rule 1 consult lines follow automatically."""
+    existing = _member_atoms(conn, tenant_id, member_id, "clinical_disclosure")
+    wanted = {c.strip().lower() for c in conditions}
+    for atom in existing:
+        if atom.payload.get("disclosure_type") != "condition":
+            continue
+        if str(atom.payload.get("disclosure_text", "")).strip().lower() not in wanted:
+            if retract_entry(conn, tenant_id, atom.id, RetractionReason.USER_CORRECTION):
+                outcome.atoms_retracted += 1
+    existing = _member_atoms(conn, tenant_id, member_id, "clinical_disclosure")
+    for condition in conditions:
+        if _payload_matches(
+            existing, disclosure_type="condition", disclosure_text=condition
+        ):
+            continue
+        insert_atom(
+            conn,
+            tenant_id,
+            atom_type="clinical_disclosure",
+            provenance=Provenance.CONVERSATIONAL_ELICITATION,
+            payload={
+                "disclosure_type": "condition",
+                "disclosure_text": condition,
+                "disclosure_text_format": "plain",
+                "disclosure_source": "self_reported_intake",
+            },
+            phi_categories=(PhiCategory.CONDITIONS,),
             source_identity=f"intake_profile:{member_id}",
             subject_id=member_id,
         )
@@ -347,9 +394,10 @@ def sync_from_intake(
     profiles = _load_profiles(conn, tenant_id)
     for member in list_members(conn, tenant_id):
         if member.id in profiles:
-            allergens, preferences = profiles[member.id]
+            allergens, preferences, conditions = profiles[member.id]
             _sync_allergens(conn, tenant_id, member.id, allergens, outcome)
             _sync_preferences(conn, tenant_id, member.id, preferences, outcome)
+            _sync_conditions(conn, tenant_id, member.id, conditions, outcome)
         _sync_screener_results(conn, tenant_id, member.id, outcome)
     _sync_abstracted_constraints(conn, tenant_id, outcome)
     return outcome

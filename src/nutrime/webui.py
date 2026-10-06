@@ -433,6 +433,7 @@ class _Handler(BaseHTTPRequestHandler):
         from nutrime.plans.assemble import MEAL_SLOTS, PlanSpec
         from nutrime.plans.service import (
             LOCAL_MODEL_SETUP,
+            PlanRefusedError,
             generate_and_store,
             local_client,
             plan_base_filters,
@@ -468,9 +469,16 @@ class _Handler(BaseHTTPRequestHandler):
         filters, applied = plan_base_filters(
             app, max_time=int(max_time) if max_time else None
         )
-        plan_id, _, plan = generate_and_store(
-            app, client, spec, filters, applied, actor="webui"
-        )
+        try:
+            plan_id, _, plan = generate_and_store(
+                app, client, spec, filters, applied, actor="webui"
+            )
+        except PlanRefusedError as refusal:
+            self._json(
+                {"error": str(refusal), "code": "condition_refusal"},
+                status=409,
+            )
+            return
         self._json({
             "plan_id": plan_id,
             "filled": plan.filled,
@@ -632,14 +640,29 @@ class _Handler(BaseHTTPRequestHandler):
         abstracted constraints every plan and search respects."""
         from nutrime.knowledge.store import list_synthesized_entries
 
+        from nutrime.conditions import household_gates
+
         app = self.server.app
         entries = list_synthesized_entries(
             app.substrate, app.tenant_id, entry_type="abstracted_constraint"
         )
+        gates = household_gates(app.substrate, app.tenant_id)
         self._json({
             "constraints": sorted(
                 {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
-            )
+            ),
+            # Sweep #10: disclosed conditions + the deterministic behavior
+            # each one carries, so the household can see the rails.
+            "conditions": [
+                {
+                    "name": c.canonical,
+                    "behavior": c.behavior,
+                    "note": c.note,
+                    "specialties": list(c.specialties),
+                }
+                for c in gates.conditions
+            ],
+            "plans_refused": gates.refused,
         })
 
     # -- notifications + activity (C5 Q5.2 / Q5.4) --------------------------------
@@ -756,6 +779,9 @@ class _Handler(BaseHTTPRequestHandler):
                 ),
                 allergens=tuple(
                     str(v).strip() for v in raw.get("allergens") or [] if str(v).strip()
+                ),
+                conditions=tuple(
+                    str(v).strip() for v in raw.get("conditions") or [] if str(v).strip()
                 ),
             )
             instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
@@ -1351,6 +1377,7 @@ class _Handler(BaseHTTPRequestHandler):
             "weight_kg": profile.weight_kg,
             "dietary_preferences": list(profile.dietary_preferences),
             "allergens": list(profile.allergens),
+            "conditions": list(profile.conditions),
         }
 
     def _api_intake_status(self) -> None:
@@ -1368,6 +1395,7 @@ class _Handler(BaseHTTPRequestHandler):
         )
 
     def _api_intake_questions(self) -> None:
+        from nutrime.conditions import COMMON_CONDITIONS
         from nutrime.intake.baseline import MVP_INSTRUMENTS
         from nutrime.recipes.allergens import TOP_ALLERGENS
 
@@ -1393,6 +1421,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "life_stages": list(self._INTAKE_LIFE_STAGES),
                     "sex_options": list(self._INTAKE_SEX_OPTIONS),
                     "allergens": list(TOP_ALLERGENS),
+                    "conditions": list(COMMON_CONDITIONS),
                 },
             }
         )
@@ -1446,6 +1475,7 @@ class _Handler(BaseHTTPRequestHandler):
                 weight_kg=float(weight) if weight not in (None, "") else None,
                 dietary_preferences=_str_list("dietary_preferences"),
                 allergens=_str_list("allergens"),
+                conditions=_str_list("conditions"),
             )
         except (TypeError, ValueError) as err:
             self._json({"error": str(err)}, status=400)
@@ -2777,7 +2807,7 @@ function blankIntakeState() {
   return {
     year_of_birth: "", sex_assigned_at_birth: "", life_stage: "",
     height_cm: "", weight_kg: "",
-    allergens: new Set(), dietary_preferences: [],
+    allergens: new Set(), dietary_preferences: [], conditions: new Set(),
     screeners: {},  // instrument_id -> [value per item]
     cooking_confidence: null, weeknight_minutes: null, cuisines: new Set(),
   };
@@ -2797,6 +2827,7 @@ async function openIntake() {
     INTAKE_STATE.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
     INTAKE_STATE.allergens = new Set(p.allergens);
     INTAKE_STATE.dietary_preferences = p.dietary_preferences.slice();
+    INTAKE_STATE.conditions = new Set(p.conditions || []);
   }
   INTAKE_STEP = 1;
   renderIntakeStep();
@@ -2856,6 +2887,16 @@ function renderIntakeStep() {
     const extras = s.dietary_preferences.map((p, i) =>
       '<span class="chip">' + esc(p) +
       '<button onclick="removePref(' + i + ')" title="Remove">\\u00d7</button></span>').join(" ");
+    const condChips = (INTAKE_Q.profile_fields.conditions || []).map(c => {
+      const on = s.conditions.has(c);
+      return '<button class="pill' + (on ? ' on' : '') + '" data-condition="' + esc(c) +
+        '" onclick="toggleCondition(this)">' + esc(c) + '</button>';
+    }).join(" ");
+    const condExtras = [...s.conditions]
+      .filter(c => !(INTAKE_Q.profile_fields.conditions || []).includes(c))
+      .map(c => '<span class="chip">' + esc(c) +
+        '<button onclick="removeCondition(' + JSON.stringify(c).replace(/"/g, "&quot;") +
+        ')" title="Remove">\\u00d7</button></span>').join(" ");
     sheet.innerHTML = intakeHeader("Allergens + preferences") +
       '<div class="formRow"><label>Food allergens to avoid (tap to toggle)</label>' +
       '<div class="pillRow" id="allergenPills">' + chips + '</div></div>' +
@@ -2863,12 +2904,27 @@ function renderIntakeStep() {
       '(vegetarian, halal, no cilantro\\u2026)</label>' +
       '<div class="chips" id="prefChips">' + extras +
       '<span class="chipAdd"><input id="prefInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
+      '<div class="formRow"><label>Health conditions food should respect ' +
+      '(optional \\u2014 tap or type)</label>' +
+      '<p class="hint" style="margin:2px 0 8px">Some conditions add guard rails to meal ' +
+      'plans; a few mean NutriMe steps back and points to the right specialist instead. ' +
+      'This stays on this computer like everything else.</p>' +
+      '<div class="pillRow" id="conditionPills">' + condChips + '</div>' +
+      '<div class="chips" id="condChips">' + condExtras +
+      '<span class="chipAdd"><input id="condInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
       intakeNav("back", "Next: three quick check-ins", "intakeStep2Next()");
     $("prefInput").addEventListener("keydown", e => {
       if (e.key === "Enter" && e.target.value.trim()) {
         INTAKE_STATE.dietary_preferences.push(e.target.value.trim());
         renderIntakeStep();
         $("prefInput").focus();
+      }
+    });
+    $("condInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.value.trim()) {
+        INTAKE_STATE.conditions.add(e.target.value.trim());
+        renderIntakeStep();
+        $("condInput").focus();
       }
     });
   } else if (INTAKE_STEP === 3) {
@@ -2938,6 +2994,16 @@ function removePref(i) {
   INTAKE_STATE.dietary_preferences.splice(i, 1);
   renderIntakeStep();
 }
+function toggleCondition(btn) {
+  const c = btn.dataset.condition;
+  if (INTAKE_STATE.conditions.has(c)) INTAKE_STATE.conditions.delete(c);
+  else INTAKE_STATE.conditions.add(c);
+  btn.classList.toggle("on");
+}
+function removeCondition(c) {
+  INTAKE_STATE.conditions.delete(c);
+  renderIntakeStep();
+}
 
 function intakeStep1Next() {
   const s = INTAKE_STATE;
@@ -2990,6 +3056,7 @@ async function saveIntake() {
       weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
       allergens: [...s.allergens],
       dietary_preferences: s.dietary_preferences,
+      conditions: [...s.conditions],
     },
     screeners: s.screeners,
   });
@@ -3215,6 +3282,7 @@ async function openCheckin() {
   s.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
   s.allergens = new Set(p.allergens);
   s.dietary_preferences = p.dietary_preferences.slice();
+  s.conditions = new Set(p.conditions || []);
   s.cooking_confidence = CHECKIN_Q.cooking_confidence.current;
   s.weeknight_minutes = CHECKIN_Q.weeknight_minutes.current;
   s.cuisines = new Set(CHECKIN_Q.cuisines.current);
@@ -3237,6 +3305,7 @@ async function saveCheckin() {
       weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
       allergens: [...s.allergens],
       dietary_preferences: s.dietary_preferences,
+      conditions: [...s.conditions],
     },
     screeners: s.screeners,
     cooking_confidence: s.cooking_confidence,
@@ -3529,10 +3598,22 @@ async function loadProfile() {
     "Not filled in yet. It takes about 5 minutes and stays on this computer.";
   $("profileLink").textContent = status.complete ? "Edit my answers" : "Fill in my answers";
   const derived = await jget("/api/derived", true);
-  $("derivedBody").innerHTML = (derived.constraints || []).length ?
+  let derivedHtml = (derived.constraints || []).length ?
     '<div class="matchLine">' + derived.constraints.map(c =>
       '<span class="tag">' + esc(c) + "</span>").join(" ") + "</div>" :
     '<div class="hint">Nothing yet. Profile answers fill this in.</div>';
+  const conds = derived.conditions || [];
+  if (conds.length) {
+    const behaviorLabel = {refuse: "meal plans paused", gate: "guard rails on plans",
+                           disclaimer: "consult-professional notes"};
+    derivedHtml += '<div style="margin-top:10px">' + conds.map(c =>
+      '<div class="consentRow"><span><b>' + esc(c.name) + '</b> ' +
+      '<span class="tag' + (c.behavior === "refuse" ? " warn" : "") + '">' +
+      esc(behaviorLabel[c.behavior] || c.behavior) + '</span><br>' +
+      '<span class="hint">' + esc(c.note || ("Typically managed by " +
+        c.specialties.join(" or ") + ".")) + '</span></span></div>').join("") + "</div>";
+  }
+  $("derivedBody").innerHTML = derivedHtml;
   loadConsent();
   renderMemberAdmin();
   loadDoctor();
