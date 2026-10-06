@@ -977,6 +977,11 @@ class _Handler(BaseHTTPRequestHandler):
     def _api_sources(self) -> None:
         counts: dict[str, int] = {}
         for record in self.server.vault.iter_recipes():
+            # Facet counts mirror what search can actually surface —
+            # quarantined rows (junk + the de-scoped historical corpus)
+            # are invisible here too.
+            if record.frontmatter.get("vetting_status") == "quarantined":
+                continue
             key = source_collection(record.frontmatter)
             counts[key] = counts.get(key, 0) + 1
         self._json(
