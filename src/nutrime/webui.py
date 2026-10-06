@@ -220,6 +220,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_derived()
             elif route == "/api/doctor":
                 self._api_doctor()
+            elif route == "/api/notifications":
+                self._api_notifications()
+            elif route == "/api/activity":
+                self._api_activity(query)
             elif route == "/api/checkin/status":
                 self._api_checkin_status()
             elif route == "/api/checkin/questions":
@@ -260,6 +264,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_plans_swap()
             elif parsed.path == "/api/consent":
                 self._api_consent_set()
+            elif parsed.path == "/api/notifications/settings":
+                self._api_notification_settings()
             elif parsed.path == "/api/checkin":
                 self._api_checkin_save()
             elif parsed.path == "/api/checkin/snooze":
@@ -635,6 +641,59 @@ class _Handler(BaseHTTPRequestHandler):
                 {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
             )
         })
+
+    # -- notifications + activity (C5 Q5.2 / Q5.4) --------------------------------
+
+    def _notifications_payload(self, member_id: str) -> dict[str, Any]:
+        from nutrime.activity import (
+            NOTIFICATION_CATEGORIES,
+            notification_settings,
+            notifications,
+        )
+
+        app = self.server.app
+        settings = notification_settings(app.substrate, app.tenant_id, member_id)
+        return {
+            "items": notifications(app, member_id),
+            "settings": [
+                {"category": cat, "label": meta["label"], "on": settings[cat],
+                 "default": meta["default"]}
+                for cat, meta in NOTIFICATION_CATEGORIES.items()
+            ],
+        }
+
+    def _api_notifications(self) -> None:
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self._json(self._notifications_payload(member_id))
+
+    def _api_notification_settings(self) -> None:
+        from nutrime.activity import set_notification
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        try:
+            set_notification(
+                self.server.app.substrate, self.server.app.tenant_id, member_id,
+                str(payload.get("category") or ""), bool(payload.get("on")),
+            )
+        except ValueError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._notifications_payload(member_id))
+
+    def _api_activity(self, query: dict[str, list[str]]) -> None:
+        from nutrime.activity import activity_feed
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        raw = (query.get("days") or ["30"])[0]
+        days = int(raw) if raw.isdigit() and 1 <= int(raw) <= 365 else 30
+        self._json({"days": days, "items": activity_feed(self.server.app, member_id, days=days)})
 
     # -- periodic check-ins (intake-pattern.md Mode 2) ----------------------------
 
@@ -1949,6 +2008,18 @@ PAGE = """<!doctype html>
   .scope { font-size: 11.5px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
   .errorBox { background: #fbeee8; border: 1px solid #e7c3b4; color: #7a2e14; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin-top: 10px; }
   .toast.err { background: #8a3417; }
+  .bell { position: relative; background: transparent; color: var(--ink); padding: 8px 10px; font-size: 18px; min-height: 40px; }
+  .bell .count { position: absolute; top: 2px; right: 0; background: var(--accent); color: var(--accent-ink);
+    border-radius: 999px; font-size: 11px; min-width: 18px; height: 18px; line-height: 18px; text-align: center; padding: 0 4px; }
+  .notice { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .scale { display: flex; gap: 6px; flex-wrap: wrap; }
+  .scale button { background: var(--leaf-soft); color: var(--leaf); padding: 10px 0; width: 48px; border-radius: 10px; }
+  .scale button.on { background: var(--leaf); color: #fff; }
+  .why { background: var(--leaf-soft); border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 14.5px; }
+  .why ul { margin: 6px 0 0 18px; }
+  .act { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 14.5px; }
+  .act time { color: var(--ink-soft); min-width: 92px; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .act .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); min-width: 64px; }
   @media (max-width: 720px) {
     body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
     .tabs {
@@ -1971,6 +2042,7 @@ PAGE = """<!doctype html>
     <div class="whoRow">
       <label for="memberPicker">Who's using this?</label>
       <select id="memberPicker" aria-label="Household member"></select>
+      <button class="bell" id="bellBtn" aria-label="Notifications">🔔<span class="count" id="bellCount" hidden>0</span></button>
     </div>
   </div>
   <nav class="tabs" aria-label="Sections">
@@ -2134,6 +2206,16 @@ PAGE = """<!doctype html>
   </section>
  </div>
 
+ <div class="view" id="view-activity" data-view="activity" hidden>
+  <h2 class="serif" style="font-size:30px">What NutriMe did with your data</h2>
+  <section class="ask">
+    <div class="formRow"><label class="opt">Show the last <select id="activityDays">
+      <option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option>
+    </select></label></div>
+    <div id="activityList"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
  <div class="view" id="view-grocery" data-view="grocery" hidden>
   <h2 class="serif" style="font-size:30px">Grocery list</h2>
   <section class="ask">
@@ -2167,6 +2249,16 @@ PAGE = """<!doctype html>
   <section class="ask">
     <label class="lbl">Household</label>
     <div id="memberAdmin"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Notifications</label>
+    <p class="hint">What's worth interrupting you for. The defaults are the important ones only.</p>
+    <div id="notifySettings"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">What NutriMe did with your data</label>
+    <p class="hint">Every model request, privacy decision, safety check and change, in plain words.</p>
+    <div class="formRow"><button class="btn-go" id="openActivity">Show activity</button></div>
   </section>
   <section class="ask">
     <label class="lbl">System check</label>
@@ -2256,7 +2348,10 @@ async function loadMembers() {
 async function onMemberChange() {
   const sel = $("memberPicker");
   if (sel.value === "__add") {
-    const name = (prompt("Name for the new household member?") || "").trim();
+    const got = await formSheet({title: "Add a person", submit: "Add",
+      fields: [{id: "name", label: "Their name", placeholder: "e.g. Sam"}],
+      validate: o => o.name ? null : "Type a name."});
+    const name = got ? got.name : "";
     if (name) {
       const r = await fetch("/api/members", {method: "POST",
         headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
@@ -2429,6 +2524,7 @@ async function doSearch(append) {
       (r.on_hand_matches.length ? r.on_hand_matches.length + " on hand \\u00b7 " : "") +
       esc(r.source_label || "") + "</span></div>" +
       '<div class="attr">' + esc(r.attribution) + "</div>";
+    WHY[r.recipe_id] = {from: "search", r, constraints: $("applyConstraints").checked};
     card.onclick = () => openDetail(r.recipe_id);
     grid.appendChild(card);
   }
@@ -2468,6 +2564,7 @@ async function openDetail(id) {
     d.ingredients.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>" +
     "<h4>Steps</h4><ol>" +
     d.steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>" +
+    whyHtml(WHY[id]) +
     (safeUrl(d.source_url) ? '<div class="srcLink"><a href="' + esc(d.source_url) +
       '" target="_blank" rel="noopener">Open the original \\u2197</a></div>' : "") +
     '<div class="attr">' + esc(d.attribution) + "</div>";
@@ -2560,34 +2657,11 @@ async function loadTonight() {
   body.innerHTML = parts.join("");
   box.style.display = "block";
 }
-async function markCooked(recipeId, planId) {
-  const ease = prompt("How easy was it to make? (1-5, blank to skip)");
-  let payload = {recipe_id: recipeId, plan_id: planId};
-  if (ease) {
-    const fun = prompt("How enjoyable to make? (1-5)");
-    if (fun) { payload.ease = parseInt(ease); payload.enjoyment = parseInt(fun); }
-  }
-  const mins = prompt("Actual minutes it took? (blank to skip)");
-  if (mins) payload.actual_minutes = parseInt(mins);
-  const res = await jpost("/api/meals/cooked", payload);
-  if (res.error) { alert(res.error); return; }
-  // V2 ask-don't-assume decrement: offer the recipe∩inventory names.
-  if (res.used_candidates && res.used_candidates.length) {
-    const names = res.used_candidates.join(", ");
-    if (confirm("Used these up from the kitchen? " + names +
-                "\\n\\nOK removes them from your inventory; Cancel keeps them.")) {
-      await jpost("/api/meals/cooked/used-up",
-                  {meal_event_id: res.meal_event_id, names: res.used_candidates});
-      loadInventory();
-    }
-  }
-  loadTonight();
-}
 async function sendFeel(mealEventId) {
   const text = $("feelText").value.trim();
   if (!text) return;
   const res = await jpost("/api/meals/feel", {meal_event_id: mealEventId, response: text});
-  if (res.error) alert(res.error); else loadTonight();
+  if (!res.error) { toast("Thanks, noted."); loadTonight(); }
 }
 
 /* -- pinterest sync -- */
@@ -2896,6 +2970,174 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
   $(id).addEventListener("change", () => doSearch()));
 
+/* -- in-page forms (no browser pop-ups; they are clumsy on phones) -- */
+// fields: {id, label, type: "text"|"number"|"scale"|"checks", value, options, placeholder}
+function formSheet(spec) {
+  return new Promise(resolve => {
+    const body = spec.fields.map(f => {
+      if (f.type === "scale") {
+        return '<div class="formRow"><label>' + esc(f.label) + '</label><div class="scale" data-scale="' + f.id + '">' +
+          [1, 2, 3, 4, 5].map(n => '<button type="button" data-v="' + n + '"' + (f.value === n ? ' class="on"' : "") + ">" + n + "</button>").join("") +
+          "</div>" + (f.hint ? '<div class="hint">' + esc(f.hint) + "</div>" : "") + "</div>";
+      }
+      if (f.type === "checks") {
+        return '<div class="formRow"><label>' + esc(f.label) + "</label>" + f.options.map((o, i) =>
+          '<label class="opt"><input type="checkbox" data-check="' + f.id + '" value="' + esc(o) + '" checked> ' + esc(o) + "</label>").join("") + "</div>";
+      }
+      return '<div class="formRow"><label for="fs_' + f.id + '">' + esc(f.label) + "</label>" +
+        '<input type="' + (f.type || "text") + '" id="fs_' + f.id + '" value="' + esc(f.value == null ? "" : f.value) + '"' +
+        (f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : "") + "></div>";
+    }).join("");
+    $("sheet").innerHTML =
+      '<button class="closeX" id="fsClose" aria-label="Close">×</button><h3>' + esc(spec.title) + "</h3>" +
+      (spec.intro ? '<p class="hint">' + esc(spec.intro) + "</p>" : "") + body +
+      '<div class="intakeMsg" id="fsMsg"></div><div class="stepNav">' +
+      '<button class="btn-go" id="fsOk">' + esc(spec.submit || "Save") + "</button>" +
+      '<button class="btn-quiet" id="fsCancel">' + esc(spec.cancel || "Cancel") + "</button></div>";
+    $("sheet").querySelectorAll("[data-scale] button").forEach(b => b.onclick = () => {
+      b.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    });
+    const done = val => { $("overlay").classList.remove("on"); resolve(val); };
+    $("fsClose").onclick = () => done(null);
+    $("fsCancel").onclick = () => done(spec.cancelValue === undefined ? null : spec.cancelValue);
+    $("fsOk").onclick = () => {
+      const out = {};
+      spec.fields.forEach(f => {
+        if (f.type === "scale") {
+          const on = $("sheet").querySelector('[data-scale="' + f.id + '"] button.on');
+          out[f.id] = on ? parseInt(on.dataset.v) : null;
+        } else if (f.type === "checks") {
+          out[f.id] = [...$("sheet").querySelectorAll('input[data-check="' + f.id + '"]:checked')].map(x => x.value);
+        } else {
+          out[f.id] = $("fs_" + f.id).value.trim();
+        }
+      });
+      const err = spec.validate ? spec.validate(out) : null;
+      if (err) { $("fsMsg").textContent = err; return; }
+      done(out);
+    };
+    $("overlay").classList.add("on");
+    const first = $("sheet").querySelector("input");
+    if (first && first.type !== "checkbox") first.focus();
+  });
+}
+
+async function markCooked(recipeId, planId) {
+  const v = await formSheet({
+    title: "How did it go?", submit: "Save", intro: "All optional; it teaches NutriMe what works for you.",
+    fields: [
+      {id: "ease", label: "How easy was it to make?", type: "scale", hint: "1 = hard, 5 = easy"},
+      {id: "enjoyment", label: "How enjoyable was it to make?", type: "scale", hint: "1 = a chore, 5 = loved it"},
+      {id: "minutes", label: "How many minutes did it actually take?", type: "number", placeholder: "e.g. 35"},
+    ],
+    validate: o => (o.ease && !o.enjoyment) || (!o.ease && o.enjoyment) ?
+      "Pick both ratings, or neither." : null,
+  });
+  if (v === null) return;
+  const payload = {recipe_id: recipeId, plan_id: planId};
+  if (v.ease && v.enjoyment) { payload.ease = v.ease; payload.enjoyment = v.enjoyment; }
+  if (v.minutes) payload.actual_minutes = parseInt(v.minutes);
+  const res = await jpost("/api/meals/cooked", payload);
+  if (res.error) return;
+  // V2 ask-don't-assume decrement: offer the recipe∩inventory names.
+  if (res.used_candidates && res.used_candidates.length) {
+    const used = await formSheet({
+      title: "Used up anything?", submit: "Remove ticked items", cancel: "Keep everything",
+      intro: "Ticked items come off your kitchen list.",
+      fields: [{id: "names", label: "From the kitchen", type: "checks", options: res.used_candidates}],
+    });
+    if (used && used.names.length) {
+      await jpost("/api/meals/cooked/used-up", {meal_event_id: res.meal_event_id, names: used.names});
+      loadInventory();
+    }
+  }
+  toast("Saved. Later, tell NutriMe how it made you feel.");
+  loadTonight();
+}
+
+/* -- why this? (C5 Q5.4 inline drill-in) -- */
+const WHY = {};   // recipe_id → context from wherever it was shown
+let AVOID_COUNT = null;
+function whyHtml(ctx) {
+  if (!ctx) return "";
+  const r = ctx.r || {}, lines = [];
+  if (r.on_hand_matches && r.on_hand_matches.length) lines.push("Uses what you have: " + r.on_hand_matches.join(", "));
+  if (r.expiring_matches && r.expiring_matches.length) lines.push("Uses up food that’s due soon: " + r.expiring_matches.join(", "));
+  if (r.prefer_matches && r.prefer_matches.length) lines.push("Matches household preferences: " + r.prefer_matches.join(", "));
+  if (r.times_cooked) lines.push("You’ve cooked it " + r.times_cooked + " time" + (r.times_cooked > 1 ? "s" : "") +
+    (r.avg_enjoyment ? ", enjoyment " + r.avg_enjoyment + "/5" : ""));
+  if (r.novel_cuisine) lines.push("A cuisine the household hasn’t cooked yet");
+  if (ctx.note) lines.push("Planner’s note: " + ctx.note);
+  if (ctx.constraints !== false && AVOID_COUNT) lines.push("Checked against the household avoid/prefer list (" + AVOID_COUNT + " item" + (AVOID_COUNT > 1 ? "s" : "") + ")");
+  if (!lines.length) lines.push(ctx.from === "search" ? "It matched your search." : "It fits the plan’s limits.");
+  return '<div class="why"><b>Why this?</b><ul>' + lines.map(l => "<li>" + esc(l) + "</li>").join("") + "</ul></div>";
+}
+
+/* -- notifications (C5 Q5.2) -- */
+function dismissedSet() {
+  try { return new Set(JSON.parse(localStorage.getItem("nutrime.dismissed." + MEMBER) || "[]")); }
+  catch (e) { return new Set(); }
+}
+function saveDismissed(set) {
+  try { localStorage.setItem("nutrime.dismissed." + MEMBER, JSON.stringify([...set].slice(-200))); } catch (e) {}
+}
+let NOTICES = [];
+async function loadNotifications() {
+  const data = await jget("/api/notifications", true);
+  if (data.error) return;
+  const dismissed = dismissedSet();
+  NOTICES = data.items.filter(n => !dismissed.has(n.key));
+  $("bellCount").textContent = NOTICES.length;
+  $("bellCount").hidden = NOTICES.length === 0;
+  return data;
+}
+function openNotifications() {
+  const rows = NOTICES.length ? NOTICES.map((n, i) =>
+    '<div class="notice"><span>' + esc(n.text) + '</span><span>' +
+    '<button class="btn-quiet" data-go-notice="' + i + '">open</button>' +
+    '<button class="btn-quiet" data-dismiss="' + i + '">dismiss</button></span></div>').join("") :
+    '<div class="empty">Nothing needs you right now.</div>';
+  $("sheet").innerHTML = '<button class="closeX" onclick="closeDetail()" aria-label="Close">×</button>' +
+    "<h3>Notifications</h3>" + rows +
+    '<p class="hint" style="margin-top:12px">Choose what shows here under Profile → Notifications.</p>';
+  $("sheet").querySelectorAll("[data-dismiss]").forEach(b => b.onclick = () => {
+    const set = dismissedSet(); set.add(NOTICES[+b.dataset.dismiss].key); saveDismissed(set);
+    loadNotifications().then(openNotifications);
+  });
+  $("sheet").querySelectorAll("[data-go-notice]").forEach(b => b.onclick = () => {
+    const n = NOTICES[+b.dataset.goNotice];
+    closeDetail();
+    if (n.action === "checkin") openCheckin(); else showView(n.action);
+  });
+  $("overlay").classList.add("on");
+}
+$("bellBtn").onclick = () => loadNotifications().then(openNotifications);
+async function loadNotifySettings() {
+  const data = await loadNotifications();
+  if (!data) return;
+  $("notifySettings").innerHTML = data.settings.map(s =>
+    '<div class="consentRow"><span>' + esc(s.label) + "</span>" +
+    '<label class="switch"><input type="checkbox" data-notify="' + s.category + '"' + (s.on ? " checked" : "") +
+    "> " + (s.on ? "on" : "off") + "</label></div>").join("");
+  $("notifySettings").querySelectorAll("input[data-notify]").forEach(cb => cb.onchange = async () => {
+    const res = await jpost("/api/notifications/settings", {category: cb.dataset.notify, on: cb.checked});
+    if (!res.error) { toast("Saved."); loadNotifySettings(); }
+  });
+}
+
+/* -- activity (C5 Q5.4 dedicated audit view) -- */
+async function loadActivity() {
+  const data = await jget("/api/activity?days=" + $("activityDays").value);
+  const box = $("activityList");
+  if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  box.innerHTML = data.items.length ? data.items.map(i =>
+    '<div class="act"><time>' + esc(String(i.at).slice(0, 16).replace("T", " ")) + '</time><span class="k">' +
+    esc(i.kind) + "</span><span>" + esc(i.text) + "</span></div>").join("") :
+    '<div class="empty">Nothing in this period.</div>';
+}
+$("activityDays").onchange = loadActivity;
+$("openActivity").onclick = () => showView("activity");
+
 /* -- periodic check-ins (intake-pattern.md Mode 2) -- */
 async function openCheckin() {
   if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
@@ -3013,14 +3255,14 @@ $("checkinStart").onclick = openCheckin;
 $("checkinSnooze").onclick = snoozeCheckin;
 
 /* -- app shell (#33): views, adaptive home, plans, grocery, profile -- */
-const VIEWS = ["home", "recipes", "plans", "grocery", "profile"];
+const VIEWS = ["home", "recipes", "plans", "grocery", "profile", "activity"];
 function currentView() {
   const h = (location.hash || "").replace("#", "");
   return VIEWS.includes(h) ? h : "home";
 }
 const LOADERS = {
   home: loadHome, recipes: () => {}, plans: loadPlans,
-  grocery: loadGrocery, profile: loadProfile,
+  grocery: loadGrocery, profile: loadProfile, activity: loadActivity,
 };
 function showView(name, reload) {
   $("overlay").classList.remove("on");  // a section change closes any open sheet
@@ -3052,6 +3294,8 @@ async function latestPlan() {
 // C5 Q5.1: the home surface follows the time of day.
 async function loadHome() {
   loadCheckinCard();
+  loadNotifications();
+  jget("/api/derived", true).then(d => { AVOID_COUNT = (d.constraints || []).length; });
   const hour = new Date().getHours();
   const who = MEMBERS.length > 1 && memberName() && !isDefaultName() ? ", " + memberName() : "";
   let greet, sub, show;
@@ -3075,6 +3319,7 @@ async function loadHome() {
 }
 
 function planRow(e, today, withActions) {
+  if (e.recipe_id) WHY[e.recipe_id] = {from: "plan", note: e.note};
   const title = e.recipe_id ?
     '<button class="btn-quiet" style="padding:0;text-align:left" onclick="openDetail(\\'' +
       esc(e.recipe_id) + '\\')">' + esc(e.title) + "</button>" :
@@ -3121,6 +3366,7 @@ async function loadReorientOptions() {
   const box = $("roResults");
   if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
   if (!data.results.length) { box.innerHTML = '<div class="empty">Nothing fits those limits. Try more time or skip fewer ingredients.</div>'; return; }
+  data.results.forEach(r => { WHY[r.recipe_id] = {from: "reorient", r}; });
   box.innerHTML = data.results.map(r =>
     '<div class="planItem"><div style="min-width:0;flex:1 1 220px"><b>' + esc(r.title) + "</b>" +
     (r.total_time_min ? ' <span class="hint">' + r.total_time_min + " min</span>" : "") +
@@ -3232,6 +3478,7 @@ async function loadProfile() {
   renderMemberAdmin();
   loadDoctor();
   loadCheckinSettings();
+  loadNotifySettings();
 }
 async function loadDoctor() {
   const data = await jget("/api/doctor", true);
@@ -3268,13 +3515,18 @@ function renderMemberAdmin() {
     (others ? '<button class="btn-quiet" id="maArchive">Remove ' + esc(memberName()) + " from the picker</button>" : "") +
     '<button class="btn-quiet" id="maAdd">Add a person</button></div>';
   $("maRename").onclick = async () => {
-    const name = (prompt("New name?", memberName()) || "").trim();
-    if (!name) return;
+    const got = await formSheet({title: "Rename", submit: "Save",
+      fields: [{id: "name", label: "New name", value: memberName()}],
+      validate: o => o.name ? null : "Type a name."});
+    if (!got) return;
+    const name = got.name;
     const res = await jpost("/api/members/rename", {id: MEMBER, name});
     if (!res.error) { renderMembers(res); loadProfile(); }
   };
   if (others) $("maArchive").onclick = async () => {
-    if (!confirm("Remove " + memberName() + " from the picker? Their history is kept.")) return;
+    const ok = await formSheet({title: "Remove " + memberName() + "?", submit: "Remove from the picker",
+      intro: "Their history is kept, and their allergies leave the household avoid-list.", fields: []});
+    if (!ok) return;
     const res = await jpost("/api/members/archive", {id: MEMBER});
     if (!res.error) { MEMBER = null; renderMembers(res); onMemberChange(); }
   };

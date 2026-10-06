@@ -89,5 +89,12 @@ base branch is merged and deleted.
 - Web: Home card when due, check-in mode of the intake overlay (+ cooking/cuisine step and a "what changed" summary), Profile → Check-ins (next due, cadence, history). CLI: `nutrime checkin [--status] [--member]`.
 - Verified in a headless phone browser end to end (weight change, allergy removal, cuisine pick → summary → avoid-list updated).
 
+### UI completion + browser tests (#33)
+- No browser pop-ups left: "We cooked it" (ease/enjoyment 1–5 buttons, minutes, then a used-up checklist), add/rename/remove person all use in-page forms (`formSheet`).
+- "Why this?" on recipe details (C5 Q5.4 inline drill-in): what it uses from the kitchen, soon-to-expire items, preferences matched, cook history, new cuisine, planner's note, avoid/prefer list applied.
+- Notifications (C5 Q5.2): bell with count; per-member switches (migration 0008 `member_setting`); defaults material-only (feedback window, check-in due, system warnings); practical nudges (use soon, nothing planned tomorrow, new recipes) available but off.
+- Activity view (C5 Q5.4 dedicated audit view): model requests, privacy decisions, safety findings, swaps, check-ins, cooked meals, profile revisions — plain words, 7/30/90 days.
+- `tests/e2e/test_browser.py` (Playwright, optional `e2e` group): phone-size layout (bottom tabs, no sideways scroll), intake → avoid-list, add person, search → why-this → credit, plan → allergy respected → reorient swap → cooked form → feel prompt → grocery tick survives reload, full check-in, privacy toggle, notifications, activity, lost-server error. 8 tests, no page errors.
+
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

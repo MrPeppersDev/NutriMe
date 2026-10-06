@@ -56,6 +56,15 @@ links back to the site it came from. Run it by hand with
 Run commands from the NutriMe folder. Your data lives in `~/.nutrime`
 (`%USERPROFILE%\.nutrime` on Windows) unless you set `NUTRIME_DATA_DIR`.
 
+## For developers: running the tests
+
+```sh
+uv run pytest                     # everything except browser tests
+uv sync --group e2e               # one time: add the browser-test tools
+uv run --group e2e playwright install chromium
+uv run --group e2e pytest tests/e2e   # real-browser tests, phone-sized
+```
+
 ## Known limits
 
 - **Phones:** NutriMe listens only on this computer (`localhost`) because it
