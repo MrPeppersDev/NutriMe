@@ -242,6 +242,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_inventory_add()
             elif parsed.path == "/api/inventory/remove":
                 self._api_inventory_remove()
+            elif parsed.path == "/api/inventory/bulk/preview":
+                self._api_inventory_bulk_preview()
+            elif parsed.path == "/api/inventory/bulk":
+                self._api_inventory_bulk_commit()
             elif parsed.path == "/api/import":
                 self._api_import()
             elif parsed.path == "/api/pinterest/sync":
@@ -1020,6 +1024,7 @@ class _Handler(BaseHTTPRequestHandler):
                         "location": item.location,
                         "quantity": item.quantity,
                         "unit": item.unit,
+                        "best_by_date": item.best_by_date,
                     }
                     for item in items
                 ]
@@ -1037,6 +1042,73 @@ class _Handler(BaseHTTPRequestHandler):
         item = InventoryItem(name=name, location=location)
         item_id = add_item(app.substrate, app.tenant_id, item)
         self._json({"id": item_id, "name": name, "location": location})
+
+    def _api_inventory_bulk_preview(self) -> None:
+        """Paste-a-list step 1: parse + classify, nothing stored yet."""
+        from dataclasses import asdict
+
+        from nutrime.inventory.intake import preview
+
+        payload = self._read_json_body()
+        text = str(payload.get("text") or "")
+        if not text.strip():
+            self._json({"error": "paste a list first"}, status=400)
+            return
+        self._json({"items": [asdict(p) for p in preview(text)]})
+
+    def _api_inventory_bulk_commit(self) -> None:
+        """Paste-a-list step 2: store what the user confirmed.
+
+        Each item: {name, location, quantity?, unit?, shelf_days?,
+        age_days?, best_by_date?}. An explicit best_by_date wins;
+        otherwise shelf_days (+ age_days freshness answer) derives one.
+        """
+        from nutrime.inventory.intake import best_by_from_freshness
+
+        payload = self._read_json_body()
+        raw_items = payload.get("items")
+        if not isinstance(raw_items, list) or not raw_items:
+            self._json({"error": "items required"}, status=400)
+            return
+        app = self.server.app
+        added = []
+        errors = []
+        for raw in raw_items:
+            if not isinstance(raw, dict):
+                continue
+            name = str(raw.get("name") or "").strip()
+            if not name:
+                continue
+            best_by = str(raw.get("best_by_date") or "").strip() or None
+            if best_by is None:
+                shelf = raw.get("shelf_days")
+                age = raw.get("age_days")
+                best_by = best_by_from_freshness(
+                    int(shelf) if shelf not in (None, "") else None,
+                    int(age) if age not in (None, "") else None,
+                )
+            try:
+                qty = raw.get("quantity")
+                item = InventoryItem(
+                    name=name,
+                    location=str(raw.get("location") or "pantry"),
+                    quantity=float(qty) if qty not in (None, "") else None,
+                    unit=str(raw.get("unit") or "") or None,
+                    best_by_date=best_by,
+                )
+            except ValueError as err:
+                errors.append(f"{name}: {err}")
+                continue
+            item_id = add_item(app.substrate, app.tenant_id, item)
+            added.append({"id": item_id, "name": name,
+                          "location": item.location, "best_by_date": best_by})
+        app.audit.record_event(
+            event_kind="system",
+            event_subkind="inventory_bulk_add",
+            actor="webui",
+            payload={"added": len(added), "errors": len(errors)},
+        )
+        self._json({"added": added, "errors": errors})
 
     def _api_inventory_remove(self) -> None:
         payload = self._read_json_body()
@@ -2213,7 +2285,21 @@ PAGE = """<!doctype html>
   Recipe search and meal plans lean on this when "include my kitchen list" is on.</p>
 
   <section class="ask">
-    <label class="lbl" for="pantryNewItem">Add an item</label>
+    <label class="lbl" for="pantryPaste">Paste a whole list</label>
+    <p class="hint" style="margin:2px 0 8px">Commas, new lines, bullets — any of it.
+    NutriMe sorts each item into fridge, pantry, freezer or countertop, and asks
+    how fresh the perishable things are so meal plans use them up first.</p>
+    <textarea id="pantryPaste" placeholder="chicken thighs, spinach, 2 lemons, brown rice, frozen peas&#10;milk&#10;- sourdough bread"
+      style="width:100%;min-height:84px;font-size:14.5px;padding:11px 14px;border:1.5px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-family:inherit;resize:vertical"></textarea>
+    <div class="haveRow" style="margin-top:8px">
+      <button class="btn-go" id="pantryPasteGo">Sort my list</button>
+      <span class="hint" id="pantryPasteBusy" hidden>reading the list…</span>
+    </div>
+    <div id="pantryReview" style="margin-top:14px"></div>
+  </section>
+
+  <section class="ask">
+    <label class="lbl" for="pantryNewItem">Or add one item</label>
     <div class="haveRow">
       <input type="text" id="pantryNewItem" placeholder="e.g. brown rice" autocomplete="off">
       <select id="pantryNewLoc"
@@ -2527,9 +2613,14 @@ async function loadPantry() {
     for (const item of items) {
       const chip = document.createElement("span");
       chip.className = "chip";
-      chip.innerHTML = esc(item.name) +
-        (item.quantity ? ' <span class="loc">' + esc(String(item.quantity)) +
-          (item.unit ? " " + esc(item.unit) : "") + "</span>" : "");
+      let extra = item.quantity ? esc(String(item.quantity)) +
+        (item.unit ? " " + esc(item.unit) : "") : "";
+      if (item.best_by_date) {
+        const days = Math.round((Date.parse(item.best_by_date) - Date.now()) / 86400000);
+        extra += (extra ? " · " : "") + (days < 0 ? "past best-by" :
+          days === 0 ? "use today" : days === 1 ? "use by tomorrow" : "use in " + days + "d");
+      }
+      chip.innerHTML = esc(item.name) + (extra ? ' <span class="loc">' + extra + "</span>" : "");
       const x = document.createElement("button");
       x.textContent = "\\u00d7"; x.title = "Remove " + item.name;
       x.onclick = async () => { await jpost("/api/inventory/remove", {id: item.id});
@@ -2540,6 +2631,86 @@ async function loadPantry() {
     box.appendChild(chips);
   }
 }
+/* -- bulk paste flow -- */
+let PANTRY_PROPOSED = [];
+const FRESH_CHOICES = [
+  {label: "fresh today", days: 0},
+  {label: "a few days old", days: 3},
+  {label: "about a week", days: 7},
+  {label: "older", days: 14},
+];
+$("pantryPasteGo").onclick = async () => {
+  const text = $("pantryPaste").value.trim();
+  if (!text) { toast("Paste a list first."); return; }
+  $("pantryPasteGo").disabled = true; $("pantryPasteBusy").hidden = false;
+  const res = await jpost("/api/inventory/bulk/preview", {text}, true);
+  $("pantryPasteGo").disabled = false; $("pantryPasteBusy").hidden = true;
+  if (res.error) { toast(res.error); return; }
+  PANTRY_PROPOSED = res.items.map(p => ({...p, age_days: null, skip: false}));
+  renderPantryReview();
+};
+function renderPantryReview() {
+  const box = $("pantryReview");
+  if (!PANTRY_PROPOSED.length) { box.innerHTML = ""; return; }
+  const locOpts = loc => ["fridge", "pantry", "freezer", "countertop"].map(l =>
+    '<option value="' + l + '"' + (l === loc ? " selected" : "") + '>' + l + '</option>').join("");
+  const perishables = PANTRY_PROPOSED.filter(p => p.perishable && !p.skip).length;
+  box.innerHTML =
+    '<div class="hint" style="margin-bottom:8px">' + PANTRY_PROPOSED.filter(p => !p.skip).length +
+    ' item(s) found' + (perishables ? " — " + perishables +
+    " look perishable; say how fresh they are and plans will use them up first." : ".") + '</div>' +
+    PANTRY_PROPOSED.map((p, i) => {
+      if (p.skip) return "";
+      const fresh = p.perishable ?
+        '<div class="pillRow" style="margin-top:5px">' + FRESH_CHOICES.map(f =>
+          '<button class="pill' + (p.age_days === f.days ? " on" : "") +
+          '" data-item="' + i + '" data-age="' + f.days + '">' + f.label + '</button>').join(" ") +
+        '</div>' : "";
+      return '<div class="consentRow" style="flex-wrap:wrap"><span style="flex:1 1 220px"><b>' +
+        esc(p.name) + '</b>' + (p.quantity ? ' <span class="hint">' + esc(String(p.quantity)) +
+        (p.unit ? " " + esc(p.unit) : "") + '</span>' : "") +
+        (!p.recognized ? ' <span class="hint">(new to me — check the shelf)</span>' : "") +
+        fresh + '</span>' +
+        '<span><select data-locitem="' + i + '" style="font-size:13px;padding:6px 8px;border:1.5px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)">' +
+        locOpts(p.location) + '</select> ' +
+        '<button class="btn-quiet" data-skipitem="' + i + '" title="Don\\u2019t add">\\u00d7</button></span></div>';
+    }).join("") +
+    '<div class="haveRow" style="margin-top:10px"><button class="btn-go" id="pantryCommit">Add ' +
+    PANTRY_PROPOSED.filter(p => !p.skip).length + ' item(s)</button>' +
+    '<button class="btn-quiet" id="pantryCancelBulk">Cancel</button></div>';
+  box.querySelectorAll("[data-age]").forEach(b => b.onclick = () => {
+    const p = PANTRY_PROPOSED[parseInt(b.dataset.item)];
+    p.age_days = p.age_days === parseInt(b.dataset.age) ? null : parseInt(b.dataset.age);
+    renderPantryReview();
+  });
+  box.querySelectorAll("[data-locitem]").forEach(s => s.onchange = () => {
+    PANTRY_PROPOSED[parseInt(s.dataset.locitem)].location = s.value;
+  });
+  box.querySelectorAll("[data-skipitem]").forEach(b => b.onclick = () => {
+    PANTRY_PROPOSED[parseInt(b.dataset.skipitem)].skip = true;
+    renderPantryReview();
+  });
+  const commit = $("pantryCommit");
+  if (commit) commit.onclick = async () => {
+    const items = PANTRY_PROPOSED.filter(p => !p.skip).map(p => ({
+      name: p.name, location: p.location, quantity: p.quantity, unit: p.unit,
+      shelf_days: p.shelf_days, age_days: p.age_days,
+    }));
+    commit.disabled = true;
+    const res = await jpost("/api/inventory/bulk", {items}, true);
+    if (res.error) { commit.disabled = false; toast(res.error); return; }
+    PANTRY_PROPOSED = [];
+    $("pantryReview").innerHTML = "";
+    $("pantryPaste").value = "";
+    const dated = res.added.filter(a => a.best_by_date).length;
+    toast("Added " + res.added.length + " item(s)" +
+      (dated ? " — " + dated + " with use-by dates for use-it-up planning." : "."));
+    loadPantry(); loadInventory();
+  };
+  const cancel = $("pantryCancelBulk");
+  if (cancel) cancel.onclick = () => { PANTRY_PROPOSED = []; renderPantryReview(); };
+}
+
 async function pantryAddItem() {
   const name = $("pantryNewItem").value.trim();
   if (!name) return;
