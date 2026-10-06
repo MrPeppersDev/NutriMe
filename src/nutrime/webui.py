@@ -1767,24 +1767,88 @@ PAGE = """<!doctype html>
     background: var(--card); color: var(--ink); max-width: 46vw;
   }
   #memberPicker:focus { outline: 2px solid var(--leaf); outline-offset: 1px; }
+
+  /* -- app shell (#33): views + nav; bottom tab bar on phones -- */
+  .topRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+  .tabs button {
+    background: transparent; color: var(--ink-soft); padding: 10px 14px;
+    border-radius: 9px 9px 0 0; font-size: 14.5px; border-bottom: 2.5px solid transparent;
+  }
+  .tabs button[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .tabs button:focus-visible, .quick button:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+  .tabs .ico { display: none; }
+  .view[hidden] { display: none !important; }
+  .greet { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: clamp(28px, 4.6vw, 42px); line-height: 1.1; font-weight: 500; }
+  .greetSub { color: var(--ink-soft); margin-top: 6px; }
+  .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+  .quick button {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    text-align: left; padding: 14px; border-radius: 12px; font-size: 14.5px; min-height: 64px;
+  }
+  .quick button small { display: block; color: var(--ink-soft); font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+  .quick button:hover { border-color: var(--leaf); }
+  .dayRow { display: flex; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .dayRow:last-child { border-bottom: none; }
+  .dayTag { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; min-width: 92px; }
+  .dayTag.today { color: var(--accent); }
+  .dayTitle { flex: 1 1 200px; min-width: 0; }
+  .dayTitle .attr { border-top: none; padding-top: 2px; }
+  .planItem { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+  .formRow { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .formRow select, .formRow input[type=text] {
+    font: inherit; font-size: 14.5px; padding: 8px 10px; border: 1.5px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .groc { list-style: none; }
+  .groc li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+  .groc input { width: 20px; height: 20px; accent-color: var(--leaf); margin-top: 2px; flex: none; }
+  .groc .done span.food { text-decoration: line-through; color: var(--ink-soft); }
+  .groc small { display: block; color: var(--ink-soft); }
+  .consentRow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .switch { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-soft); }
+  .switch input { width: 20px; height: 20px; accent-color: var(--leaf); }
+  .scope { font-size: 11.5px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+  .errorBox { background: #fbeee8; border: 1px solid #e7c3b4; color: #7a2e14; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin-top: 10px; }
+  .toast.err { background: #8a3417; }
+  @media (max-width: 720px) {
+    body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    .tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0;
+      background: var(--card); border-top: 1px solid var(--line); border-bottom: none;
+      justify-content: space-around; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    .tabs button { flex: 1; border-radius: 10px; border-bottom: none; padding: 6px 2px; font-size: 11.5px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .tabs button[aria-current="page"] { background: var(--leaf-soft); color: var(--leaf); }
+    .tabs .ico { display: block; font-size: 19px; line-height: 1; }
+    .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+    .whoRow label { display: none; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+  <div class="topRow">
     <div class="wordmark">NutriMe</div>
     <div class="whoRow">
       <label for="memberPicker">Who's using this?</label>
       <select id="memberPicker" aria-label="Household member"></select>
-      <button class="btn-quiet" id="profileLink" style="font-size:13.5px">Profile</button>
     </div>
   </div>
-  <h1>What can we make with <em>what we already have?</em></h1>
-  <p class="sub">Search the household recipe collection by what's in the kitchen —
-  and, if you track a cycle, tilt the ranking toward foods that fit its current phase.</p>
+  <nav class="tabs" aria-label="Sections">
+    <button data-view="home"><span class="ico" aria-hidden="true">⌂</span>Home</button>
+    <button data-view="recipes"><span class="ico" aria-hidden="true">☰</span>Recipes</button>
+    <button data-view="plans"><span class="ico" aria-hidden="true">▦</span>Plans</button>
+    <button data-view="grocery"><span class="ico" aria-hidden="true">✓</span>Grocery</button>
+    <button data-view="profile"><span class="ico" aria-hidden="true">◉</span>Profile</button>
+  </nav>
 </header>
 
 <main>
+ <div class="view" id="view-home" data-view="home">
+  <div class="greet" id="homeGreet">Hello</div>
+  <p class="greetSub" id="homeSub"></p>
+
   <section class="ask welcome" id="welcomeCard" style="display:none">
     <label class="lbl">Welcome</label>
     <p style="margin-bottom:12px"><span id="welcomeWho">Set up your profile</span> &mdash; 5 minutes,
@@ -1799,6 +1863,25 @@ PAGE = """<!doctype html>
     <label class="lbl">Tonight</label>
     <div id="tonightBody"></div>
   </section>
+
+  <section class="ask" id="homePlan" hidden>
+    <label class="lbl" id="homePlanLabel">Coming up</label>
+    <div id="homePlanBody"></div>
+  </section>
+
+  <div class="quick" role="group" aria-label="Quick actions">
+    <button id="qaReorient">Change tonight's meal<small>less time, missing an ingredient</small></button>
+    <button data-go="plans">Plan this week<small>make or browse plans</small></button>
+    <button data-go="recipes">Browse recipes<small>search what you have</small></button>
+    <button data-go="grocery">Grocery list<small>from the latest plan</small></button>
+    <button data-go="profile">What NutriMe knows<small>profile, privacy, avoid-list</small></button>
+  </div>
+ </div>
+
+ <div class="view" id="view-recipes" data-view="recipes" hidden>
+  <h1>What can we make with <em>what we already have?</em></h1>
+  <p class="sub">Search the household recipe collection by what's in the kitchen —
+  and, if you track a cycle, tilt the ranking toward foods that fit its current phase.</p>
 
   <section class="ask" id="searchBox">
     <label class="lbl" for="have">I have…</label>
@@ -1870,6 +1953,70 @@ PAGE = """<!doctype html>
       </div>
     </details>
   </section>
+ </div>
+
+ <div class="view" id="view-plans" data-view="plans" hidden>
+  <h2 class="serif" style="font-size:30px">Meal plans</h2>
+  <section class="ask">
+    <label class="lbl">Make a new plan</label>
+    <p class="hint">Picks from the collection only, skips everything on the household avoid-list, and favours what's in the kitchen. Runs on this computer's local model.</p>
+    <div class="formRow">
+      <label class="opt">Days <select id="planDays">
+        <option value="3">3</option><option value="5">5</option><option value="7" selected>7</option>
+      </select></label>
+      <label class="opt"><input type="checkbox" id="slotBreakfast"> breakfast</label>
+      <label class="opt"><input type="checkbox" id="slotLunch"> lunch</label>
+      <label class="opt"><input type="checkbox" id="slotDinner" checked> dinner</label>
+      <label class="opt">ready in <select id="planMaxTime">
+        <option value="">any time</option><option value="30">30 min</option>
+        <option value="45">45 min</option><option value="60">1 hour</option>
+      </select></label>
+      <button class="btn-go" id="planGo">Make plan</button>
+      <span class="hint" id="planBusy" hidden>planning — one meal at a time…</span>
+    </div>
+    <div id="planError"></div>
+  </section>
+  <section class="ask" id="planDetailBox" hidden>
+    <label class="lbl" id="planDetailLabel">Plan</label>
+    <div id="planDetail"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">All plans</label>
+    <div id="planList"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
+ <div class="view" id="view-grocery" data-view="grocery" hidden>
+  <h2 class="serif" style="font-size:30px">Grocery list</h2>
+  <section class="ask">
+    <div id="groceryBody"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
+ <div class="view" id="view-profile" data-view="profile" hidden>
+  <h2 class="serif" style="font-size:30px" id="profileHeading">Profile</h2>
+  <section class="ask">
+    <label class="lbl">Profile answers</label>
+    <p id="profileStatus" class="hint"></p>
+    <div class="formRow">
+      <button class="btn-go" id="profileLink">Edit my answers</button>
+    </div>
+  </section>
+  <section class="ask">
+    <label class="lbl">What the household avoids and prefers</label>
+    <p class="hint">Worked out from everyone's answers. Every search and plan respects it. Only the list is shared, not anyone's answers.</p>
+    <div id="derivedBody"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Privacy</label>
+    <p class="hint">Everything stays on this computer. These switches decide what NutriMe may keep for you; "household" means you're using the household default.</p>
+    <div id="consentBody"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Household</label>
+    <div id="memberAdmin"></div>
+  </section>
+ </div>
 </main>
 
 <div class="overlay" id="overlay">
@@ -1905,17 +2052,34 @@ function memberName() {
   const m = MEMBERS.find(x => x.id === MEMBER);
   return m ? m.name : "";
 }
+// The bootstrap member is literally named "Me" — address it as "you".
+function isDefaultName() { return memberName().toLowerCase() === "me"; }
 // "Sam's profile" once a household has several people; "Your profile" alone.
 function profileLabel() {
-  return MEMBERS.length > 1 && memberName() ?
+  return MEMBERS.length > 1 && memberName() && !isDefaultName() ?
     memberName() + "\\u2019s profile" : "Your profile";
 }
-async function jget(url) { const r = await fetch(url, {headers: memberHeaders()}); return r.json(); }
-async function jpost(url, body) {
-  const r = await fetch(url, {method:"POST",
-                              headers: memberHeaders({"Content-Type":"application/json"}),
-                              body: JSON.stringify(body)});
-  return r.json();
+// Error surfaces (#33): every API failure says what went wrong in plain
+// words; callers still get {error} back to render inline where it fits.
+async function jcall(url, opts) {
+  let r;
+  try { r = await fetch(url, opts); }
+  catch (e) {
+    const msg = "Can't reach NutriMe on this computer. Is it still running?";
+    toast(msg, true);
+    return {error: msg};
+  }
+  let data;
+  try { data = await r.json(); } catch (e) { data = {error: "NutriMe sent an unreadable reply (" + r.status + ")."}; }
+  if (!r.ok && !data.error) data.error = "Something went wrong (" + r.status + ").";
+  if (!r.ok && !(opts && opts.quiet)) toast(data.error, true);
+  return data;
+}
+async function jget(url, quiet) { return jcall(url, {headers: memberHeaders(), quiet}); }
+async function jpost(url, body, quiet) {
+  return jcall(url, {method: "POST", quiet,
+                     headers: memberHeaders({"Content-Type": "application/json"}),
+                     body: JSON.stringify(body)});
 }
 function renderMembers(data) {
   MEMBERS = data.members;
@@ -1954,6 +2118,7 @@ async function onMemberChange() {
   }
   loadTonight();
   loadIntakeStatus();
+  showView(currentView(), true);
 }
 
 /* -- source filter -- */
@@ -2308,8 +2473,10 @@ let INTAKE_Q = null;        // questions payload from /api/intake/questions
 let INTAKE_STEP = 1;
 let INTAKE_STATE = null;    // collected form state across steps
 
-function toast(msg) {
+function toast(msg, isError) {
   const t = $("toast");
+  t.classList.toggle("err", !!isError);
+  t.setAttribute("role", isError ? "alert" : "status");
   t.textContent = msg; t.style.display = "block";
   clearTimeout(toast._t);
   toast._t = setTimeout(() => { t.style.display = "none"; }, 6000);
@@ -2535,11 +2702,267 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
   $(id).addEventListener("change", () => doSearch()));
 
+/* -- app shell (#33): views, adaptive home, plans, grocery, profile -- */
+const VIEWS = ["home", "recipes", "plans", "grocery", "profile"];
+function currentView() {
+  const h = (location.hash || "").replace("#", "");
+  return VIEWS.includes(h) ? h : "home";
+}
+const LOADERS = {
+  home: loadHome, recipes: () => {}, plans: loadPlans,
+  grocery: loadGrocery, profile: loadProfile,
+};
+function showView(name, reload) {
+  $("overlay").classList.remove("on");  // a section change closes any open sheet
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.dataset.view !== name; });
+  document.querySelectorAll(".tabs button").forEach(b => {
+    if (b.dataset.view === name) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  if (location.hash.replace("#", "") !== name) history.replaceState(null, "", "#" + name);
+  LOADERS[name]();
+  if (!reload) window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tabs button, .quick button[data-go]").forEach(b =>
+  b.addEventListener("click", () => showView(b.dataset.view || b.dataset.go)));
+window.addEventListener("hashchange", () => showView(currentView()));
+
+function dayLabel(day, today) {
+  if (day === today) return "Today";
+  if (day === today + 1) return "Tomorrow";
+  if (day === today - 1) return "Yesterday";
+  return "Day " + day;
+}
+async function latestPlan() {
+  const list = await jget("/api/plans", true);
+  if (!list.plans || !list.plans.length) return null;
+  return jget("/api/plans/" + list.plans[0].plan_id, true);
+}
+
+// C5 Q5.1: the home surface follows the time of day.
+async function loadHome() {
+  const hour = new Date().getHours();
+  const who = MEMBERS.length > 1 && memberName() && !isDefaultName() ? ", " + memberName() : "";
+  let greet, sub, show;
+  if (hour < 5) { greet = "Late night" + who; sub = "Here's what's coming up tomorrow."; show = "tomorrow"; }
+  else if (hour < 11) { greet = "Good morning" + who; sub = "Tonight's meal, and what's planned for tomorrow."; show = "tomorrow"; }
+  else if (hour < 17) { greet = "Good afternoon" + who; sub = "Tonight's meal first. Change it if the day's gone sideways."; show = "none"; }
+  else if (hour < 21) { greet = "Good evening" + who; sub = "Cooked already? Tell NutriMe how it went."; show = "none"; }
+  else { greet = "Good evening" + who; sub = "How did tonight go? Tomorrow is below."; show = "tomorrow"; }
+  $("homeGreet").textContent = greet;
+  $("homeSub").textContent = sub;
+  const box = $("homePlan");
+  if (show === "none") { box.hidden = true; return; }
+  const plan = await latestPlan();
+  if (!plan || plan.error) { box.hidden = true; return; }
+  const want = show === "tomorrow" ? [plan.today_day + 1] : [plan.today_day, plan.today_day + 1];
+  const rows = plan.entries.filter(e => want.includes(e.day));
+  if (!rows.length) { box.hidden = true; return; }
+  $("homePlanLabel").textContent = show === "tomorrow" ? "Tomorrow" : "Today and tomorrow";
+  $("homePlanBody").innerHTML = rows.map(e => planRow(e, plan.today_day, false)).join("");
+  box.hidden = false;
+}
+
+function planRow(e, today, withActions) {
+  const title = e.recipe_id ?
+    '<button class="btn-quiet" style="padding:0;text-align:left" onclick="openDetail(\\'' +
+      esc(e.recipe_id) + '\\')">' + esc(e.title) + "</button>" :
+    '<span class="hint">' + esc(e.note || "no recipe") + "</span>";
+  return '<div class="dayRow"><span class="dayTag' + (e.day === today ? " today" : "") + '">' +
+    esc(dayLabel(e.day, today)) + " · " + esc(e.slot) + '</span><div class="dayTitle">' + title +
+    (e.total_time_min ? ' <span class="hint">' + e.total_time_min + " min</span>" : "") +
+    (e.recipe_id && e.note ? '<div class="hint">' + esc(e.note) + "</div>" : "") +
+    (e.attribution ? '<div class="attr">' + esc(e.attribution) + "</div>" : "") + "</div></div>";
+}
+
+/* -- reorient tonight (C5 Q5.5) -- */
+let REORIENT = null;
+async function openReorient() {
+  const t = await jget("/api/tonight", true);
+  REORIENT = t && t.tonight ? t.tonight : null;
+  const plans = await jget("/api/plans", true);
+  if (!REORIENT && !(plans.plans && plans.plans.length)) {
+    toast("There's no plan yet, so there's nothing to change. Make one under Plans.");
+    showView("plans");
+    return;
+  }
+  $("sheet").innerHTML =
+    '<button class="closeX" onclick="closeDetail()" aria-label="Close">×</button>' +
+    "<h3>Change tonight's meal</h3>" +
+    '<p class="hint">' + (REORIENT ? "Planned: " + esc(REORIENT.title) + ". " : "") +
+    "Options stay within the household avoid-list and favour what's in the kitchen.</p>" +
+    '<div class="formRow">' +
+    '<label class="opt">I have <select id="roTime"><option value="">any time</option>' +
+    '<option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option></select></label>' +
+    '<label class="opt">skip <input type="text" id="roAvoid" placeholder="e.g. mushrooms" style="width:150px"></label>' +
+    '<button class="btn-go" id="roGo">Show options</button></div>' +
+    '<div id="roResults" style="margin-top:12px"></div>';
+  $("roGo").onclick = loadReorientOptions;
+  $("overlay").classList.add("on");
+  loadReorientOptions();
+}
+async function loadReorientOptions() {
+  const params = new URLSearchParams();
+  if ($("roTime").value) params.set("max_time", $("roTime").value);
+  if ($("roAvoid").value.trim()) params.set("avoid", $("roAvoid").value.trim());
+  if (REORIENT) params.set("exclude", REORIENT.recipe_id);
+  const data = await jget("/api/tonight/alternatives?" + params.toString());
+  const box = $("roResults");
+  if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  if (!data.results.length) { box.innerHTML = '<div class="empty">Nothing fits those limits. Try more time or skip fewer ingredients.</div>'; return; }
+  box.innerHTML = data.results.map(r =>
+    '<div class="planItem"><div style="min-width:0;flex:1 1 220px"><b>' + esc(r.title) + "</b>" +
+    (r.total_time_min ? ' <span class="hint">' + r.total_time_min + " min</span>" : "") +
+    (r.on_hand_matches.length ? '<div class="hint">uses ' + esc(r.on_hand_matches.join(", ")) + "</div>" : "") +
+    '<div class="attr">' + esc(r.attribution) + "</div></div>" +
+    (REORIENT ? '<button class="btn-go" style="min-height:0;padding:9px 14px" onclick="swapTonight(\\'' +
+      esc(r.recipe_id) + '\\')">Cook this instead</button>' :
+      '<button class="btn-quiet" onclick="openDetail(\\'' + esc(r.recipe_id) + '\\')">view</button>') +
+    "</div>").join("");
+}
+async function swapTonight(recipeId) {
+  const res = await jpost("/api/plans/swap", {
+    plan_id: REORIENT.plan_id, day: REORIENT.day, slot: REORIENT.slot, recipe_id: recipeId});
+  if (res.error) return;
+  closeDetail();
+  toast("Tonight is now " + res.title + ".");
+  loadTonight(); loadHome();
+}
+$("qaReorient").onclick = openReorient;
+
+/* -- plans -- */
+async function loadPlans() {
+  const list = await jget("/api/plans");
+  const box = $("planList");
+  if (list.error) { box.innerHTML = '<div class="errorBox">' + esc(list.error) + "</div>"; return; }
+  if (!list.plans.length) { box.innerHTML = '<div class="empty">No plans yet. Make one above.</div>'; $("planDetailBox").hidden = true; return; }
+  box.innerHTML = list.plans.map(pl =>
+    '<div class="planItem"><span>' + esc(String(pl.created_at || "").slice(0, 10)) + " · " +
+    esc(pl.days) + " days · " + esc(pl.meals_planned) + " meals</span>" +
+    '<button class="btn-quiet" onclick="showPlan(\\'' + esc(pl.plan_id) + '\\')">open</button></div>').join("");
+  showPlan(list.plans[0].plan_id);
+}
+async function showPlan(planId) {
+  const plan = await jget("/api/plans/" + planId);
+  if (plan.error) return;
+  $("planDetailLabel").textContent = "Plan from " + String(plan.created_at || "").slice(0, 10);
+  $("planDetail").innerHTML = plan.entries.map(e => planRow(e, plan.today_day, true)).join("") ||
+    '<div class="hint">This plan has no meals.</div>';
+  $("planDetailBox").hidden = false;
+}
+$("planGo").onclick = async () => {
+  const slots = [["slotBreakfast", "breakfast"], ["slotLunch", "lunch"], ["slotDinner", "dinner"]]
+    .filter(([id]) => $(id).checked).map(([, s]) => s);
+  $("planError").innerHTML = "";
+  if (!slots.length) { $("planError").innerHTML = '<div class="errorBox">Pick at least one meal.</div>'; return; }
+  $("planGo").disabled = true; $("planBusy").hidden = false;
+  const res = await jpost("/api/plans/generate", {
+    days: parseInt($("planDays").value), slots,
+    max_time: $("planMaxTime").value ? parseInt($("planMaxTime").value) : null}, true);
+  $("planGo").disabled = false; $("planBusy").hidden = true;
+  if (res.error) { $("planError").innerHTML = '<div class="errorBox">' + esc(res.error) + "</div>"; return; }
+  toast("Planned " + res.filled + " of " + res.slots + " meals.");
+  loadPlans(); loadTonight();
+};
+
+/* -- grocery -- */
+function groceryChecked(planId) {
+  try { return new Set(JSON.parse(localStorage.getItem("nutrime.groc." + planId) || "[]")); }
+  catch (e) { return new Set(); }
+}
+function saveGroceryChecked(planId, set) {
+  try { localStorage.setItem("nutrime.groc." + planId, JSON.stringify([...set])); } catch (e) {}
+}
+async function loadGrocery() {
+  const data = await jget("/api/grocery", true);
+  const box = $("groceryBody");
+  if (data.error) {
+    box.innerHTML = '<div class="empty">' + (data.error === "no plans yet" ?
+      "No plan yet. The list builds itself from your latest plan." : esc(data.error)) + "</div>";
+    return;
+  }
+  const checked = groceryChecked(data.plan_id);
+  const item = l => {
+    const key = l.food;
+    return '<li class="' + (checked.has(key) ? "done" : "") + '"><input type="checkbox" data-food="' +
+      esc(key) + '"' + (checked.has(key) ? " checked" : "") + ' aria-label="got ' + esc(key) + '">' +
+      '<div><span class="food">' + esc(l.amount ? l.amount + " " + l.food : l.food) + "</span>" +
+      "<small>" + esc(l.recipes.join(", ")) + "</small></div></li>";
+  };
+  box.innerHTML =
+    "<p class=\\"hint\\">From your latest plan. Ticks are saved on this device.</p>" +
+    (data.to_buy.length ? '<ul class="groc">' + data.to_buy.map(item).join("") + "</ul>" :
+      '<div class="empty">Nothing to buy. The kitchen covers it.</div>') +
+    (data.have.length ? '<details style="margin-top:14px"><summary class="hint">Already in the kitchen (' +
+      data.have.length + ")</summary><ul class=\\"groc\\">" +
+      data.have.map(l => "<li><div><span class=\\"food\\">" + esc(l.food) + "</span></div></li>").join("") +
+      "</ul></details>" : "");
+  box.querySelectorAll("input[data-food]").forEach(cb => cb.onchange = () => {
+    cb.checked ? checked.add(cb.dataset.food) : checked.delete(cb.dataset.food);
+    cb.closest("li").classList.toggle("done", cb.checked);
+    saveGroceryChecked(data.plan_id, checked);
+  });
+}
+
+/* -- profile: answers, avoid-list, privacy, household -- */
+async function loadProfile() {
+  $("profileHeading").textContent = profileLabel();
+  const status = await jget("/api/intake/status", true);
+  $("profileStatus").textContent = status.complete ?
+    "Saved. Change them any time; the household avoid-list updates straight away." :
+    "Not filled in yet. It takes about 5 minutes and stays on this computer.";
+  $("profileLink").textContent = status.complete ? "Edit my answers" : "Fill in my answers";
+  const derived = await jget("/api/derived", true);
+  $("derivedBody").innerHTML = (derived.constraints || []).length ?
+    '<div class="matchLine">' + derived.constraints.map(c =>
+      '<span class="tag">' + esc(c) + "</span>").join(" ") + "</div>" :
+    '<div class="hint">Nothing yet. Profile answers fill this in.</div>';
+  loadConsent();
+  renderMemberAdmin();
+}
+async function loadConsent() {
+  const data = await jget("/api/consent", true);
+  if (data.error) { $("consentBody").innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  const local = data.decisions.filter(d => d.purpose === "local_operation");
+  const pub = data.decisions.filter(d => d.purpose === "publication_aggregate");
+  const row = d =>
+    '<div class="consentRow"><span>' + esc(d.label) + ' <span class="scope">' + esc(d.scope) + "</span></span>" +
+    '<label class="switch"><input type="checkbox" data-cat="' + esc(d.category) + '" data-purpose="' +
+    esc(d.purpose) + '"' + (d.granted ? " checked" : "") + "> " + (d.granted ? "on" : "off") + "</label></div>";
+  $("consentBody").innerHTML = local.map(row).join("") +
+    '<details style="margin-top:12px"><summary class="hint">Contributing anonymous totals to research (off unless you turn it on)</summary>' +
+    pub.map(row).join("") + "</details>";
+  $("consentBody").querySelectorAll("input[data-cat]").forEach(cb => cb.onchange = async () => {
+    const res = await jpost("/api/consent", {category: cb.dataset.cat, purpose: cb.dataset.purpose, granted: cb.checked});
+    if (!res.error) { toast("Saved."); loadConsent(); } else cb.checked = !cb.checked;
+  });
+}
+function renderMemberAdmin() {
+  const others = MEMBERS.length > 1;
+  $("memberAdmin").innerHTML =
+    '<p class="hint">' + MEMBERS.map(m => esc(m.name) + (m.has_profile ? "" : " (no profile yet)")).join(" · ") + "</p>" +
+    '<div class="formRow"><button class="btn-quiet" id="maRename">Rename ' + esc(memberName() || "me") + "</button>" +
+    (others ? '<button class="btn-quiet" id="maArchive">Remove ' + esc(memberName()) + " from the picker</button>" : "") +
+    '<button class="btn-quiet" id="maAdd">Add a person</button></div>';
+  $("maRename").onclick = async () => {
+    const name = (prompt("New name?", memberName()) || "").trim();
+    if (!name) return;
+    const res = await jpost("/api/members/rename", {id: MEMBER, name});
+    if (!res.error) { renderMembers(res); loadProfile(); }
+  };
+  if (others) $("maArchive").onclick = async () => {
+    if (!confirm("Remove " + memberName() + " from the picker? Their history is kept.")) return;
+    const res = await jpost("/api/members/archive", {id: MEMBER});
+    if (!res.error) { MEMBER = null; renderMembers(res); onMemberChange(); }
+  };
+  $("maAdd").onclick = () => { $("memberPicker").value = "__add"; onMemberChange(); };
+}
+
 loadPhases();
 loadSources();
 loadInventory();
 loadPinterestStatus();
-loadMembers().then(() => { loadTonight(); loadIntakeStatus(); });
+loadMembers().then(() => { loadTonight(); loadIntakeStatus(); showView(currentView(), true); });
 doSearch();
 </script>
 </body>

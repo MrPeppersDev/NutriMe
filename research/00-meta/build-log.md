@@ -16,7 +16,8 @@ base branch is merged and deleted.
 | 2 | #29 per-member identity | `claude/29-members` | #36 | done (closes #29) |
 | 3 | #30 constitutional layer | `claude/30-surface-rules` | #37 | pre-surface rules landed; future surfaces must route through `SurfaceGuard` |
 | 4 | #31 vetting v2 | `claude/31-vetting-v2` | #38 | rule-based half done; local-LLM scoring waits on Ollama |
-| 5 | #32 crawler | `claude/32-crawler` | see PR list | crawler + CLI done; no sources enabled by default |
+| 5 | #32 crawler | `claude/32-crawler` | #39 | crawler + CLI done; no sources enabled by default |
+| 6 | #33 product UI | `claude/33-product-ui` | see PR list | first full slice: app shell, adaptive home, reorient, plans, grocery, profile/consent, error surfaces |
 
 ### #23 — attribution on every web surface
 - Tonight panel renders the credit line; `TestAttributionGate` covers search cards, detail, Tonight, page markup.
@@ -46,6 +47,15 @@ base branch is merged and deleted.
 - New `web` collection ("Public web (crawled)") distinct from the household's pins; site name + URL in every credit line; pages already pinned are never crawled again.
 - Nothing enabled by default — sites go in `<data_dir>/crawl_sources.toml` (`nutrime recipes crawl --example`), because ToS posture is a per-site household decision. Pinterest global top-pins not implemented (ToS unresolved).
 - Live crawling could not be exercised from the cloud session (egress policy blocks recipe sites); covered by fake-site tests.
+
+### #33 — product UI, first full slice
+- One code path for plan generation (`plans/service.py`) shared by CLI and web; missing local model → plain setup message (cross-platform) instead of a crash.
+- New APIs: plans list/detail/generate, reorient tonight (alternatives + swap, audited), per-member consent toggles, household constraints.
+- Page becomes an app: Home / Recipes / Plans / Grocery / Profile; bottom tab bar on phones, tabs on desktop; deep links (`#plans`).
+- Home adapts to time of day (C5 Q5.1); "Change tonight's meal" (C5 Q5.5) offers quick no-model alternatives within the avoid-list and swaps them into the plan.
+- Grocery checklist (ticks kept per device), profile page with answers, household avoid/prefer list, privacy switches, rename/remove/add people.
+- Every API failure now shows a plain message (toast or inline box) instead of failing silently.
+- Not yet: notifications (C5 Q5.2), dedicated audit view (C5 Q5.4), inline "why this?" drill-in; grocery parser quirk seen in testing ("12 oz boneless" — food name truncated) is pre-existing.
 
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

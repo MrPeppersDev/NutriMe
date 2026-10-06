@@ -214,3 +214,16 @@ class TestConsentAndDerived:
         })
         _, data = _call(server, "/api/derived")
         assert data["constraints"] == ["avoids peanuts", "prefers spicy"]
+
+
+def test_page_has_app_shell(server) -> None:
+    with urllib.request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/") as resp:
+        body = resp.read().decode()
+    for view in ("home", "recipes", "plans", "grocery", "profile"):
+        assert f'id="view-{view}"' in body
+        assert f'data-view="{view}"' in body
+    assert 'id="qaReorient"' in body          # C5 Q5.5 quick action
+    assert "async function jcall" in body     # error surfaces
+    assert "Can't reach NutriMe" in body
+    # home precedes the other views so the first paint is the daily surface
+    assert body.index('id="view-home"') < body.index('id="view-recipes"')
