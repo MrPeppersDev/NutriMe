@@ -17,11 +17,13 @@ for perishables; the commit endpoint stores what they confirmed.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
 from nutrime.grocery.parse import parse_ingredient
 from nutrime.inventory.store import Location
+
+_QTY_PREFIX = r"\d+(?:\.\d+)?(?:\s*(?:lb|lbs|oz|g|kg|x))?\s+"
 
 # -- classification lexicon ---------------------------------------------------
 # keyword (matched against normalized food words/bigrams; longest match
@@ -123,6 +125,17 @@ _LEXICON: dict[str, tuple[Location, int | None]] = {
 # Modifiers that override the base keyword's location.
 _FROZEN = re.compile(r"\bfrozen\b", re.I)
 _CANNED = re.compile(r"\b(canned|tinned|jarred|can of|jar of|dried)\b", re.I)
+
+# Preservation-state words that change how a food keeps. The grocery
+# parser strips some of these as prep words ("cut melon" → "melon"), so
+# preview() keeps the raw phrasing when one is present — the state IS
+# the signal for the LLM tier (llm_classify.needs_llm).
+STATE_WORDS = re.compile(
+    r"\b(opened?|cut|sliced|halved|leftover|cooked|cured|smoked|fermented|"
+    r"uht|shelf.?stable|unopened|ripe|overripe|thawed|defrosted|homemade|"
+    r"fresh)\b",
+    re.I,
+)
 
 _PERISHABLE_ASK_DAYS = 45  # shelf life at/below this → worth asking freshness
 
@@ -230,6 +243,16 @@ def preview(text: str) -> list[ProposedItem]:
         for parsed in parse_ingredient(raw):
             if not parsed.food:
                 continue
+            # The parser strips prep words, which can erase preservation
+            # state ("cut melon" → "melon"). State changes how a food
+            # keeps, so when the raw line carried a state word that the
+            # cleaned food lost, keep the raw phrasing as the name.
+            if STATE_WORDS.search(raw) and not STATE_WORDS.search(parsed.food):
+                raw_name = re.sub(r"\s+", " ", raw).strip(" -•*·\t")
+                stripped = re.sub(
+                    rf"^{_QTY_PREFIX}", "", raw_name
+                ).strip() or raw_name
+                parsed = replace(parsed, food=stripped)
             key = parsed.food.lower()
             if key in seen:
                 continue

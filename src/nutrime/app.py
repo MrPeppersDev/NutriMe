@@ -98,6 +98,9 @@ def initialize(
     phi_envelope = phi_envelope or default_phi_envelope_registry()
     register_recipe_envelopes(phi_envelope)
     register_llm_envelopes(phi_envelope)
+    from nutrime.inventory.llm_classify import register_envelope
+
+    register_envelope(phi_envelope)
 
     engine = rule_engine or default_rule_engine(phi_envelope)
     attach_pre_egress_audit(engine, audit)

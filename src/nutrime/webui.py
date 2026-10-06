@@ -1044,17 +1044,38 @@ class _Handler(BaseHTTPRequestHandler):
         self._json({"id": item_id, "name": name, "location": location})
 
     def _api_inventory_bulk_preview(self) -> None:
-        """Paste-a-list step 1: parse + classify, nothing stored yet."""
+        """Paste-a-list step 1: parse + classify, nothing stored yet.
+
+        Two tiers: the deterministic lexicon always answers; items it
+        can't settle (unknown foods, preservation-state words like
+        "opened"/"cured"/"cut") go through the local model in one
+        batched call when Ollama is up. Model down or wrong → the
+        lexicon answer stands; a paste never fails on the smart tier.
+        """
         from dataclasses import asdict
 
         from nutrime.inventory.intake import preview
+        from nutrime.inventory.llm_classify import needs_llm, refine
+        from nutrime.plans.service import local_client
 
         payload = self._read_json_body()
         text = str(payload.get("text") or "")
         if not text.strip():
             self._json({"error": "paste a list first"}, status=400)
             return
-        self._json({"items": [asdict(p) for p in preview(text)]})
+        items = preview(text)
+        llm_used = False
+        if any(needs_llm(p) for p in items):
+            factory = self.server.llm_client_factory or local_client
+            client = factory(self.server.app)
+            if client is not None:
+                refined = refine(items, client)
+                llm_used = refined is not items
+                items = refined
+        self._json({
+            "items": [asdict(p) for p in items],
+            "llm_refined": llm_used,
+        })
 
     def _api_inventory_bulk_commit(self) -> None:
         """Paste-a-list step 2: store what the user confirmed.
@@ -2633,6 +2654,7 @@ async function loadPantry() {
 }
 /* -- bulk paste flow -- */
 let PANTRY_PROPOSED = [];
+let PANTRY_LLM_REFINED = false;
 const FRESH_CHOICES = [
   {label: "fresh today", days: 0},
   {label: "a few days old", days: 3},
@@ -2647,6 +2669,7 @@ $("pantryPasteGo").onclick = async () => {
   $("pantryPasteGo").disabled = false; $("pantryPasteBusy").hidden = true;
   if (res.error) { toast(res.error); return; }
   PANTRY_PROPOSED = res.items.map(p => ({...p, age_days: null, skip: false}));
+  PANTRY_LLM_REFINED = !!res.llm_refined;
   renderPantryReview();
 };
 function renderPantryReview() {
@@ -2658,7 +2681,8 @@ function renderPantryReview() {
   box.innerHTML =
     '<div class="hint" style="margin-bottom:8px">' + PANTRY_PROPOSED.filter(p => !p.skip).length +
     ' item(s) found' + (perishables ? " — " + perishables +
-    " look perishable; say how fresh they are and plans will use them up first." : ".") + '</div>' +
+    " look perishable; say how fresh they are and plans will use them up first." : ".") +
+    (PANTRY_LLM_REFINED ? " The local model helped sort the unusual ones." : "") + '</div>' +
     PANTRY_PROPOSED.map((p, i) => {
       if (p.skip) return "";
       const fresh = p.perishable ?
