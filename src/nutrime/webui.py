@@ -218,6 +218,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_consent_list()
             elif route == "/api/derived":
                 self._api_derived()
+            elif route == "/api/doctor":
+                self._api_doctor()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -622,6 +624,19 @@ class _Handler(BaseHTTPRequestHandler):
             "constraints": sorted(
                 {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
             )
+        })
+
+    def _api_doctor(self) -> None:
+        """System check for the Profile page (#34) — the same checks as
+        `nutrime doctor`, so nobody has to read logs."""
+        from nutrime.maintenance import run_doctor
+
+        checks = run_doctor(self.server.app.data_dir)
+        self._json({
+            "checks": [
+                {"name": c.name, "status": c.status, "detail": c.detail, "fix": c.fix}
+                for c in checks
+            ]
         })
 
     # -- API: search -----------------------------------------------------------
@@ -2016,6 +2031,10 @@ PAGE = """<!doctype html>
     <label class="lbl">Household</label>
     <div id="memberAdmin"></div>
   </section>
+  <section class="ask">
+    <label class="lbl">System check</label>
+    <div id="doctorBody"><div class="hint">Checking…</div></div>
+  </section>
  </div>
 </main>
 
@@ -2919,6 +2938,17 @@ async function loadProfile() {
     '<div class="hint">Nothing yet. Profile answers fill this in.</div>';
   loadConsent();
   renderMemberAdmin();
+  loadDoctor();
+}
+async function loadDoctor() {
+  const data = await jget("/api/doctor", true);
+  if (data.error) { $("doctorBody").innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  const icon = {ok: "✓", warn: "!", fail: "✕"};
+  $("doctorBody").innerHTML = data.checks.map(c =>
+    '<div class="consentRow"><span><b>' + icon[c.status] + " " + esc(c.name) + "</b> " +
+    '<span class="hint">' + esc(c.detail) + "</span>" +
+    (c.fix && c.status !== "ok" ? '<br><span class="hint">Fix: ' + esc(c.fix) + "</span>" : "") +
+    "</span></div>").join("");
 }
 async function loadConsent() {
   const data = await jget("/api/consent", true);

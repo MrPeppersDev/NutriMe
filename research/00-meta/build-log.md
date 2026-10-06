@@ -17,7 +17,8 @@ base branch is merged and deleted.
 | 3 | #30 constitutional layer | `claude/30-surface-rules` | #37 | pre-surface rules landed; future surfaces must route through `SurfaceGuard` |
 | 4 | #31 vetting v2 | `claude/31-vetting-v2` | #38 | rule-based half done; local-LLM scoring waits on Ollama |
 | 5 | #32 crawler | `claude/32-crawler` | #39 | crawler + CLI done; no sources enabled by default |
-| 6 | #33 product UI | `claude/33-product-ui` | see PR list | first full slice: app shell, adaptive home, reorient, plans, grocery, profile/consent, error surfaces |
+| 6 | #33 product UI | `claude/33-product-ui` | #40 | first full slice: app shell, adaptive home, reorient, plans, grocery, profile/consent, error surfaces |
+| 7 | #34 self-host packaging | `claude/34-packaging` | see PR list | backup/restore, doctor, installers (untested on real Windows/macOS), INSTALL.md |
 
 ### #23 — attribution on every web surface
 - Tonight panel renders the credit line; `TestAttributionGate` covers search cards, detail, Tonight, page markup.
@@ -56,6 +57,14 @@ base branch is merged and deleted.
 - Grocery checklist (ticks kept per device), profile page with answers, household avoid/prefer list, privacy switches, rename/remove/add people.
 - Every API failure now shows a plain message (toast or inline box) instead of failing silently.
 - Not yet: notifications (C5 Q5.2), dedicated audit view (C5 Q5.4), inline "why this?" drill-in; grocery parser quirk seen in testing ("12 oz boneless" — food name truncated) is pre-existing.
+
+### #34 — self-host packaging
+- `nutrime backup` (one zip: consistent SQLite copies via the online backup API, vault, crawl config/state, manifest; safe while running) and `nutrime restore` (validates, refuses path escapes, needs `--force` over live data, safety backup first, then normal startup applies newer migrations).
+- `nutrime doctor` + Profile → *System check*: Python, data folder, database integrity + pending updates, recipes + vetting freshness, household profiles, backup age, local model + downloaded model — each with a plain fix.
+- Live-upgrade proof: a test upgrades a database left at every earlier migration level.
+- `scripts/install-windows.ps1` (winget Ollama + uv, model pull, corpus seed, vet, first backup, Task Scheduler at sign-in, `-Uninstall`) and `scripts/install-macos.sh` (Homebrew, launchd agent, `--uninstall`). **Not executed** — the cloud container has neither OS; bash syntax-checked only.
+- `INSTALL.md` (non-operator guide) linked from README.
+- Not done: phone access over Wi-Fi (needs auth/transport, #12); signed installer/packaged app.
 
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

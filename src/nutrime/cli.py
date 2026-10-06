@@ -19,6 +19,8 @@ adds only the subparser it needs. Current surface:
 - ``nutrime plans show``         — render a plan with per-recipe attribution (5.4)
 - ``nutrime serve``              — localhost web UI prototype (product pull 2026-10-03)
 - ``nutrime members``            — household members: list / add / rename / archive (#29)
+- ``nutrime backup|restore``     — one-zip backup + safe restore (#34)
+- ``nutrime doctor``             — plain-language installation check (#34)
 """
 
 from __future__ import annotations
@@ -54,6 +56,67 @@ def _cmd_init(args: argparse.Namespace) -> int:
     print(f"operational: {app.data_dir / 'operational.db'}")
     print(f"tenant_id:   {app.tenant_id}")
     return 0
+
+
+def _resolve_data_dir(args: argparse.Namespace) -> Path:
+    from nutrime.paths import default_data_dir
+
+    return Path(args.data_dir).expanduser() if args.data_dir else default_data_dir()
+
+
+def _cmd_backup(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import create_backup
+
+    try:
+        archive = create_backup(
+            _resolve_data_dir(args),
+            Path(args.out).expanduser() if args.out else None,
+        )
+    except FileNotFoundError as err:
+        print(str(err))
+        return 1
+    size_mb = archive.stat().st_size / 1_000_000
+    print(f"backup written: {archive} ({size_mb:.1f} MB)")
+    print("keep a copy somewhere other than this computer (USB drive, another machine)")
+    return 0
+
+
+def _cmd_restore(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import RestoreError, read_manifest, restore_backup
+
+    archive = Path(args.archive).expanduser()
+    if not archive.exists():
+        print(f"no such file: {archive}")
+        return 1
+    try:
+        manifest = read_manifest(archive)
+        print(f"backup from {manifest.get('created_at')}: {manifest.get('counts')}")
+        outcome = restore_backup(archive, _resolve_data_dir(args), force=args.force)
+    except RestoreError as err:
+        print(str(err))
+        return 2
+    except PermissionError as err:
+        print(f"a file is in use ({err}). Stop NutriMe first, then restore again.")
+        return 2
+    if outcome.safety_backup:
+        print(f"the data it replaced was saved first: {outcome.safety_backup}")
+    print("restored. Start NutriMe as usual.")
+    return 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import run_doctor
+
+    marks = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
+    checks = run_doctor(_resolve_data_dir(args), check_model=not args.skip_model)
+    for c in checks:
+        print(f"[{marks[c.status]}] {c.name}: {c.detail}")
+        if c.fix and c.status != "ok":
+            print(f"       fix: {c.fix}")
+    failed = any(c.status == "fail" for c in checks)
+    print("— all good —" if not any(c.status != "ok" for c in checks)
+          else "— needs attention —" if failed else "— working, with suggestions —")
+    return 1 if failed else 0
 
 
 def _member_or_none(app, args: argparse.Namespace) -> str | None:
@@ -1123,6 +1186,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     intake.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     intake.set_defaults(func=_cmd_intake)
+
+    backup = subparsers.add_parser(
+        "backup",
+        help="Save everything (databases, recipes, plans) to one zip file (#34).",
+    )
+    backup.add_argument("--out", default=None, help="Folder for the zip (default: <data dir>/backups).")
+    backup.add_argument("--data-dir")
+    backup.set_defaults(func=_cmd_backup)
+
+    restore = subparsers.add_parser(
+        "restore", help="Restore a backup zip (stop NutriMe first)."
+    )
+    restore.add_argument("archive", help="Path to a nutrime-backup-*.zip")
+    restore.add_argument(
+        "--force", action="store_true",
+        help="Replace existing data (a safety backup is taken first).",
+    )
+    restore.add_argument("--data-dir")
+    restore.set_defaults(func=_cmd_restore)
+
+    doctor = subparsers.add_parser(
+        "doctor", help="Check the installation and say how to fix anything wrong."
+    )
+    doctor.add_argument(
+        "--skip-model", action="store_true", help="Don't check the local model."
+    )
+    doctor.add_argument("--data-dir")
+    doctor.set_defaults(func=_cmd_doctor)
 
     members = subparsers.add_parser(
         "members",

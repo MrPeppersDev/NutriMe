@@ -6,6 +6,10 @@ Local-first personal nutrition and meal-planning system. Multi-tenant home serve
 
 Early development. Stage 4 MVP scoping complete (2026-06-30); Stage 6 Build phase in progress.
 
+## Install
+
+See [INSTALL.md](INSTALL.md): one command on Windows or macOS, then open http://localhost:8765.
+
 ## Documentation
 
 The canonical project documentation lives in [`research/`](research/). Start with:
