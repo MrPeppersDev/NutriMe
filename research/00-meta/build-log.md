@@ -19,7 +19,7 @@ base branch is merged and deleted.
 | 5 | #32 crawler | `claude/32-crawler` | #39 | crawler + CLI done; no sources enabled by default |
 | 6 | #33 product UI | `claude/33-product-ui` | #40 | first full slice: app shell, adaptive home, reorient, plans, grocery, profile/consent, error surfaces |
 | 7 | #34 self-host packaging | `claude/34-packaging` | #41 | backup/restore, doctor, installers (untested on real Windows/macOS), INSTALL.md |
-| 8 | #32 follow-up: default sources + Pinterest top pins | `claude/32b-default-sources` | see PR list | household decision: crawl major bot-permitting recipe sites + Pinterest top food pins |
+| 8 | #32 follow-up: default sources + Pinterest top pins | `claude/32b-default-sources` | #42 | household decision: crawl major bot-permitting recipe sites + Pinterest top food pins |
 
 ### #23 — attribution on every web surface
 - Tonight panel renders the credit line; `TestAttributionGate` covers search cards, detail, Tonight, page markup.
