@@ -18,6 +18,9 @@ adds only the subparser it needs. Current surface:
 - ``nutrime plans list``         — show plans in the local vault (5.4)
 - ``nutrime plans show``         — render a plan with per-recipe attribution (5.4)
 - ``nutrime serve``              — localhost web UI prototype (product pull 2026-10-03)
+- ``nutrime members``            — household members: list / add / rename / archive (#29)
+- ``nutrime backup|restore``     — one-zip backup + safe restore (#34)
+- ``nutrime doctor``             — plain-language installation check (#34)
 """
 
 from __future__ import annotations
@@ -55,15 +58,192 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_data_dir(args: argparse.Namespace) -> Path:
+    from nutrime.paths import default_data_dir
+
+    return Path(args.data_dir).expanduser() if args.data_dir else default_data_dir()
+
+
+def _cmd_backup(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import create_backup
+
+    try:
+        archive = create_backup(
+            _resolve_data_dir(args),
+            Path(args.out).expanduser() if args.out else None,
+        )
+    except FileNotFoundError as err:
+        print(str(err))
+        return 1
+    size_mb = archive.stat().st_size / 1_000_000
+    print(f"backup written: {archive} ({size_mb:.1f} MB)")
+    print("keep a copy somewhere other than this computer (USB drive, another machine)")
+    return 0
+
+
+def _cmd_restore(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import RestoreError, read_manifest, restore_backup
+
+    archive = Path(args.archive).expanduser()
+    if not archive.exists():
+        print(f"no such file: {archive}")
+        return 1
+    try:
+        manifest = read_manifest(archive)
+        print(f"backup from {manifest.get('created_at')}: {manifest.get('counts')}")
+        outcome = restore_backup(archive, _resolve_data_dir(args), force=args.force)
+    except RestoreError as err:
+        print(str(err))
+        return 2
+    except PermissionError as err:
+        print(f"a file is in use ({err}). Stop NutriMe first, then restore again.")
+        return 2
+    if outcome.safety_backup:
+        print(f"the data it replaced was saved first: {outcome.safety_backup}")
+    print("restored. Start NutriMe as usual.")
+    return 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from nutrime.maintenance import run_doctor
+
+    marks = {"ok": "ok  ", "warn": "WARN", "fail": "FAIL"}
+    checks = run_doctor(_resolve_data_dir(args), check_model=not args.skip_model)
+    for c in checks:
+        print(f"[{marks[c.status]}] {c.name}: {c.detail}")
+        if c.fix and c.status != "ok":
+            print(f"       fix: {c.fix}")
+    failed = any(c.status == "fail" for c in checks)
+    print("— all good —" if not any(c.status != "ok" for c in checks)
+          else "— needs attention —" if failed else "— working, with suggestions —")
+    return 1 if failed else 0
+
+
+def _member_or_none(app, args: argparse.Namespace) -> str | None:
+    """Resolve --member (name or id; default member when omitted).
+    Prints the reason and returns None on an unknown member."""
+    from nutrime.members import MemberError, resolve_member
+
+    try:
+        return resolve_member(
+            app.substrate, app.tenant_id, getattr(args, "member", None)
+        )
+    except MemberError as err:
+        print(str(err))
+        return None
+
+
 def _cmd_intake(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     run_baseline_intake(
         app.substrate,
         app.tenant_id,
         prompter=input,
         emitter=print,
+        member_id=member_id,
     )
+    return 0
+
+
+def _cmd_checkin(args: argparse.Namespace) -> int:
+    from nutrime.checkins import checkin_history, checkin_status, run_checkin_interactive
+    from nutrime.consent import ConsentError
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
+    if args.status:
+        st = checkin_status(app.substrate, app.tenant_id, member_id)
+        if not st.has_profile:
+            print("no profile yet — run `nutrime intake` first")
+            return 0
+        print(("due now" if st.due else f"next due {str(st.due_at)[:10]}")
+              + f" (every {st.interval_days} days, {st.interval_source})")
+        for h in checkin_history(app.substrate, app.tenant_id, member_id, limit=5):
+            print(f"  {h['completed_at'][:10]}  {'; '.join(h.get('changes') or ['no changes'])}")
+        return 0
+    try:
+        result = run_checkin_interactive(
+            app.substrate, app.tenant_id, member_id,
+            prompter=input, emitter=print, vault=RecipeVault(app.corpus_dir),
+        )
+    except (ValueError, ConsentError) as err:
+        print(str(err))
+        return 2
+    return 0 if result is not None else 1
+
+
+def _cmd_members_list(args: argparse.Namespace) -> int:
+    from nutrime.intake.store import household_profiles
+    from nutrime.members import list_members
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    profiled = household_profiles(app.substrate, app.tenant_id)
+    default = app.default_member_id
+    for m in list_members(
+        app.substrate, app.tenant_id, include_archived=args.all
+    ):
+        marks = []
+        if m.id == default:
+            marks.append("default")
+        if m.id in profiled:
+            marks.append("profile")
+        if not m.active:
+            marks.append("archived")
+        suffix = f"  ({', '.join(marks)})" if marks else ""
+        print(f"  {m.display_name:<20} {m.id}{suffix}")
+    return 0
+
+
+def _cmd_members_add(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, add_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member = add_member(app.substrate, app.tenant_id, args.name)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"added {member.display_name}  [{member.id}]")
+    print(f'  next: nutrime intake --member "{member.display_name}"')
+    return 0
+
+
+def _cmd_members_rename(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, rename_member, resolve_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member_id = resolve_member(app.substrate, app.tenant_id, args.member)
+        member = rename_member(app.substrate, app.tenant_id, member_id, args.name)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"renamed to {member.display_name}  [{member.id}]")
+    return 0
+
+
+def _cmd_members_archive(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, archive_member, resolve_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member_id = resolve_member(app.substrate, app.tenant_id, args.member)
+        archive_member(app.substrate, app.tenant_id, member_id)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"archived {args.member} — their history is kept; they leave the picker")
     return 0
 
 
@@ -429,54 +609,14 @@ def _atom_summary(atom_type: str, payload: dict) -> str:
 
 def _plan_base_filters(app, args) -> tuple[object, list[str]]:
     """Build the shared search filters for every slot + a note of what applied."""
-    from dataclasses import replace as _replace
+    from nutrime.plans.service import plan_base_filters
 
-    from nutrime.knowledge.store import list_synthesized_entries
-    from nutrime.recipes.search import SearchFilters, filters_from_constraints
-
-    filters = SearchFilters(max_total_time_min=args.max_time)
-    applied: list[str] = []
-    if args.apply_constraints:
-        entries = list_synthesized_entries(
-            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
-        )
-        filters = filters_from_constraints(entries, base=filters)
-        applied.append(f"{len(entries)} abstracted constraint(s)")
-    if args.use_inventory:
-        items = list_items(app.substrate, app.tenant_id)
-        filters = _replace(
-            filters, on_hand=frozenset(item.name for item in items)
-        )
-        applied.append(f"{len(items)} inventory item(s)")
-        # V2: expiring items tilt candidate pools toward use-it-up.
-        from datetime import date
-
-        from nutrime.inventory.store import expiring_names
-
-        expiring = expiring_names(
-            app.substrate, app.tenant_id, today=date.today().isoformat()
-        )
-        if expiring:
-            filters = _replace(
-                filters,
-                expiring=frozenset(i.name.lower() for i in expiring),
-            )
-            applied.append(f"{len(expiring)} expiring item(s) prioritized")
-    # V1: cook history boosts candidate pools (loved up, disliked down).
-    from nutrime.feedback import cooked_cuisines, experience_summaries
-
-    experience = experience_summaries(app.substrate, app.tenant_id)
-    if experience:
-        filters = _replace(filters, experience=experience)
-        applied.append(f"experience from {len(experience)} cooked recipe(s)")
-    # V3: novelty nudge is planner-default (broadening is a planning-time
-    # concern, not a what-can-I-make-right-now concern).
-    vault = RecipeVault(app.corpus_dir)
-    cooked = cooked_cuisines(app.substrate, app.tenant_id, vault)
-    if cooked:
-        filters = _replace(filters, cooked_cuisines=frozenset(cooked))
-        applied.append("novelty nudge (new-cuisine candidates boosted)")
-    return filters, applied
+    return plan_base_filters(
+        app,
+        max_time=args.max_time,
+        apply_constraints=args.apply_constraints,
+        use_inventory=args.use_inventory,
+    )
 
 
 def _build_llm_client(app, provider_choice: str, model: str | None):
@@ -505,27 +645,21 @@ def _build_llm_client(app, provider_choice: str, model: str | None):
         )
     else:
         if not is_available():
-            print(
-                "The local model isn't running. One-time setup:\n"
-                f"  {INSTALL_COMMAND}\n"
-                f"  ollama pull {DEFAULT_MODEL}\n"
-                "then start it with: ollama serve"
-            )
+            from nutrime.plans.service import LOCAL_MODEL_SETUP
+
+            print(LOCAL_MODEL_SETUP)
             return None
         providers = (OllamaProvider(model=model or ""),)
     return LlmClient(providers, app.rule_engine, app.audit)
 
 
 def _cmd_plans_generate(args: argparse.Namespace) -> int:
-    from nutrime.audit import _now_iso
     from nutrime.llm.base import MissingApiKeyError
     from nutrime.plans.assemble import (
         MEAL_SLOTS,
         PlanSpec,
-        assemble_plan,
         candidates_for_slot,
     )
-    from nutrime.plans.store import PlanVault, new_plan_id, render_plan_body
 
     slots = tuple(s.strip().lower() for s in args.meals.split(",") if s.strip())
     unknown = [s for s in slots if s not in MEAL_SLOTS]
@@ -588,34 +722,16 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         else:
             print(f"{label}: {outcome.entry.title}  [{outcome.entry.recipe_id}]")
 
+    from nutrime.plans.service import generate_and_store
+
     try:
-        plan = assemble_plan(
-            vault, client, spec, filters, on_progress=_progress, seed=seed
+        plan_id, path, plan = generate_and_store(
+            app, client, spec, filters, applied,
+            model_hint=args.model, on_progress=_progress, seed=seed,
         )
     except MissingApiKeyError as exc:
         print(f"config error: {exc}")
         return 2
-
-    plan_id = new_plan_id()
-    frontmatter = {
-        "plan_id": plan_id,
-        "content_type": "meal_plan",
-        "created_at": _now_iso(),
-        "tenant_id": app.tenant_id,
-        "days": spec.days,
-        "meal_slots": list(spec.slots),
-        "meals_planned": plan.filled,
-        "model": plan.model or args.model,
-        "llm_request_ids": list(plan.request_ids),
-        "llm_request_log_ids": list(plan.llm_request_log_ids),
-        "constraints_applied": applied,
-        "candidate_count": plan.candidate_count,
-        "candidate_seed": seed,
-    }
-    plan_vault = PlanVault(app.corpus_dir)
-    path = plan_vault.write(
-        plan_id, frontmatter, render_plan_body(plan.entries)
-    )
 
     print(f"— plan {plan_id} written to {path} —")
     print(f"{plan.filled} of {spec.crossings} slot(s) filled")
@@ -695,6 +811,85 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
+    from nutrime.recipes.crawl import (
+        DEFAULT_SOURCES_PATH,
+        SOURCES_FILE,
+        STATE_FILE,
+        CrawlConfigError,
+        crawl_sources,
+        load_sources,
+    )
+
+    if args.example:
+        print(DEFAULT_SOURCES_PATH.read_text(encoding="utf-8"), end="")
+        return 0
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    custom = app.data_dir / SOURCES_FILE
+    try:
+        sources = load_sources(custom)
+    except CrawlConfigError as err:
+        print(str(err))
+        return 2
+    origin = str(custom) if custom.exists() else "the bundled default list"
+    if args.list:
+        print(f"crawl sources from {origin}:")
+        for s in sources.values():
+            print(f"  {s.key:<22} {s.kind:<9} {s.name}  (budget {s.max_pages}/run)")
+        return 0
+    if not sources:
+        print(f"no enabled sources in {origin}")
+        return 2
+    if args.source:
+        unknown = [k for k in args.source if k not in sources]
+        if unknown:
+            print(f"unknown source(s): {', '.join(unknown)};"
+                  f" configured: {', '.join(sorted(sources))}")
+            return 2
+        chosen = [sources[k] for k in args.source]
+    else:
+        chosen = list(sources.values())
+    print(f"crawling {len(chosen)} source(s) from {origin}; each site's"
+          " robots.txt decides whether NutriMe may fetch it")
+
+    def _report(url: str, result: str) -> None:
+        if args.verbose or result not in ("known",):
+            print(f"  {result:<14} {url}")
+
+    outcomes = crawl_sources(
+        RecipeVault(app.corpus_dir),
+        chosen,
+        app.data_dir / STATE_FILE,
+        max_pages=args.max_pages,
+        dry_run=args.dry_run,
+        on_page=_report,
+    )
+    verb = "would fetch" if args.dry_run else "fetched"
+    for o in outcomes:
+        if o.listings_blocked and not o.listings_fetched:
+            print(f"— {o.source}: skipped — its robots.txt doesn't allow NutriMe's crawler")
+            continue
+        print(
+            f"— {o.source}: {o.discovered} found; {verb} {o.fetched};"
+            f" wrote {o.written}; {o.already_known} already known;"
+            f" {o.not_recipes} not recipes; {o.blocked_by_robots} blocked by"
+            f" robots.txt; {len(o.failures)} failed"
+            + ("; budget reached — run again to continue" if o.budget_exhausted else "")
+        )
+    if not args.dry_run and any(o.written for o in outcomes):
+        # New recipes are vetted straight away so junk and cross-source
+        # duplicates never surface in search.
+        from nutrime.recipes.vetting import vet_vault
+
+        vetted = vet_vault(RecipeVault(app.corpus_dir))
+        print(
+            f"vetted new recipes: {vetted.quarantined} hidden as junk,"
+            f" {vetted.duplicates} duplicate(s) hidden, {vetted.flagged} flagged"
+        )
+    return 0
+
+
 def _cmd_recipes_vet(args: argparse.Namespace) -> int:
     from nutrime.recipes.vetting import vet_vault
 
@@ -704,17 +899,36 @@ def _cmd_recipes_vet(args: argparse.Namespace) -> int:
     if args.list_quarantined:
         shown = 0
         for record in vault.iter_recipes():
-            if record.frontmatter.get("vetting_status") == "quarantined":
+            status = record.frontmatter.get("vetting_status")
+            if status == "quarantined":
                 shown += 1
                 print(f"  {record.recipe_id}")
                 print(f"    title:  {record.frontmatter.get('title')}")
                 print(f"    reason: {record.frontmatter.get('vetting_reason')}")
-        print(f"— {shown} quarantined recipe(s) —")
+            elif status == "duplicate":
+                shown += 1
+                print(f"  {record.recipe_id}")
+                print(f"    title:  {record.frontmatter.get('title')}")
+                print(f"    duplicate of: {record.frontmatter.get('duplicate_of')}")
+        print(f"— {shown} hidden recipe(s) (quarantined or duplicate) —")
+        return 0
+    if args.list_flagged:
+        shown = 0
+        for record in vault.iter_recipes():
+            flags = record.frontmatter.get("vetting_flags") or []
+            if flags:
+                shown += 1
+                print(f"  {record.recipe_id}  {record.frontmatter.get('title')}")
+                print(f"    flags: {', '.join(flags)}")
+        print(f"— {shown} flagged recipe(s) (still searchable) —")
         return 0
     outcome = vet_vault(vault, revet=args.revet)
     print(
         f"Examined {outcome.examined}; normalized {outcome.titles_normalized}"
         f" title(s); quarantined {outcome.quarantined};"
+        f" flagged {outcome.flagged} for review;"
+        f" {outcome.duplicates} duplicate(s) hidden;"
+        f" allergen tags added on {outcome.allergens_added};"
         f" {outcome.already_vetted} already vetted."
     )
     return 0
@@ -736,10 +950,14 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
         return 1
     record = vault.read(args.recipe_id)
     title = str(record.frontmatter.get("title", "(untitled)"))
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     try:
         meal_event_id = record_meal_event(
             app.substrate,
             app.tenant_id,
+            member_id=member_id,
             recipe_id=args.recipe_id,
             recipe_title=title,
             plan_id=args.plan_id,
@@ -749,6 +967,7 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
             record_cooking_experience(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=meal_event_id,
                 ease_rating=args.ease,
                 enjoyment_rating=args.enjoyment,
@@ -760,6 +979,7 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
             record_time_feedback(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=meal_event_id,
                 estimated_time_min=(
                     int(estimated) if estimated is not None else None
@@ -782,6 +1002,9 @@ def _cmd_meals_feel(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     meal_event_id = args.meal_event_id
     if meal_event_id is None:
         history = meal_history(app.substrate, app.tenant_id, limit=1)
@@ -794,6 +1017,7 @@ def _cmd_meals_feel(args: argparse.Namespace) -> int:
         record_body_response(
             app.substrate,
             app.tenant_id,
+            member_id=member_id,
             meal_event_id=meal_event_id,
             freetext_response=args.response,
             energy_rating=args.energy,
@@ -813,7 +1037,14 @@ def _cmd_meals_history(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    entries = meal_history(app.substrate, app.tenant_id, limit=args.limit)
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
+    entries = meal_history(
+        app.substrate, app.tenant_id, limit=args.limit, member_id=member_id
+    )
     if not entries:
         print("(no cooked meals yet)")
         return 0
@@ -844,12 +1075,20 @@ def _cmd_consent_list(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    for record in list_current(app.substrate, app.tenant_id):
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
+    for record in list_current(app.substrate, app.tenant_id, member_id=member_id):
         state = "granted" if record.granted else "declined"
         retro = " (retroactive)" if record.retroactive else ""
+        scope = ""
+        if member_id:
+            scope = "  [own]" if record.subject_user == member_id else "  [household]"
         print(
             f"  {record.data_category:>24} / {record.purpose:<22}"
-            f" {state}{retro} — {record.granted_at}"
+            f" {state}{retro} — {record.granted_at}{scope}"
         )
     return 0
 
@@ -859,6 +1098,11 @@ def _cmd_consent_set(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
     try:
         consent_id = record_decision(
             app.substrate,
@@ -867,6 +1111,7 @@ def _cmd_consent_set(args: argparse.Namespace) -> int:
             purpose=args.purpose,
             granted=args.decision == "grant",
             note=args.note,
+            member_id=member_id,
         )
     except ValueError as err:
         print(str(err))
@@ -1002,7 +1247,70 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-dir",
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
+    intake.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     intake.set_defaults(func=_cmd_intake)
+
+    checkin = subparsers.add_parser(
+        "checkin",
+        help="Periodic 5-15 minute check-in that revises your profile.",
+    )
+    checkin.add_argument("--status", action="store_true", help="Show when the next one is due.")
+    checkin.add_argument("--member", default=None, help="Household member (name or id).")
+    checkin.add_argument("--data-dir")
+    checkin.set_defaults(func=_cmd_checkin)
+
+    backup = subparsers.add_parser(
+        "backup",
+        help="Save everything (databases, recipes, plans) to one zip file (#34).",
+    )
+    backup.add_argument("--out", default=None, help="Folder for the zip (default: <data dir>/backups).")
+    backup.add_argument("--data-dir")
+    backup.set_defaults(func=_cmd_backup)
+
+    restore = subparsers.add_parser(
+        "restore", help="Restore a backup zip (stop NutriMe first)."
+    )
+    restore.add_argument("archive", help="Path to a nutrime-backup-*.zip")
+    restore.add_argument(
+        "--force", action="store_true",
+        help="Replace existing data (a safety backup is taken first).",
+    )
+    restore.add_argument("--data-dir")
+    restore.set_defaults(func=_cmd_restore)
+
+    doctor = subparsers.add_parser(
+        "doctor", help="Check the installation and say how to fix anything wrong."
+    )
+    doctor.add_argument(
+        "--skip-model", action="store_true", help="Don't check the local model."
+    )
+    doctor.add_argument("--data-dir")
+    doctor.set_defaults(func=_cmd_doctor)
+
+    members = subparsers.add_parser(
+        "members",
+        help="Household members — one shared device, a profile per person (#29).",
+    )
+    members_sub = members.add_subparsers(dest="members_command", required=True)
+    mb_list = members_sub.add_parser("list", help="Show household members.")
+    mb_list.add_argument("--all", action="store_true", help="Include archived.")
+    mb_list.add_argument("--data-dir")
+    mb_list.set_defaults(func=_cmd_members_list)
+    mb_add = members_sub.add_parser("add", help="Add a household member.")
+    mb_add.add_argument("name")
+    mb_add.add_argument("--data-dir")
+    mb_add.set_defaults(func=_cmd_members_add)
+    mb_rename = members_sub.add_parser("rename", help="Rename a member.")
+    mb_rename.add_argument("member", help="Current name or id.")
+    mb_rename.add_argument("name", help="New name.")
+    mb_rename.add_argument("--data-dir")
+    mb_rename.set_defaults(func=_cmd_members_rename)
+    mb_archive = members_sub.add_parser(
+        "archive", help="Archive a member (history kept, never deleted)."
+    )
+    mb_archive.add_argument("member", help="Name or id.")
+    mb_archive.add_argument("--data-dir")
+    mb_archive.set_defaults(func=_cmd_members_archive)
 
     inventory = subparsers.add_parser(
         "inventory",
@@ -1210,9 +1518,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rec_search.set_defaults(func=_cmd_recipes_search)
 
+    rec_crawl = recipes_sub.add_parser(
+        "crawl",
+        help=(
+            "Crawl major public recipe sites + Pinterest top food pins"
+            " (robots.txt decides per site; paced, attributed) (#32)."
+        ),
+    )
+    rec_crawl.add_argument(
+        "--source", action="append", default=None,
+        help="Source key from crawl_sources.toml (repeatable; default: all).",
+    )
+    rec_crawl.add_argument(
+        "--max-pages", type=int, default=None,
+        help="Fetch budget per source this run (default: the source's max_pages).",
+    )
+    rec_crawl.add_argument(
+        "--dry-run", action="store_true",
+        help="Discover and list what would be fetched; fetch no recipe pages.",
+    )
+    rec_crawl.add_argument(
+        "--example", action="store_true",
+        help="Print the bundled source list (a starting point for crawl_sources.toml).",
+    )
+    rec_crawl.add_argument(
+        "--list", action="store_true", help="Show the sources a run would use."
+    )
+    rec_crawl.add_argument("--verbose", action="store_true")
+    rec_crawl.add_argument("--data-dir")
+    rec_crawl.set_defaults(func=_cmd_recipes_crawl)
+
     rec_vet = recipes_sub.add_parser(
         "vet",
-        help="Normalize titles + quarantine junk entries (idempotent).",
+        help=(
+            "Normalize titles, quarantine junk, flag quality issues, reconcile"
+            " allergen tags, hide cross-source duplicates (idempotent)."
+        ),
     )
     rec_vet.add_argument(
         "--revet", action="store_true", help="Re-examine already-vetted rows."
@@ -1220,7 +1561,12 @@ def build_parser() -> argparse.ArgumentParser:
     rec_vet.add_argument(
         "--list-quarantined",
         action="store_true",
-        help="Show quarantined entries instead of running the pass.",
+        help="Show hidden entries (quarantined + duplicates) instead of running the pass.",
+    )
+    rec_vet.add_argument(
+        "--list-flagged",
+        action="store_true",
+        help="Show entries flagged for review (still searchable).",
     )
     rec_vet.add_argument(
         "--data-dir",
@@ -1422,6 +1768,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--actual-minutes", type=int, default=None, help="Actual cook time."
     )
     ml_cooked.add_argument("--data-dir")
+    ml_cooked.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     ml_cooked.set_defaults(func=_cmd_meals_cooked)
     ml_feel = meals_sub.add_parser(
         "feel",
@@ -1436,10 +1783,15 @@ def build_parser() -> argparse.ArgumentParser:
     ml_feel.add_argument("--fullness", type=int, default=None)
     ml_feel.add_argument("--mood", type=int, default=None)
     ml_feel.add_argument("--data-dir")
+    ml_feel.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     ml_feel.set_defaults(func=_cmd_meals_feel)
     ml_history = meals_sub.add_parser("history", help="Cooked-meal log.")
     ml_history.add_argument("--limit", type=int, default=20)
     ml_history.add_argument("--data-dir")
+    ml_history.add_argument(
+        "--member", default=None,
+        help="Show this member's own body responses (default: anyone's latest).",
+    )
     ml_history.set_defaults(func=_cmd_meals_history)
 
     consent = subparsers.add_parser(
@@ -1449,6 +1801,10 @@ def build_parser() -> argparse.ArgumentParser:
     consent_sub = consent.add_subparsers(dest="consent_command", required=True)
     cn_list = consent_sub.add_parser("list", help="Show current decisions.")
     cn_list.add_argument("--data-dir")
+    cn_list.add_argument(
+        "--member", default=None,
+        help="Show the decisions in force for this member (own over household).",
+    )
     cn_list.set_defaults(func=_cmd_consent_list)
     cn_set = consent_sub.add_parser("set", help="Record a decision.")
     cn_set.add_argument("category", help="Data category (see `consent list`).")
@@ -1462,6 +1818,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cn_set.add_argument("--note", default=None)
     cn_set.add_argument("--data-dir")
+    cn_set.add_argument(
+        "--member", default=None,
+        help="Record this member's own decision (default: household-wide).",
+    )
     cn_set.set_defaults(func=_cmd_consent_set)
 
     grocery = subparsers.add_parser(

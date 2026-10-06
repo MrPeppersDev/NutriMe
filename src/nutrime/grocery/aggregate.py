@@ -18,10 +18,12 @@ Sweep #16 §2 patterns, reimplemented:
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from nutrime.grocery.parse import ParsedLine, normalize_food, parse_cooklang_line
+from nutrime.grocery.parse import ParsedLine, normalize_food, parse_cooklang_lines
 from nutrime.grocery.units import (
     best_display,
     dimension,
@@ -112,12 +114,20 @@ class RecipeNeed:
     lines: tuple[ParsedLine, ...]
 
 
+# Kitchen basics nobody shops for ("warm water", "ice cubes").
+_NOT_BOUGHT = re.compile(
+    r"(?:(?:warm|cold|hot|boiling|ice|tap|lukewarm|room temperature|filtered)\s+)?"
+    r"(?:water|ice|ice cube)"
+)
+
+
 def needs_from_recipe_body(recipe_id: str, title: str, body: str) -> RecipeNeed:
     lines = []
     for raw in body.splitlines():
-        parsed = parse_cooklang_line(raw.strip())
-        if parsed is not None and parsed.food:
-            lines.append(parsed)
+        # One line can carry several needs ("salt and pepper").
+        for parsed in parse_cooklang_lines(raw.strip()):
+            if parsed.food:
+                lines.append(parsed)
     return RecipeNeed(recipe_id=recipe_id, title=title, lines=tuple(lines))
 
 
@@ -136,7 +146,7 @@ def aggregate(
     for need in needs:
         for parsed in need.lines:
             key = normalize_food(parsed.food)
-            if not key:
+            if not key or _NOT_BOUGHT.fullmatch(key):
                 continue
             contrib = Contribution(
                 recipe_id=need.recipe_id,
@@ -175,9 +185,39 @@ def display_amount(line: GroceryLine) -> str:
     """Human-readable quantity for a line."""
     if line.base_amount is not None and line.base_dim is not None:
         shown = best_display(line.base_amount, line.base_dim, line.units_seen)
-        qty = f"{shown.quantity:g}"
-        return f"{qty} {shown.unit}"
+        return f"{format_quantity(shown.quantity)} {_unit_label(shown.unit, shown.quantity)}"
     if line.quantity is None:
         return ""
-    qty = f"{line.quantity:g}"
-    return f"{qty} {line.unit}".strip()
+    return f"{format_quantity(line.quantity)} {_unit_label(line.unit, line.quantity)}".strip()
+
+
+_FRACTIONS = {1 / 8: "⅛", 1 / 4: "¼", 1 / 3: "⅓", 3 / 8: "⅜", 1 / 2: "½",
+              5 / 8: "⅝", 2 / 3: "⅔", 3 / 4: "¾", 7 / 8: "⅞"}
+
+
+def format_quantity(value: float) -> str:
+    """Kitchen-readable: 1.5 → "1½", 0.333 → "⅓", 2.0 → "2", 1.37 → "1.4"."""
+    whole = int(value)
+    frac = value - whole
+    if frac < 0.02:
+        return str(whole)
+    if frac > 0.98:
+        return str(whole + 1)
+    for amount, glyph in _FRACTIONS.items():
+        if abs(frac - amount) < 0.02:
+            return f"{whole}{glyph}" if whole else glyph
+    return f"{value:.1f}".rstrip("0").rstrip(".")
+
+
+_PLURAL_UNITS = {"cup": "cups", "clove": "cloves", "can": "cans", "slice": "slices",
+                 "sprig": "sprigs", "stalk": "stalks", "head": "heads", "pinch": "pinches",
+                 "bunch": "bunches", "stick": "sticks", "jar": "jars", "bag": "bags",
+                 "box": "boxes", "bottle": "bottles", "pack": "packs", "piece": "pieces",
+                 "handful": "handfuls", "container": "containers"}
+
+
+def _unit_label(unit: str, quantity: float) -> str:
+    label = unit.replace("fl_oz", "fl oz")
+    if quantity > 1.02 and unit in _PLURAL_UNITS:
+        return _PLURAL_UNITS[unit]
+    return label

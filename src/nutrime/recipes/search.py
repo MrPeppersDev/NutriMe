@@ -84,6 +84,8 @@ SOURCE_COLLECTIONS: dict[str, str] = {
     "myplate_wayback_html_v1": "myplate",
     "nhlbi_html_v1": "nhlbi",
     "gutenberg_text_v1": "historical",
+    "crawl_jsonld_v1": "web",
+    "pinterest_top_jsonld_v1": "pinterest_top",
 }
 
 SOURCE_LABELS: dict[str, str] = {
@@ -92,6 +94,8 @@ SOURCE_LABELS: dict[str, str] = {
     "myplate": "USDA MyPlate",
     "nhlbi": "NHLBI heart-healthy",
     "historical": "Historical cookbooks",
+    "web": "Public web (crawled)",
+    "pinterest_top": "Pinterest top pins",
     "other": "Other",
 }
 
@@ -101,6 +105,25 @@ SOURCE_LABELS: dict[str, str] = {
 # excluded from search and planner pools alike; selecting the pill
 # includes them.
 OPT_IN_SOURCES = frozenset({"historical"})
+
+
+# Sources tag cuisines by country or by adjective; one name per cuisine.
+CUISINE_ALIASES = {
+    "united states": "american", "usa": "american", "us": "american",
+    "france": "french", "india": "indian", "norway": "norwegian",
+    "netherlands": "dutch", "italy": "italian", "spain": "spanish",
+    "china": "chinese", "japan": "japanese", "mexico": "mexican",
+    "greece": "greek", "thailand": "thai", "vietnam": "vietnamese",
+    "turkey": "turkish", "poland": "polish", "canada": "canadian",
+    "australia": "australian", "jamaica": "jamaican", "algeria": "algerian",
+    "united kingdom": "british", "uk": "british", "england": "british",
+    "morocco": "moroccan", "korea": "korean", "ireland": "irish",
+}
+
+
+def canonical_cuisine(tag: str) -> str:
+    tag = tag.strip().lower()
+    return CUISINE_ALIASES.get(tag, tag)
 
 
 def source_collection(frontmatter: dict[str, Any]) -> str:
@@ -209,9 +232,10 @@ def filters_from_constraints(
 
 def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
     fm = record.frontmatter
-    # Corpus hygiene (V0): rows the vetting pass quarantined never rank.
-    # Un-vetted rows (no stamp yet) pass — new ingests stay searchable.
-    if fm.get("vetting_status") == "quarantined":
+    # Corpus hygiene (V0/V2): rows the vetting pass quarantined or marked
+    # as a cross-source duplicate never rank. Un-vetted rows (no stamp
+    # yet) pass — new ingests stay searchable.
+    if fm.get("vetting_status") in ("quarantined", "duplicate"):
         return False
     collection = source_collection(fm)
     if filters.sources:
@@ -299,6 +323,11 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
             for term in filters.prefer_terms
             if _terms_match(term, title)
             or any(_terms_match(term, name) for name in names)
+            # cuisine interests from check-ins ("prefers thai")
+            or any(
+                _terms_match(term, canonical_cuisine(str(c)))
+                for c in (fm.get("cuisine_tradition_tags") or [])
+            )
         )
     )
     expiring_matches = tuple(

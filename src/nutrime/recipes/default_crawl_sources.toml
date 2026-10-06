@@ -1,0 +1,259 @@
+# NutriMe default crawl sources (household decision 2026-10-06).
+#
+# Major public recipe sites, crawled ONLY if their own robots.txt allows
+# NutriMe's crawler — checked live on every run; a site that disallows us
+# is skipped and reported, not crawled. Seeds that are a site root are
+# expanded to the sitemaps the site's robots.txt advertises.
+#
+# Deliberately absent: NYT Cooking (blocks third-party bots, paywalled),
+# America's Test Kitchen / Cook's Illustrated (paywalled).
+#
+# To change this list, copy it to <data_dir>/crawl_sources.toml and edit
+# (that file then replaces this one), or set enabled = false on an entry.
+# max_pages is the per-run fetch budget; runs resume where they stopped.
+
+# -- large recipe publishers ------------------------------------------------
+[[source]]
+key = "allrecipes"
+name = "Allrecipes"
+seeds = ["https://www.allrecipes.com/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "foodnetwork"
+name = "Food Network"
+seeds = ["https://www.foodnetwork.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "simplyrecipes"
+name = "Simply Recipes"
+seeds = ["https://www.simplyrecipes.com/"]
+include = "recipe"
+max_pages = 25
+
+[[source]]
+key = "seriouseats"
+name = "Serious Eats"
+seeds = ["https://www.seriouseats.com/"]
+include = "recipe"
+max_pages = 25
+
+[[source]]
+key = "bonappetit"
+name = "Bon Appétit"
+seeds = ["https://www.bonappetit.com/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "epicurious"
+name = "Epicurious"
+seeds = ["https://www.epicurious.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "delish"
+name = "Delish"
+seeds = ["https://www.delish.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "tasteofhome"
+name = "Taste of Home"
+seeds = ["https://www.tasteofhome.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "food_com"
+name = "Food.com"
+seeds = ["https://www.food.com/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "eatingwell"
+name = "EatingWell"
+seeds = ["https://www.eatingwell.com/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "bbcgoodfood"
+name = "BBC Good Food"
+seeds = ["https://www.bbcgoodfood.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "food52"
+name = "Food52"
+seeds = ["https://food52.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "tasty"
+name = "Tasty"
+seeds = ["https://tasty.co/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "thekitchn"
+name = "The Kitchn"
+seeds = ["https://www.thekitchn.com/"]
+include = "recipe"
+max_pages = 25
+
+[[source]]
+key = "kingarthur"
+name = "King Arthur Baking"
+seeds = ["https://www.kingarthurbaking.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "jamieoliver"
+name = "Jamie Oliver"
+seeds = ["https://www.jamieoliver.com/"]
+include = "/recipes/"
+max_pages = 25
+
+# -- independent recipe sites -----------------------------------------------
+[[source]]
+key = "budgetbytes"
+name = "Budget Bytes"
+seeds = ["https://www.budgetbytes.com/"]
+max_pages = 25
+
+[[source]]
+key = "recipetineats"
+name = "RecipeTin Eats"
+seeds = ["https://www.recipetineats.com/"]
+max_pages = 25
+
+[[source]]
+key = "loveandlemons"
+name = "Love and Lemons"
+seeds = ["https://www.loveandlemons.com/"]
+max_pages = 25
+
+[[source]]
+key = "cookieandkate"
+name = "Cookie and Kate"
+seeds = ["https://cookieandkate.com/"]
+max_pages = 25
+
+[[source]]
+key = "minimalistbaker"
+name = "Minimalist Baker"
+seeds = ["https://minimalistbaker.com/"]
+max_pages = 25
+
+[[source]]
+key = "pinchofyum"
+name = "Pinch of Yum"
+seeds = ["https://pinchofyum.com/"]
+max_pages = 25
+
+[[source]]
+key = "sallysbaking"
+name = "Sally's Baking Addiction"
+seeds = ["https://sallysbakingaddiction.com/"]
+max_pages = 25
+
+[[source]]
+key = "smittenkitchen"
+name = "Smitten Kitchen"
+seeds = ["https://smittenkitchen.com/"]
+include = "/\\d{4}/\\d{2}/"
+max_pages = 25
+
+[[source]]
+key = "onceuponachef"
+name = "Once Upon a Chef"
+seeds = ["https://www.onceuponachef.com/"]
+include = "/recipes/"
+max_pages = 25
+
+[[source]]
+key = "natashaskitchen"
+name = "Natasha's Kitchen"
+seeds = ["https://natashaskitchen.com/"]
+max_pages = 25
+
+[[source]]
+key = "skinnytaste"
+name = "Skinnytaste"
+seeds = ["https://www.skinnytaste.com/"]
+max_pages = 25
+
+[[source]]
+key = "gimmesomeoven"
+name = "Gimme Some Oven"
+seeds = ["https://www.gimmesomeoven.com/"]
+max_pages = 25
+
+[[source]]
+key = "damndelicious"
+name = "Damn Delicious"
+seeds = ["https://damndelicious.net/"]
+max_pages = 25
+
+[[source]]
+key = "halfbakedharvest"
+name = "Half Baked Harvest"
+seeds = ["https://www.halfbakedharvest.com/"]
+max_pages = 25
+
+[[source]]
+key = "spendwithpennies"
+name = "Spend With Pennies"
+seeds = ["https://www.spendwithpennies.com/"]
+max_pages = 25
+
+# -- cuisine specialists (Rule 5: international by default) -----------------
+[[source]]
+key = "thewoksoflife"
+name = "The Woks of Life"
+seeds = ["https://thewoksoflife.com/"]
+max_pages = 25
+
+[[source]]
+key = "justonecookbook"
+name = "Just One Cookbook"
+seeds = ["https://www.justonecookbook.com/"]
+max_pages = 25
+
+[[source]]
+key = "maangchi"
+name = "Maangchi"
+seeds = ["https://www.maangchi.com/"]
+include = "/recipe/"
+max_pages = 25
+
+[[source]]
+key = "indianhealthyrecipes"
+name = "Swasthi's Recipes"
+seeds = ["https://www.indianhealthyrecipes.com/"]
+max_pages = 25
+
+# -- Pinterest top food pins (discovery) ------------------------------------
+# Reads Pinterest's public food pages for pins' outbound links, then fetches
+# each recipe from its original site. robots.txt is checked on Pinterest and
+# on every destination; if Pinterest disallows NutriMe, nothing is fetched
+# from it and the run says so.
+[[source]]
+key = "pinterest_top"
+name = "Pinterest top food pins"
+kind = "pinterest"
+seeds = [
+  "https://www.pinterest.com/ideas/food-and-drink/918530398158/",
+]
+max_pages = 40

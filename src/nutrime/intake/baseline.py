@@ -21,7 +21,11 @@ from nutrime.intake.instruments import (
     Instrument,
     ScreenerResult,
 )
-from nutrime.intake.store import IntakeProfile, save_profile, save_screener_responses
+from nutrime.intake.store import (
+    IntakeProfile,
+    save_member_profile,
+    save_screener_responses,
+)
 
 Prompter = Callable[[str], str]
 Emitter = Callable[[str], None]
@@ -234,18 +238,22 @@ def run_baseline_intake(
     *,
     prompter: Prompter,
     emitter: Emitter = print,
+    member_id: str | None = None,
 ) -> BaselineOutcome:
-    """Run the full one-shot baseline intake and persist the results."""
+    """Run the full one-shot baseline intake and persist the results
+    for one household member (default: the household's default member)."""
     emitter(
         "First-run baseline intake — one-shot; you can update this later."
     )
     profile = _collect_profile(prompter, emitter)
-    save_profile(conn, tenant_id, profile)
+    member_id = save_member_profile(conn, tenant_id, member_id, profile)
 
     results: list[ScreenerResult] = []
     for instrument in MVP_INSTRUMENTS:
         result = _administer_instrument(prompter, emitter, instrument)
-        save_screener_responses(conn, tenant_id, instrument, result.responses)
+        save_screener_responses(
+            conn, tenant_id, instrument, result.responses, member_id=member_id
+        )
         results.append(result)
 
     emitter("Baseline intake saved. You can re-run this to update anytime.")

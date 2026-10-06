@@ -54,6 +54,7 @@ from nutrime.recipes.search import (
     SearchFilters,
     attribution_line,
     filters_from_constraints,
+    search,
     search_page,
     source_collection,
 )
@@ -122,9 +123,13 @@ class NutriMeWebServer(HTTPServer):
         self.ingest_fetcher = None
         self.ingest_pacer: Pacer | None = None
         self.pinterest_api_fetcher = None
+        # Injectable for tests: app → LlmClient | None (None = local model
+        # not running). Default: the local Ollama daemon.
+        self.llm_client_factory = None
         # "Skip for now" on the first-run intake card: session-scoped only
         # (no persistence — the invitation simply returns next launch).
-        self.intake_skipped = False
+        # Per member (#29): member ids that skipped this session.
+        self.intake_skipped: set[str] = set()
 
     @property
     def app(self):
@@ -201,6 +206,28 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_questions()
             elif route == "/api/grocery":
                 self._api_grocery(query)
+            elif route == "/api/members":
+                self._api_members_list()
+            elif route == "/api/plans":
+                self._api_plans_list()
+            elif route.startswith("/api/plans/"):
+                self._api_plan_detail(route.removeprefix("/api/plans/"))
+            elif route == "/api/tonight/alternatives":
+                self._api_tonight_alternatives(query)
+            elif route == "/api/consent":
+                self._api_consent_list()
+            elif route == "/api/derived":
+                self._api_derived()
+            elif route == "/api/doctor":
+                self._api_doctor()
+            elif route == "/api/notifications":
+                self._api_notifications()
+            elif route == "/api/activity":
+                self._api_activity(query)
+            elif route == "/api/checkin/status":
+                self._api_checkin_status()
+            elif route == "/api/checkin/questions":
+                self._api_checkin_questions()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -229,10 +256,570 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_save()
             elif parsed.path == "/api/intake/skip":
                 self._api_intake_skip()
+            elif parsed.path == "/api/members":
+                self._api_members_add()
+            elif parsed.path == "/api/plans/generate":
+                self._api_plans_generate()
+            elif parsed.path == "/api/plans/swap":
+                self._api_plans_swap()
+            elif parsed.path == "/api/consent":
+                self._api_consent_set()
+            elif parsed.path == "/api/notifications/settings":
+                self._api_notification_settings()
+            elif parsed.path == "/api/checkin":
+                self._api_checkin_save()
+            elif parsed.path == "/api/checkin/snooze":
+                self._api_checkin_snooze()
+            elif parsed.path == "/api/checkin/interval":
+                self._api_checkin_interval()
+            elif parsed.path == "/api/members/rename":
+                self._api_members_rename()
+            elif parsed.path == "/api/members/archive":
+                self._api_members_archive()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
             self._json({"error": str(exc)}, status=500)
+
+    # -- members (#29) -----------------------------------------------------------
+    # One shared device, no auth: the page sends the picked member in the
+    # X-NutriMe-Member header. Absent → the household's default member, so
+    # member-unaware clients keep working. Unknown/archived → 400.
+
+    def _member_id(self) -> str:
+        from nutrime.members import get_member
+
+        app = self.server.app
+        raw = (self.headers.get("X-NutriMe-Member") or "").strip()
+        if not raw:
+            return app.default_member_id
+        return get_member(app.substrate, app.tenant_id, raw).id
+
+    def _member_or_400(self) -> str | None:
+        from nutrime.members import MemberError
+
+        try:
+            return self._member_id()
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return None
+
+    def _members_payload(self) -> dict[str, Any]:
+        from nutrime.intake.store import household_profiles
+        from nutrime.members import list_members
+
+        app = self.server.app
+        profiled = household_profiles(app.substrate, app.tenant_id)
+        return {
+            "default_member_id": app.default_member_id,
+            "members": [
+                {
+                    "id": m.id,
+                    "name": m.display_name,
+                    "has_profile": m.id in profiled,
+                }
+                for m in list_members(app.substrate, app.tenant_id)
+            ],
+        }
+
+    def _api_members_list(self) -> None:
+        self._json(self._members_payload())
+
+    def _api_members_add(self) -> None:
+        from nutrime.members import MemberError, add_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            member = add_member(
+                app.substrate, app.tenant_id, str(payload.get("name") or "")
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json({"added": member.id, **self._members_payload()})
+
+    def _api_members_rename(self) -> None:
+        from nutrime.members import MemberError, rename_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            rename_member(
+                app.substrate,
+                app.tenant_id,
+                str(payload.get("id") or ""),
+                str(payload.get("name") or ""),
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._members_payload())
+
+    def _api_members_archive(self) -> None:
+        from nutrime.members import MemberError, archive_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            archive_member(
+                app.substrate, app.tenant_id, str(payload.get("id") or "")
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._members_payload())
+
+    # -- plans (#33): browse, generate, swap ------------------------------------
+
+    @staticmethod
+    def _plan_day_today(plan) -> int:
+        """Which plan day is today (day 1 = the day the plan was made)."""
+        from datetime import date, datetime
+
+        created = str(plan.frontmatter.get("created_at", ""))[:10]
+        try:
+            return (date.today() - datetime.fromisoformat(created).date()).days + 1
+        except ValueError:
+            return 1
+
+    def _api_plans_list(self) -> None:
+        from nutrime.plans.store import PlanVault
+
+        vault = PlanVault(self.server.app.corpus_dir)
+        plans = vault.list_plans() if vault.root.exists() else []
+        self._json({
+            "plans": [
+                {
+                    "plan_id": p.plan_id,
+                    "created_at": p.frontmatter.get("created_at"),
+                    "days": p.frontmatter.get("days"),
+                    "meal_slots": p.frontmatter.get("meal_slots"),
+                    "meals_planned": p.frontmatter.get("meals_planned"),
+                    "today_day": self._plan_day_today(p),
+                }
+                for p in reversed(plans)
+            ]
+        })
+
+    def _api_plan_detail(self, plan_id: str) -> None:
+        from nutrime.plans.store import PlanVault
+
+        vault = PlanVault(self.server.app.corpus_dir)
+        if not plan_id.startswith("pln-") or not vault.exists(plan_id):
+            self._json({"error": "That plan doesn't exist any more."}, status=404)
+            return
+        plan = vault.read(plan_id)
+        entries = []
+        for e in plan.entries():
+            item = {
+                "day": e.day, "slot": e.slot, "recipe_id": e.recipe_id,
+                "title": e.title, "note": e.note,
+            }
+            if e.recipe_id and self.server.vault.exists(e.recipe_id):
+                fm = self.server.vault.read(e.recipe_id).frontmatter
+                item["attribution"] = attribution_line(fm)
+                item["total_time_min"] = fm.get("estimated_total_time_min")
+            entries.append(item)
+        self._json({
+            "plan_id": plan.plan_id,
+            "created_at": plan.frontmatter.get("created_at"),
+            "days": plan.frontmatter.get("days"),
+            "today_day": self._plan_day_today(plan),
+            "entries": entries,
+        })
+
+    def _api_plans_generate(self) -> None:
+        from nutrime.plans.assemble import MEAL_SLOTS, PlanSpec
+        from nutrime.plans.service import (
+            LOCAL_MODEL_SETUP,
+            generate_and_store,
+            local_client,
+            plan_base_filters,
+        )
+
+        payload = self._read_json_body()
+        slots = tuple(
+            str(s).strip().lower() for s in (payload.get("slots") or ["dinner"])
+        )
+        if any(s not in MEAL_SLOTS for s in slots):
+            self._json({"error": f"Meal slots must be among: {', '.join(MEAL_SLOTS)}."},
+                       status=400)
+            return
+        try:
+            spec = PlanSpec(
+                days=int(payload.get("days") or 7), slots=slots,
+                servings=int(payload.get("servings") or 2),
+            )
+        except (TypeError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        if spec.days > 14:
+            self._json({"error": "Plans go up to 14 days at a time."}, status=400)
+            return
+        app = self.server.app
+        factory = self.server.llm_client_factory or local_client
+        client = factory(app)
+        if client is None:
+            self._json({"error": LOCAL_MODEL_SETUP, "code": "local_model_unavailable"},
+                       status=503)
+            return
+        max_time = payload.get("max_time")
+        filters, applied = plan_base_filters(
+            app, max_time=int(max_time) if max_time else None
+        )
+        plan_id, _, plan = generate_and_store(
+            app, client, spec, filters, applied, actor="webui"
+        )
+        self._json({
+            "plan_id": plan_id,
+            "filled": plan.filled,
+            "slots": spec.crossings,
+            "unfilled": [o.error for o in plan.outcomes if o.error],
+        })
+
+    def _api_plans_swap(self) -> None:
+        """'Reorient tonight' (C5 Q5.5): replace one slot's recipe with a
+        household-chosen one. Plan files are the household's own data, so
+        the swap rewrites the entry in place and is audited."""
+        from nutrime.plans.store import PlanEntry, PlanVault, render_plan_body
+
+        payload = self._read_json_body()
+        plan_id = str(payload.get("plan_id") or "")
+        recipe_id = str(payload.get("recipe_id") or "")
+        try:
+            day = int(payload.get("day"))
+        except (TypeError, ValueError):
+            self._json({"error": "day is required"}, status=400)
+            return
+        slot = str(payload.get("slot") or "dinner")
+        vault = PlanVault(self.server.app.corpus_dir)
+        if not plan_id.startswith("pln-") or not vault.exists(plan_id):
+            self._json({"error": "That plan doesn't exist any more."}, status=404)
+            return
+        if not self.server.vault.exists(recipe_id):
+            self._json({"error": "That recipe isn't in the collection."}, status=404)
+            return
+        recipe = self.server.vault.read(recipe_id)
+        if recipe.frontmatter.get("vetting_status") in ("quarantined", "duplicate"):
+            self._json({"error": "That recipe is hidden by vetting."}, status=400)
+            return
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        plan = vault.read(plan_id)
+        entries = list(plan.entries())
+        idx = next(
+            (i for i, e in enumerate(entries) if e.day == day and e.slot == slot),
+            None,
+        )
+        replaced = PlanEntry(
+            day=day, slot=slot, recipe_id=recipe_id,
+            title=str(recipe.frontmatter.get("title", "")),
+            note="swapped in for tonight",
+        )
+        previous = entries[idx].recipe_id if idx is not None else None
+        if idx is None:
+            entries.append(replaced)
+        else:
+            entries[idx] = replaced
+        entries.sort(key=lambda e: (e.day, e.slot))
+        fm = dict(plan.frontmatter)
+        fm["meals_planned"] = sum(1 for e in entries if e.filled)
+        vault.write(plan_id, fm, render_plan_body(entries))
+        self.server.app.audit.record_event(
+            event_kind="system",
+            event_subkind="plan_slot_swapped",
+            actor="webui",
+            subject_id=member_id,
+            payload={"plan_id": plan_id, "day": day, "slot": slot,
+                     "from": previous, "to": recipe_id},
+        )
+        self._json({"swapped": True, "title": replaced.title})
+
+    def _api_tonight_alternatives(self, query: dict[str, list[str]]) -> None:
+        """Quick, local, no-model alternatives for tonight within the
+        household's constraints — the reorient affordance's candidate list."""
+        from dataclasses import replace as _replace
+
+        from nutrime.plans.service import plan_base_filters
+
+        def first(key: str) -> str:
+            return (query.get(key) or [""])[0].strip()
+
+        app = self.server.app
+        max_time = int(first("max_time")) if first("max_time").isdigit() else None
+        filters, _ = plan_base_filters(app, max_time=max_time)
+        skip = first("avoid")
+        if skip:
+            filters = _replace(
+                filters,
+                exclude_ingredients=filters.exclude_ingredients
+                | frozenset(t.strip().lower() for t in skip.split(",") if t.strip()),
+            )
+        exclude = first("exclude")
+        results = [
+            r for r in search(self.server.vault, filters, limit=12)
+            if r.recipe_id != exclude
+        ][:6]
+        self._json({
+            "results": [
+                {
+                    "recipe_id": r.recipe_id, "title": r.title,
+                    "total_time_min": r.total_time_min,
+                    "on_hand_matches": list(r.on_hand_matches),
+                    "attribution": r.attribution,
+                }
+                for r in results
+            ]
+        })
+
+    # -- consent + derived (profile view, #33) ----------------------------------
+
+    _CONSENT_LABELS = {
+        "intake_profile": "Your profile answers",
+        "intake_screener": "Screening questions",
+        "inventory": "Kitchen inventory",
+        "knowledge_derived": "What the app works out from your answers",
+        "meal_feedback_time": "Cooking ratings and times",
+        "meal_feedback_semantic": "How meals made you feel",
+    }
+
+    def _api_consent_list(self) -> None:
+        from nutrime.consent import list_current
+
+        app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self._json({
+            "decisions": [
+                {
+                    "category": r.data_category,
+                    "label": self._CONSENT_LABELS.get(r.data_category, r.data_category),
+                    "purpose": r.purpose,
+                    "granted": r.granted,
+                    "scope": "own" if r.subject_user == member_id else "household",
+                }
+                for r in list_current(app.substrate, app.tenant_id, member_id=member_id)
+            ]
+        })
+
+    def _api_consent_set(self) -> None:
+        from nutrime.consent import record_decision
+
+        payload = self._read_json_body()
+        app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        try:
+            record_decision(
+                app.substrate, app.tenant_id,
+                data_category=str(payload.get("category") or ""),
+                purpose=str(payload.get("purpose") or "local_operation"),
+                granted=bool(payload.get("granted")),
+                note="set from the profile page",
+                member_id=member_id,
+            )
+        except ValueError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._api_consent_list()
+
+    def _api_derived(self) -> None:
+        """'Show me what you know' (C5 Q5.5), household level: the
+        abstracted constraints every plan and search respects."""
+        from nutrime.knowledge.store import list_synthesized_entries
+
+        app = self.server.app
+        entries = list_synthesized_entries(
+            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
+        )
+        self._json({
+            "constraints": sorted(
+                {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
+            )
+        })
+
+    # -- notifications + activity (C5 Q5.2 / Q5.4) --------------------------------
+
+    def _notifications_payload(self, member_id: str) -> dict[str, Any]:
+        from nutrime.activity import (
+            NOTIFICATION_CATEGORIES,
+            notification_settings,
+            notifications,
+        )
+
+        app = self.server.app
+        settings = notification_settings(app.substrate, app.tenant_id, member_id)
+        return {
+            "items": notifications(app, member_id),
+            "settings": [
+                {"category": cat, "label": meta["label"], "on": settings[cat],
+                 "default": meta["default"]}
+                for cat, meta in NOTIFICATION_CATEGORIES.items()
+            ],
+        }
+
+    def _api_notifications(self) -> None:
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self._json(self._notifications_payload(member_id))
+
+    def _api_notification_settings(self) -> None:
+        from nutrime.activity import set_notification
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        try:
+            set_notification(
+                self.server.app.substrate, self.server.app.tenant_id, member_id,
+                str(payload.get("category") or ""), bool(payload.get("on")),
+            )
+        except ValueError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._notifications_payload(member_id))
+
+    def _api_activity(self, query: dict[str, list[str]]) -> None:
+        from nutrime.activity import activity_feed
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        raw = (query.get("days") or ["30"])[0]
+        days = int(raw) if raw.isdigit() and 1 <= int(raw) <= 365 else 30
+        self._json({"days": days, "items": activity_feed(self.server.app, member_id, days=days)})
+
+    # -- periodic check-ins (intake-pattern.md Mode 2) ----------------------------
+
+    def _api_checkin_status(self) -> None:
+        from dataclasses import asdict
+
+        from nutrime.checkins import INTERVAL_CHOICES, checkin_history, checkin_status
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        app = self.server.app
+        status = checkin_status(app.substrate, app.tenant_id, member_id)
+        self._json({
+            **asdict(status),
+            "interval_choices": list(INTERVAL_CHOICES),
+            "history": checkin_history(app.substrate, app.tenant_id, member_id, limit=6),
+        })
+
+    def _api_checkin_questions(self) -> None:
+        from nutrime.checkins import checkin_questions, cuisine_options
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        app = self.server.app
+        if getattr(self.server, "_cuisine_options", None) is None:
+            self.server._cuisine_options = cuisine_options(self.server.vault)
+        self._json(checkin_questions(
+            app.substrate, app.tenant_id, member_id,
+            cuisine_options=self.server._cuisine_options,
+        ))
+
+    def _api_checkin_save(self) -> None:
+        from dataclasses import asdict
+
+        from nutrime.checkins import complete_checkin
+        from nutrime.consent import ConsentError
+        from nutrime.intake.baseline import MVP_INSTRUMENTS
+        from nutrime.intake.store import IntakeProfile
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        raw = payload.get("profile")
+        if not isinstance(raw, dict):
+            self._json({"error": "profile required"}, status=400)
+            return
+        try:
+            height, weight = raw.get("height_cm"), raw.get("weight_kg")
+            profile = IntakeProfile(
+                year_of_birth=int(raw.get("year_of_birth")),
+                sex_assigned_at_birth=str(raw.get("sex_assigned_at_birth") or ""),
+                life_stage=str(raw.get("life_stage") or ""),
+                height_cm=int(height) if height not in (None, "") else None,
+                weight_kg=float(weight) if weight not in (None, "") else None,
+                dietary_preferences=tuple(
+                    str(v).strip() for v in raw.get("dietary_preferences") or [] if str(v).strip()
+                ),
+                allergens=tuple(
+                    str(v).strip() for v in raw.get("allergens") or [] if str(v).strip()
+                ),
+            )
+            instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
+            screeners = {}
+            for inst_id, answers in (payload.get("screeners") or {}).items():
+                inst = instruments.get(inst_id)
+                if inst is None or not isinstance(answers, list) or len(answers) != len(inst.items):
+                    raise ValueError(f"{inst_id}: answer every question or none")
+                screeners[inst_id] = {
+                    item.item_id: int(v) for item, v in zip(inst.items, answers)
+                }
+            conf = payload.get("cooking_confidence")
+            mins = payload.get("weeknight_minutes")
+            cuisines = payload.get("cuisines")
+            app = self.server.app
+            result = complete_checkin(
+                app.substrate, app.tenant_id, member_id,
+                profile=profile, screeners=screeners,
+                cooking_confidence=int(conf) if conf not in (None, "") else None,
+                weeknight_minutes=int(mins) if mins not in (None, "") else None,
+                cuisines_to_try=[str(c) for c in cuisines] if isinstance(cuisines, list) else None,
+            )
+        except (TypeError, ValueError, ConsentError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(asdict(result))
+
+    def _api_checkin_snooze(self) -> None:
+        from nutrime.checkins import snooze
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        until = snooze(self.server.app.substrate, self.server.app.tenant_id, member_id)
+        self._json({"snoozed_until": until})
+
+    def _api_checkin_interval(self) -> None:
+        from nutrime.checkins import set_interval
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        days = payload.get("days")
+        try:
+            set_interval(self.server.app.substrate, self.server.app.tenant_id, member_id,
+                         int(days) if days not in (None, "") else None)
+        except (TypeError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._api_checkin_status()
+
+    def _api_doctor(self) -> None:
+        """System check for the Profile page (#34) — the same checks as
+        `nutrime doctor`, so nobody has to read logs."""
+        from nutrime.maintenance import run_doctor
+
+        checks = run_doctor(self.server.app.data_dir)
+        self._json({
+            "checks": [
+                {"name": c.name, "status": c.status, "detail": c.detail, "fix": c.fix}
+                for c in checks
+            ]
+        })
 
     # -- API: search -----------------------------------------------------------
 
@@ -525,7 +1112,12 @@ class _Handler(BaseHTTPRequestHandler):
                         "title": pick.title,
                         **detail,
                     }
-        history = meal_history(app.substrate, app.tenant_id, limit=8)
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        history = meal_history(
+            app.substrate, app.tenant_id, limit=8, member_id=member_id
+        )
         awaiting_feel = next(
             (e for e in history if e.body_response is None), None
         )
@@ -593,10 +1185,14 @@ class _Handler(BaseHTTPRequestHandler):
             return
         record = self.server.vault.read(recipe_id)
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
             meal_event_id = record_meal_event(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 recipe_id=recipe_id,
                 recipe_title=str(record.frontmatter.get("title", "")),
                 plan_id=str(payload.get("plan_id") or "") or None,
@@ -607,6 +1203,7 @@ class _Handler(BaseHTTPRequestHandler):
                 record_cooking_experience(
                     app.substrate,
                     app.tenant_id,
+                    member_id=member_id,
                     meal_event_id=meal_event_id,
                     ease_rating=int(ease),
                     enjoyment_rating=int(enjoyment),
@@ -618,6 +1215,7 @@ class _Handler(BaseHTTPRequestHandler):
                 record_time_feedback(
                     app.substrate,
                     app.tenant_id,
+                    member_id=member_id,
                     meal_event_id=meal_event_id,
                     estimated_time_min=(
                         int(estimated) if estimated is not None else None
@@ -700,10 +1298,14 @@ class _Handler(BaseHTTPRequestHandler):
 
         payload = self._read_json_body()
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
             atom_id = record_body_response(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=str(payload.get("meal_event_id") or ""),
                 freetext_response=str(payload.get("response") or ""),
                 energy_rating=payload.get("energy"),
@@ -734,32 +1336,33 @@ class _Handler(BaseHTTPRequestHandler):
     )
     _INTAKE_SEX_OPTIONS = ("female", "male", "intersex", "prefer_not_to_say")
 
-    def _intake_profile_row(self) -> dict[str, Any] | None:
+    def _intake_profile_row(self, member_id: str) -> dict[str, Any] | None:
+        from nutrime.intake.store import load_member_profile
+
         app = self.server.app
-        row = app.substrate.execute(
-            "SELECT year_of_birth, sex_assigned_at_birth, life_stage,"
-            " height_cm, weight_kg, dietary_preferences, allergens"
-            " FROM intake_profile WHERE tenant_id = ?",
-            (app.tenant_id,),
-        ).fetchone()
-        if row is None:
+        profile = load_member_profile(app.substrate, app.tenant_id, member_id)
+        if profile is None:
             return None
         return {
-            "year_of_birth": row[0],
-            "sex_assigned_at_birth": row[1],
-            "life_stage": row[2],
-            "height_cm": row[3],
-            "weight_kg": row[4],
-            "dietary_preferences": json.loads(row[5]),
-            "allergens": json.loads(row[6]),
+            "year_of_birth": profile.year_of_birth,
+            "sex_assigned_at_birth": profile.sex_assigned_at_birth,
+            "life_stage": profile.life_stage,
+            "height_cm": profile.height_cm,
+            "weight_kg": profile.weight_kg,
+            "dietary_preferences": list(profile.dietary_preferences),
+            "allergens": list(profile.allergens),
         }
 
     def _api_intake_status(self) -> None:
-        profile = self._intake_profile_row()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        profile = self._intake_profile_row(member_id)
         self._json(
             {
+                "member_id": member_id,
                 "complete": profile is not None,
-                "skipped": self.server.intake_skipped,
+                "skipped": member_id in self.server.intake_skipped,
                 "profile": profile,
             }
         )
@@ -799,7 +1402,7 @@ class _Handler(BaseHTTPRequestHandler):
         from nutrime.intake.baseline import MVP_INSTRUMENTS
         from nutrime.intake.store import (
             IntakeProfile,
-            save_profile,
+            save_member_profile,
             save_screener_responses,
         )
         from nutrime.knowledge.derivation import sync_from_intake
@@ -892,29 +1495,37 @@ class _Handler(BaseHTTPRequestHandler):
             responses_by_instrument[instrument_id] = responses
 
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
-            require_consent(app.substrate, app.tenant_id, "intake_profile")
+            require_consent(
+                app.substrate, app.tenant_id, "intake_profile",
+                member_id=member_id,
+            )
             if responses_by_instrument:
                 require_consent(
-                    app.substrate, app.tenant_id, "intake_screener"
+                    app.substrate, app.tenant_id, "intake_screener",
+                    member_id=member_id,
                 )
         except ConsentError as err:
             self._json({"error": str(err)}, status=400)
             return
 
-        # save_profile upserts (ON CONFLICT(tenant_id) DO UPDATE), so a
-        # revision from the Profile link overwrites in place; screener
-        # responses append as a new administered_at batch (honest record).
-        save_profile(app.substrate, app.tenant_id, profile)
+        # save_member_profile upserts per (tenant, member), so a revision
+        # from the Profile link overwrites in place; screener responses
+        # append as a new administered_at batch (honest record).
+        save_member_profile(app.substrate, app.tenant_id, member_id, profile)
         for instrument_id, responses in responses_by_instrument.items():
             save_screener_responses(
                 app.substrate,
                 app.tenant_id,
                 instruments[instrument_id],
                 responses,
+                member_id=member_id,
             )
         outcome = sync_from_intake(app.substrate, app.tenant_id)
-        self.server.intake_skipped = False
+        self.server.intake_skipped.discard(member_id)
         self._json(
             {
                 "saved": True,
@@ -925,8 +1536,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _api_intake_skip(self) -> None:
         # Session-scoped choice only — nothing persisted; the welcome card
-        # simply stays away for this server process.
-        self.server.intake_skipped = True
+        # simply stays away for this member for this server process.
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self.server.intake_skipped.add(member_id)
         self._json({"ok": True})
 
     def _api_grocery(self, query: dict[str, list[str]]) -> None:
@@ -979,8 +1593,10 @@ class _Handler(BaseHTTPRequestHandler):
         for record in self.server.vault.iter_recipes():
             # Facet counts mirror what search can actually surface —
             # quarantined rows (junk + the de-scoped historical corpus)
-            # are invisible here too.
-            if record.frontmatter.get("vetting_status") == "quarantined":
+            # and cross-source duplicates are invisible here too.
+            if record.frontmatter.get("vetting_status") in (
+                "quarantined", "duplicate"
+            ):
                 continue
             key = source_collection(record.frontmatter)
             counts[key] = counts.get(key, 0) + 1
@@ -1094,6 +1710,7 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NutriMe — what can we make?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23476341'/%3E%3Cpath d='M16 7c-5 4-6 10-3 16 5-2 8-8 3-16z' fill='%23f7f1e5'/%3E%3C/svg%3E">
 <style>
   :root {
     --paper: #f7f1e5;
@@ -1339,23 +1956,112 @@ PAGE = """<!doctype html>
     header { padding-top: 26px; }
     .ask { padding: 16px; }
   }
+  .whoRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .whoRow label { font-size: 12.5px; color: var(--ink-soft); }
+  #memberPicker {
+    font: inherit; font-size: 14px; padding: 7px 10px; min-height: 36px;
+    border: 1.5px solid var(--line); border-radius: 9px;
+    background: var(--card); color: var(--ink); max-width: 46vw;
+  }
+  #memberPicker:focus { outline: 2px solid var(--leaf); outline-offset: 1px; }
+
+  /* -- app shell (#33): views + nav; bottom tab bar on phones -- */
+  .topRow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+  .tabs button {
+    background: transparent; color: var(--ink-soft); padding: 10px 14px;
+    border-radius: 9px 9px 0 0; font-size: 14.5px; border-bottom: 2.5px solid transparent;
+  }
+  .tabs button[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .tabs button:focus-visible, .quick button:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+  .tabs .ico { display: none; }
+  .view[hidden] { display: none !important; }
+  .greet { font-family: "Iowan Old Style", Palatino, Georgia, serif; font-size: clamp(28px, 4.6vw, 42px); line-height: 1.1; font-weight: 500; }
+  .greetSub { color: var(--ink-soft); margin-top: 6px; }
+  .quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+  .quick button {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    text-align: left; padding: 14px; border-radius: 12px; font-size: 14.5px; min-height: 64px;
+  }
+  .quick button small { display: block; color: var(--ink-soft); font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+  .quick button:hover { border-color: var(--leaf); }
+  .dayRow { display: flex; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .dayRow:last-child { border-bottom: none; }
+  .dayTag { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; min-width: 92px; }
+  .dayTag.today { color: var(--accent); }
+  .dayTitle { flex: 1 1 200px; min-width: 0; }
+  .dayTitle .attr { border-top: none; padding-top: 2px; }
+  .planItem { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+  .formRow { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .formRow select, .formRow input[type=text] {
+    font: inherit; font-size: 14.5px; padding: 8px 10px; border: 1.5px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .groc { list-style: none; }
+  .groc li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+  .groc input { width: 20px; height: 20px; accent-color: var(--leaf); margin-top: 2px; flex: none; }
+  .groc .done span.food { text-decoration: line-through; color: var(--ink-soft); }
+  .groc small { display: block; color: var(--ink-soft); }
+  .consentRow { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .switch { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-soft); }
+  .switch input { width: 20px; height: 20px; accent-color: var(--leaf); }
+  .scope { font-size: 11.5px; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+  .errorBox { background: #fbeee8; border: 1px solid #e7c3b4; color: #7a2e14; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin-top: 10px; }
+  .toast.err { background: #8a3417; }
+  .bell { position: relative; background: transparent; color: var(--ink); padding: 8px 10px; font-size: 18px; min-height: 40px; }
+  .bell .count { position: absolute; top: 2px; right: 0; background: var(--accent); color: var(--accent-ink);
+    border-radius: 999px; font-size: 11px; min-width: 18px; height: 18px; line-height: 18px; text-align: center; padding: 0 4px; }
+  .notice { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line); flex-wrap: wrap; }
+  .scale { display: flex; gap: 6px; flex-wrap: wrap; }
+  .scale button { background: var(--leaf-soft); color: var(--leaf); padding: 10px 0; width: 48px; border-radius: 10px; }
+  .scale button.on { background: var(--leaf); color: #fff; }
+  .why { background: var(--leaf-soft); border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 14.5px; }
+  .why ul { margin: 6px 0 0 18px; }
+  .act { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 14.5px; }
+  .act time { color: var(--ink-soft); min-width: 92px; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .act .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); min-width: 64px; }
+  @media (max-width: 720px) {
+    body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    .tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0;
+      background: var(--card); border-top: 1px solid var(--line); border-bottom: none;
+      justify-content: space-around; padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    .tabs button { flex: 1; border-radius: 10px; border-bottom: none; padding: 6px 2px; font-size: 11.5px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .tabs button[aria-current="page"] { background: var(--leaf-soft); color: var(--leaf); }
+    .tabs .ico { display: block; font-size: 19px; line-height: 1; }
+    .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+    .whoRow label { display: none; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+  <div class="topRow">
     <div class="wordmark">NutriMe</div>
-    <button class="btn-quiet" id="profileLink" style="font-size:13.5px">Profile</button>
+    <div class="whoRow">
+      <label for="memberPicker">Who's using this?</label>
+      <select id="memberPicker" aria-label="Household member"></select>
+      <button class="bell" id="bellBtn" aria-label="Notifications">🔔<span class="count" id="bellCount" hidden>0</span></button>
+    </div>
   </div>
-  <h1>What can we make with <em>what we already have?</em></h1>
-  <p class="sub">Search the household recipe collection by what's in the kitchen —
-  and, if you like, tilt the ranking toward foods that fit where you are in your cycle.</p>
+  <nav class="tabs" aria-label="Sections">
+    <button data-view="home"><span class="ico" aria-hidden="true">⌂</span>Home</button>
+    <button data-view="recipes"><span class="ico" aria-hidden="true">☰</span>Recipes</button>
+    <button data-view="plans"><span class="ico" aria-hidden="true">▦</span>Plans</button>
+    <button data-view="grocery"><span class="ico" aria-hidden="true">✓</span>Grocery</button>
+    <button data-view="profile"><span class="ico" aria-hidden="true">◉</span>Profile</button>
+  </nav>
 </header>
 
 <main>
+ <div class="view" id="view-home" data-view="home">
+  <div class="greet" id="homeGreet">Hello</div>
+  <p class="greetSub" id="homeSub"></p>
+
   <section class="ask welcome" id="welcomeCard" style="display:none">
     <label class="lbl">Welcome</label>
-    <p style="margin-bottom:12px">Set up your household profile &mdash; 5 minutes,
+    <p style="margin-bottom:12px"><span id="welcomeWho">Set up your profile</span> &mdash; 5 minutes,
     stays on this device. It teaches the planner what to avoid and what you love.</p>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <button class="btn-go" id="welcomeStart">Set up my profile</button>
@@ -1363,10 +2069,39 @@ PAGE = """<!doctype html>
     </div>
   </section>
 
+  <section class="ask welcome" id="checkinCard" hidden>
+    <label class="lbl">Check-in</label>
+    <p style="margin-bottom:12px" id="checkinCardText">Time for your check-in — about 10 minutes.
+    Things change; this keeps NutriMe's picture of you current.</p>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn-go" id="checkinStart">Start check-in</button>
+      <button class="btn-quiet" id="checkinSnooze">not now (ask in a week)</button>
+    </div>
+  </section>
+
   <section class="ask" id="tonightBox" style="margin-bottom:0">
     <label class="lbl">Tonight</label>
     <div id="tonightBody"></div>
   </section>
+
+  <section class="ask" id="homePlan" hidden>
+    <label class="lbl" id="homePlanLabel">Coming up</label>
+    <div id="homePlanBody"></div>
+  </section>
+
+  <div class="quick" role="group" aria-label="Quick actions">
+    <button id="qaReorient">Change tonight's meal<small>less time, missing an ingredient</small></button>
+    <button data-go="plans">Plan this week<small>make or browse plans</small></button>
+    <button data-go="recipes">Browse recipes<small>search what you have</small></button>
+    <button data-go="grocery">Grocery list<small>from the latest plan</small></button>
+    <button data-go="profile">What NutriMe knows<small>profile, privacy, avoid-list</small></button>
+  </div>
+ </div>
+
+ <div class="view" id="view-recipes" data-view="recipes" hidden>
+  <h1>What can we make with <em>what we already have?</em></h1>
+  <p class="sub">Search the household recipe collection by what's in the kitchen —
+  and, if you track a cycle, tilt the ranking toward foods that fit its current phase.</p>
 
   <section class="ask" id="searchBox">
     <label class="lbl" for="have">I have…</label>
@@ -1438,6 +2173,98 @@ PAGE = """<!doctype html>
       </div>
     </details>
   </section>
+ </div>
+
+ <div class="view" id="view-plans" data-view="plans" hidden>
+  <h2 class="serif" style="font-size:30px">Meal plans</h2>
+  <section class="ask">
+    <label class="lbl">Make a new plan</label>
+    <p class="hint">Picks from the collection only, skips everything on the household avoid-list, and favours what's in the kitchen. Runs on this computer's local model.</p>
+    <div class="formRow">
+      <label class="opt">Days <select id="planDays">
+        <option value="3">3</option><option value="5">5</option><option value="7" selected>7</option>
+      </select></label>
+      <label class="opt"><input type="checkbox" id="slotBreakfast"> breakfast</label>
+      <label class="opt"><input type="checkbox" id="slotLunch"> lunch</label>
+      <label class="opt"><input type="checkbox" id="slotDinner" checked> dinner</label>
+      <label class="opt">ready in <select id="planMaxTime">
+        <option value="">any time</option><option value="30">30 min</option>
+        <option value="45">45 min</option><option value="60">1 hour</option>
+      </select></label>
+      <button class="btn-go" id="planGo">Make plan</button>
+      <span class="hint" id="planBusy" hidden>planning — one meal at a time…</span>
+    </div>
+    <div id="planError"></div>
+  </section>
+  <section class="ask" id="planDetailBox" hidden>
+    <label class="lbl" id="planDetailLabel">Plan</label>
+    <div id="planDetail"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">All plans</label>
+    <div id="planList"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
+ <div class="view" id="view-activity" data-view="activity" hidden>
+  <h2 class="serif" style="font-size:30px">What NutriMe did with your data</h2>
+  <section class="ask">
+    <div class="formRow"><label class="opt">Show the last <select id="activityDays">
+      <option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option>
+    </select></label></div>
+    <div id="activityList"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
+ <div class="view" id="view-grocery" data-view="grocery" hidden>
+  <h2 class="serif" style="font-size:30px">Grocery list</h2>
+  <section class="ask">
+    <div id="groceryBody"><div class="hint">Loading…</div></div>
+  </section>
+ </div>
+
+ <div class="view" id="view-profile" data-view="profile" hidden>
+  <h2 class="serif" style="font-size:30px" id="profileHeading">Profile</h2>
+  <section class="ask">
+    <label class="lbl">Profile answers</label>
+    <p id="profileStatus" class="hint"></p>
+    <div class="formRow">
+      <button class="btn-go" id="profileLink">Edit my answers</button>
+    </div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Check-ins</label>
+    <div id="checkinSettings"><div class="hint">Loading…</div></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">What the household avoids and prefers</label>
+    <p class="hint">Worked out from everyone's answers. Every search and plan respects it. Only the list is shared, not anyone's answers.</p>
+    <div id="derivedBody"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Privacy</label>
+    <p class="hint">Everything stays on this computer. These switches decide what NutriMe may keep for you; "household" means you're using the household default.</p>
+    <div id="consentBody"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Household</label>
+    <div id="memberAdmin"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Notifications</label>
+    <p class="hint">What's worth interrupting you for. The defaults are the important ones only.</p>
+    <div id="notifySettings"></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">What NutriMe did with your data</label>
+    <p class="hint">Every model request, privacy decision, safety check and change, in plain words.</p>
+    <div class="formRow"><button class="btn-go" id="openActivity">Show activity</button></div>
+  </section>
+  <section class="ask">
+    <label class="lbl">System check</label>
+    <div id="doctorBody"><div class="hint">Checking…</div></div>
+  </section>
+ </div>
 </main>
 
 <div class="overlay" id="overlay">
@@ -1461,11 +2288,88 @@ function esc(s) {
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 
-async function jget(url) { const r = await fetch(url); return r.json(); }
-async function jpost(url, body) {
-  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
-                              body: JSON.stringify(body)});
-  return r.json();
+/* -- household member (#29): one shared device, picker not login -- */
+let MEMBER = null, MEMBERS = [];
+try { MEMBER = localStorage.getItem("nutrime.member"); } catch (e) {}
+function memberHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  if (MEMBER) h["X-NutriMe-Member"] = MEMBER;
+  return h;
+}
+function memberName() {
+  const m = MEMBERS.find(x => x.id === MEMBER);
+  return m ? m.name : "";
+}
+// The bootstrap member is literally named "Me" — address it as "you".
+function isDefaultName() { return memberName().toLowerCase() === "me"; }
+// "Sam's profile" once a household has several people; "Your profile" alone.
+function profileLabel() {
+  return MEMBERS.length > 1 && memberName() && !isDefaultName() ?
+    memberName() + "\\u2019s profile" : "Your profile";
+}
+// Error surfaces (#33): every API failure says what went wrong in plain
+// words; callers still get {error} back to render inline where it fits.
+async function jcall(url, opts) {
+  let r;
+  try { r = await fetch(url, opts); }
+  catch (e) {
+    const msg = "Can't reach NutriMe on this computer. Is it still running?";
+    toast(msg, true);
+    return {error: msg};
+  }
+  let data;
+  try { data = await r.json(); } catch (e) { data = {error: "NutriMe sent an unreadable reply (" + r.status + ")."}; }
+  if (!r.ok && !data.error) data.error = "Something went wrong (" + r.status + ").";
+  if (!r.ok && !(opts && opts.quiet)) toast(data.error, true);
+  return data;
+}
+async function jget(url, quiet) { return jcall(url, {headers: memberHeaders(), quiet}); }
+async function jpost(url, body, quiet) {
+  return jcall(url, {method: "POST", quiet,
+                     headers: memberHeaders({"Content-Type": "application/json"}),
+                     body: JSON.stringify(body)});
+}
+function renderMembers(data) {
+  MEMBERS = data.members;
+  if (!MEMBERS.some(m => m.id === MEMBER)) MEMBER = data.default_member_id;
+  try { localStorage.setItem("nutrime.member", MEMBER); } catch (e) {}
+  const sel = $("memberPicker");
+  sel.innerHTML = MEMBERS.map(m =>
+    '<option value="' + esc(m.id) + '"' + (m.id === MEMBER ? " selected" : "") + ">" +
+    esc(m.name) + "</option>").join("") +
+    '<option value="__add">+ Add person\u2026</option>';
+}
+async function loadMembers() {
+  // Resolve the stored pick before anything member-scoped loads; a stale
+  // id (archived member, fresh install) falls back to the default.
+  const r = await fetch("/api/members");
+  renderMembers(await r.json());
+}
+async function onMemberChange() {
+  const sel = $("memberPicker");
+  if (sel.value === "__add") {
+    const got = await formSheet({title: "Add a person", submit: "Add",
+      fields: [{id: "name", label: "Their name", placeholder: "e.g. Sam"}],
+      validate: o => o.name ? null : "Type a name."});
+    const name = got ? got.name : "";
+    if (name) {
+      const r = await fetch("/api/members", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
+      const data = await r.json();
+      if (data.error) { toast(data.error); renderMembers({members: MEMBERS, default_member_id: MEMBER}); return; }
+      MEMBER = data.added;
+      renderMembers(data);
+    } else {
+      sel.value = MEMBER;
+      return;
+    }
+  } else {
+    MEMBER = sel.value;
+    try { localStorage.setItem("nutrime.member", MEMBER); } catch (e) {}
+  }
+  loadTonight();
+  loadIntakeStatus();
+  showView(currentView(), true);
 }
 
 /* -- source filter -- */
@@ -1620,6 +2524,7 @@ async function doSearch(append) {
       (r.on_hand_matches.length ? r.on_hand_matches.length + " on hand \\u00b7 " : "") +
       esc(r.source_label || "") + "</span></div>" +
       '<div class="attr">' + esc(r.attribution) + "</div>";
+    WHY[r.recipe_id] = {from: "search", r, constraints: $("applyConstraints").checked};
     card.onclick = () => openDetail(r.recipe_id);
     grid.appendChild(card);
   }
@@ -1639,6 +2544,8 @@ async function doSearch(append) {
 }
 
 /* -- detail -- */
+// Source URLs come from imported pages; only http(s) becomes a link.
+function safeUrl(u) { return typeof u === "string" && /^https?:[/][/]/i.test(u); }
 async function openDetail(id) {
   const d = await jget("/api/recipes/" + id);
   if (d.error) return;
@@ -1657,7 +2564,8 @@ async function openDetail(id) {
     d.ingredients.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>" +
     "<h4>Steps</h4><ol>" +
     d.steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>" +
-    (d.source_url ? '<div class="srcLink"><a href="' + esc(d.source_url) +
+    whyHtml(WHY[id]) +
+    (safeUrl(d.source_url) ? '<div class="srcLink"><a href="' + esc(d.source_url) +
       '" target="_blank" rel="noopener">Open the original \\u2197</a></div>' : "") +
     '<div class="attr">' + esc(d.attribution) + "</div>";
   $("overlay").classList.add("on");
@@ -1718,7 +2626,8 @@ async function loadTonight() {
       '<button class="btn-quiet" onclick="openDetail(\\'' + esc(t.recipe_id) + '\\')">view recipe</button>' +
       '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="markCooked(\\'' +
       esc(t.recipe_id) + '\\',\\'' + esc(t.plan_id) + '\\')">We cooked it</button>' +
-      "</div>"
+      "</div>" +
+      (t.attribution ? '<div class="attr" style="margin-top:8px">' + esc(t.attribution) + "</div>" : "")
     );
   } else {
     // Tonight-first: the panel is always present; with no plan covering
@@ -1748,34 +2657,11 @@ async function loadTonight() {
   body.innerHTML = parts.join("");
   box.style.display = "block";
 }
-async function markCooked(recipeId, planId) {
-  const ease = prompt("How easy was it to make? (1-5, blank to skip)");
-  let payload = {recipe_id: recipeId, plan_id: planId};
-  if (ease) {
-    const fun = prompt("How enjoyable to make? (1-5)");
-    if (fun) { payload.ease = parseInt(ease); payload.enjoyment = parseInt(fun); }
-  }
-  const mins = prompt("Actual minutes it took? (blank to skip)");
-  if (mins) payload.actual_minutes = parseInt(mins);
-  const res = await jpost("/api/meals/cooked", payload);
-  if (res.error) { alert(res.error); return; }
-  // V2 ask-don't-assume decrement: offer the recipe∩inventory names.
-  if (res.used_candidates && res.used_candidates.length) {
-    const names = res.used_candidates.join(", ");
-    if (confirm("Used these up from the kitchen? " + names +
-                "\\n\\nOK removes them from your inventory; Cancel keeps them.")) {
-      await jpost("/api/meals/cooked/used-up",
-                  {meal_event_id: res.meal_event_id, names: res.used_candidates});
-      loadInventory();
-    }
-  }
-  loadTonight();
-}
 async function sendFeel(mealEventId) {
   const text = $("feelText").value.trim();
   if (!text) return;
   const res = await jpost("/api/meals/feel", {meal_event_id: mealEventId, response: text});
-  if (res.error) alert(res.error); else loadTonight();
+  if (!res.error) { toast("Thanks, noted."); loadTonight(); }
 }
 
 /* -- pinterest sync -- */
@@ -1816,9 +2702,13 @@ $("pinSync").onclick = async () => {
 let INTAKE_Q = null;        // questions payload from /api/intake/questions
 let INTAKE_STEP = 1;
 let INTAKE_STATE = null;    // collected form state across steps
+let INTAKE_MODE = "intake"; // "intake" | "checkin" (periodic revision)
+let CHECKIN_Q = null;       // /api/checkin/questions payload
 
-function toast(msg) {
+function toast(msg, isError) {
   const t = $("toast");
+  t.classList.toggle("err", !!isError);
+  t.setAttribute("role", isError ? "alert" : "status");
   t.textContent = msg; t.style.display = "block";
   clearTimeout(toast._t);
   toast._t = setTimeout(() => { t.style.display = "none"; }, 6000);
@@ -1830,10 +2720,12 @@ function blankIntakeState() {
     height_cm: "", weight_kg: "",
     allergens: new Set(), dietary_preferences: [],
     screeners: {},  // instrument_id -> [value per item]
+    cooking_confidence: null, weeknight_minutes: null, cuisines: new Set(),
   };
 }
 
 async function openIntake() {
+  INTAKE_MODE = "intake";
   if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
   INTAKE_STATE = blankIntakeState();
   const status = await jget("/api/intake/status");
@@ -1857,15 +2749,20 @@ $("intakeOverlay").addEventListener("click", e => {
 });
 
 function intakeHeader(title) {
-  return '<button class="closeX" onclick="closeIntake()" aria-label="Close">\\u00d7</button>' +
-    '<div class="stepTag">Household profile \\u00b7 step ' + INTAKE_STEP + ' of 4</div>' +
+  const tag = INTAKE_MODE === "checkin" ?
+    (MEMBERS.length > 1 && memberName() && !isDefaultName() ? memberName() + "’s check-in" : "Check-in") :
+    profileLabel();
+  return '<button class="closeX" onclick="closeIntake()" aria-label="Close">×</button>' +
+    '<div class="stepTag">' + esc(tag) + " · step " + INTAKE_STEP + ' of 4</div>' +
     '<h3>' + esc(title) + '</h3>';
 }
 function intakeNav(backLabel, nextLabel, nextFn) {
   return '<div class="stepNav">' +
     (backLabel ? '<button class="btn-quiet" onclick="intakeBack()">' + esc(backLabel) + '</button>' : '') +
     '<button class="btn-go" id="intakeNext" onclick="' + nextFn + '">' + esc(nextLabel) + '</button>' +
-    '<button class="btn-quiet" onclick="skipIntake()">skip for now</button>' +
+    (INTAKE_MODE === "checkin" ?
+      '<button class="btn-quiet" onclick="snoozeCheckin()">not now</button>' :
+      '<button class="btn-quiet" onclick="skipIntake()">skip for now</button>') +
     '</div><div class="intakeMsg" id="intakeMsg"></div>';
 }
 function intakeBack() { INTAKE_STEP -= 1; renderIntakeStep(); }
@@ -1920,7 +2817,10 @@ function renderIntakeStep() {
       '<p class="hint" style="margin-top:6px">These are screening questions, not a diagnosis ' +
       '\\u2014 they help the planner notice when food support matters most. Optional: leave any blank.</p>';
     for (const inst of INTAKE_Q.instruments) {
-      html += '<h4>' + esc(inst.full_name) + '</h4>';
+      const last = INTAKE_MODE === "checkin" && CHECKIN_Q ? CHECKIN_Q.last_scores[inst.instrument_id] : null;
+      html += '<h4>' + esc(inst.full_name) + '</h4>' +
+        (last ? '<div class="hint">Last time (' + esc(String(last.administered_at).slice(0, 10)) +
+          '): score ' + last.score + (last.positive ? ", worth watching" : "") + '</div>' : "");
       inst.items.forEach((item, idx) => {
         const chosen = (s.screeners[inst.instrument_id] || [])[idx];
         html += '<div class="qRow"><div class="q">' + esc(item.prompt) + '</div><div class="qOpts">' +
@@ -1931,7 +2831,33 @@ function renderIntakeStep() {
           '</div></div>';
       });
     }
-    sheet.innerHTML = html + intakeNav("back", "Next: privacy", "intakeStep3Next()");
+    sheet.innerHTML = html + intakeNav("back",
+      INTAKE_MODE === "checkin" ? "Next: cooking and cuisines" : "Next: privacy", "intakeStep3Next()");
+  } else if (INTAKE_MODE === "checkin") {
+    const q = CHECKIN_Q;
+    const conf = q.cooking_confidence.options.map(o =>
+      '<label><input type="radio" name="ciConf" value="' + o.value + '"' +
+      (s.cooking_confidence === o.value ? " checked" : "") + '> ' + esc(o.label) + '</label>').join("");
+    const mins = '<option value="">not sure</option>' + q.weeknight_minutes.options.map(m =>
+      '<option value="' + m + '"' + (s.weeknight_minutes === m ? " selected" : "") + '>' +
+      (m >= 90 ? "90 minutes or more" : m + " minutes") + '</option>').join("");
+    const cuisines = q.cuisines.options.map(c =>
+      '<button class="pill' + (s.cuisines.has(c) ? " on" : "") + '" data-cuisine="' + esc(c) + '">' +
+      esc(c) + '</button>').join(" ");
+    sheet.innerHTML = intakeHeader("Cooking and cuisines") +
+      '<div class="formRow"><label>How do you feel about cooking these days?</label>' +
+      '<div class="qOpts" style="flex-direction:column;align-items:flex-start">' + conf + '</div></div>' +
+      '<div class="formRow"><label for="ciMins">On a weeknight, how long do you usually have to cook?</label>' +
+      '<select id="ciMins">' + mins + '</select></div>' +
+      '<div class="formRow"><label>Cuisines you’d like to try more of (tap to toggle)</label>' +
+      '<div class="pillRow" id="ciCuisines">' + cuisines + '</div></div>' +
+      '<p class="hint">Everything stays on this computer.</p>' +
+      intakeNav("back", "Save check-in", "saveCheckin()");
+    sheet.querySelectorAll("#ciCuisines .pill").forEach(b => b.onclick = () => {
+      const c = b.dataset.cuisine;
+      s.cuisines.has(c) ? s.cuisines.delete(c) : s.cuisines.add(c);
+      b.classList.toggle("on");
+    });
   } else {
     sheet.innerHTML = intakeHeader("Your answers stay here") +
       '<div class="privacyNote">Everything you entered \\u2014 including the health ' +
@@ -2029,9 +2955,12 @@ async function skipIntake() {
 
 async function loadIntakeStatus() {
   const status = await jget("/api/intake/status");
+  $("welcomeWho").textContent = "Set up " +
+    (MEMBERS.length > 1 ? profileLabel() : "your profile");
   $("welcomeCard").style.display =
     (status.complete || status.skipped) ? "none" : "block";
 }
+$("memberPicker").addEventListener("change", onMemberChange);
 $("welcomeStart").onclick = openIntake;
 $("welcomeSkip").onclick = skipIntake;
 $("profileLink").onclick = openIntake;
@@ -2041,12 +2970,574 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
   $(id).addEventListener("change", () => doSearch()));
 
+/* -- in-page forms (no browser pop-ups; they are clumsy on phones) -- */
+// fields: {id, label, type: "text"|"number"|"scale"|"checks", value, options, placeholder}
+function formSheet(spec) {
+  return new Promise(resolve => {
+    const body = spec.fields.map(f => {
+      if (f.type === "scale") {
+        return '<div class="formRow"><label>' + esc(f.label) + '</label><div class="scale" data-scale="' + f.id + '">' +
+          [1, 2, 3, 4, 5].map(n => '<button type="button" data-v="' + n + '"' + (f.value === n ? ' class="on"' : "") + ">" + n + "</button>").join("") +
+          "</div>" + (f.hint ? '<div class="hint">' + esc(f.hint) + "</div>" : "") + "</div>";
+      }
+      if (f.type === "checks") {
+        return '<div class="formRow"><label>' + esc(f.label) + "</label>" + f.options.map((o, i) =>
+          '<label class="opt"><input type="checkbox" data-check="' + f.id + '" value="' + esc(o) + '" checked> ' + esc(o) + "</label>").join("") + "</div>";
+      }
+      return '<div class="formRow"><label for="fs_' + f.id + '">' + esc(f.label) + "</label>" +
+        '<input type="' + (f.type || "text") + '" id="fs_' + f.id + '" value="' + esc(f.value == null ? "" : f.value) + '"' +
+        (f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : "") + "></div>";
+    }).join("");
+    $("sheet").innerHTML =
+      '<button class="closeX" id="fsClose" aria-label="Close">×</button><h3>' + esc(spec.title) + "</h3>" +
+      (spec.intro ? '<p class="hint">' + esc(spec.intro) + "</p>" : "") + body +
+      '<div class="intakeMsg" id="fsMsg"></div><div class="stepNav">' +
+      '<button class="btn-go" id="fsOk">' + esc(spec.submit || "Save") + "</button>" +
+      '<button class="btn-quiet" id="fsCancel">' + esc(spec.cancel || "Cancel") + "</button></div>";
+    $("sheet").querySelectorAll("[data-scale] button").forEach(b => b.onclick = () => {
+      b.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    });
+    const done = val => { $("overlay").classList.remove("on"); resolve(val); };
+    $("fsClose").onclick = () => done(null);
+    $("fsCancel").onclick = () => done(spec.cancelValue === undefined ? null : spec.cancelValue);
+    $("fsOk").onclick = () => {
+      const out = {};
+      spec.fields.forEach(f => {
+        if (f.type === "scale") {
+          const on = $("sheet").querySelector('[data-scale="' + f.id + '"] button.on');
+          out[f.id] = on ? parseInt(on.dataset.v) : null;
+        } else if (f.type === "checks") {
+          out[f.id] = [...$("sheet").querySelectorAll('input[data-check="' + f.id + '"]:checked')].map(x => x.value);
+        } else {
+          out[f.id] = $("fs_" + f.id).value.trim();
+        }
+      });
+      const err = spec.validate ? spec.validate(out) : null;
+      if (err) { $("fsMsg").textContent = err; return; }
+      done(out);
+    };
+    $("overlay").classList.add("on");
+    const first = $("sheet").querySelector("input");
+    if (first && first.type !== "checkbox") first.focus();
+  });
+}
+
+async function markCooked(recipeId, planId) {
+  const v = await formSheet({
+    title: "How did it go?", submit: "Save", intro: "All optional; it teaches NutriMe what works for you.",
+    fields: [
+      {id: "ease", label: "How easy was it to make?", type: "scale", hint: "1 = hard, 5 = easy"},
+      {id: "enjoyment", label: "How enjoyable was it to make?", type: "scale", hint: "1 = a chore, 5 = loved it"},
+      {id: "minutes", label: "How many minutes did it actually take?", type: "number", placeholder: "e.g. 35"},
+    ],
+    validate: o => (o.ease && !o.enjoyment) || (!o.ease && o.enjoyment) ?
+      "Pick both ratings, or neither." : null,
+  });
+  if (v === null) return;
+  const payload = {recipe_id: recipeId, plan_id: planId};
+  if (v.ease && v.enjoyment) { payload.ease = v.ease; payload.enjoyment = v.enjoyment; }
+  if (v.minutes) payload.actual_minutes = parseInt(v.minutes);
+  const res = await jpost("/api/meals/cooked", payload);
+  if (res.error) return;
+  // V2 ask-don't-assume decrement: offer the recipe∩inventory names.
+  if (res.used_candidates && res.used_candidates.length) {
+    const used = await formSheet({
+      title: "Used up anything?", submit: "Remove ticked items", cancel: "Keep everything",
+      intro: "Ticked items come off your kitchen list.",
+      fields: [{id: "names", label: "From the kitchen", type: "checks", options: res.used_candidates}],
+    });
+    if (used && used.names.length) {
+      await jpost("/api/meals/cooked/used-up", {meal_event_id: res.meal_event_id, names: used.names});
+      loadInventory();
+    }
+  }
+  toast("Saved. Later, tell NutriMe how it made you feel.");
+  loadTonight();
+}
+
+/* -- why this? (C5 Q5.4 inline drill-in) -- */
+const WHY = {};   // recipe_id → context from wherever it was shown
+let AVOID_COUNT = null;
+function whyHtml(ctx) {
+  if (!ctx) return "";
+  const r = ctx.r || {}, lines = [];
+  if (r.on_hand_matches && r.on_hand_matches.length) lines.push("Uses what you have: " + r.on_hand_matches.join(", "));
+  if (r.expiring_matches && r.expiring_matches.length) lines.push("Uses up food that’s due soon: " + r.expiring_matches.join(", "));
+  if (r.prefer_matches && r.prefer_matches.length) lines.push("Matches household preferences: " + r.prefer_matches.join(", "));
+  if (r.times_cooked) lines.push("You’ve cooked it " + r.times_cooked + " time" + (r.times_cooked > 1 ? "s" : "") +
+    (r.avg_enjoyment ? ", enjoyment " + r.avg_enjoyment + "/5" : ""));
+  if (r.novel_cuisine) lines.push("A cuisine the household hasn’t cooked yet");
+  if (ctx.note) lines.push("Planner’s note: " + ctx.note);
+  if (ctx.constraints !== false && AVOID_COUNT) lines.push("Checked against the household avoid/prefer list (" + AVOID_COUNT + " item" + (AVOID_COUNT > 1 ? "s" : "") + ")");
+  if (!lines.length) lines.push(ctx.from === "search" ? "It matched your search." : "It fits the plan’s limits.");
+  return '<div class="why"><b>Why this?</b><ul>' + lines.map(l => "<li>" + esc(l) + "</li>").join("") + "</ul></div>";
+}
+
+/* -- notifications (C5 Q5.2) -- */
+function dismissedSet() {
+  try { return new Set(JSON.parse(localStorage.getItem("nutrime.dismissed." + MEMBER) || "[]")); }
+  catch (e) { return new Set(); }
+}
+function saveDismissed(set) {
+  try { localStorage.setItem("nutrime.dismissed." + MEMBER, JSON.stringify([...set].slice(-200))); } catch (e) {}
+}
+let NOTICES = [];
+async function loadNotifications() {
+  const data = await jget("/api/notifications", true);
+  if (data.error) return;
+  const dismissed = dismissedSet();
+  NOTICES = data.items.filter(n => !dismissed.has(n.key));
+  $("bellCount").textContent = NOTICES.length;
+  $("bellCount").hidden = NOTICES.length === 0;
+  return data;
+}
+function openNotifications() {
+  const rows = NOTICES.length ? NOTICES.map((n, i) =>
+    '<div class="notice"><span>' + esc(n.text) + '</span><span>' +
+    '<button class="btn-quiet" data-go-notice="' + i + '">open</button>' +
+    '<button class="btn-quiet" data-dismiss="' + i + '">dismiss</button></span></div>').join("") :
+    '<div class="empty">Nothing needs you right now.</div>';
+  $("sheet").innerHTML = '<button class="closeX" onclick="closeDetail()" aria-label="Close">×</button>' +
+    "<h3>Notifications</h3>" + rows +
+    '<p class="hint" style="margin-top:12px">Choose what shows here under Profile → Notifications.</p>';
+  $("sheet").querySelectorAll("[data-dismiss]").forEach(b => b.onclick = () => {
+    const set = dismissedSet(); set.add(NOTICES[+b.dataset.dismiss].key); saveDismissed(set);
+    loadNotifications().then(openNotifications);
+  });
+  $("sheet").querySelectorAll("[data-go-notice]").forEach(b => b.onclick = () => {
+    const n = NOTICES[+b.dataset.goNotice];
+    closeDetail();
+    if (n.action === "checkin") openCheckin(); else showView(n.action);
+  });
+  $("overlay").classList.add("on");
+}
+$("bellBtn").onclick = () => loadNotifications().then(openNotifications);
+async function loadNotifySettings() {
+  const data = await loadNotifications();
+  if (!data) return;
+  $("notifySettings").innerHTML = data.settings.map(s =>
+    '<div class="consentRow"><span>' + esc(s.label) + "</span>" +
+    '<label class="switch"><input type="checkbox" data-notify="' + s.category + '"' + (s.on ? " checked" : "") +
+    "> " + (s.on ? "on" : "off") + "</label></div>").join("");
+  $("notifySettings").querySelectorAll("input[data-notify]").forEach(cb => cb.onchange = async () => {
+    const res = await jpost("/api/notifications/settings", {category: cb.dataset.notify, on: cb.checked});
+    if (!res.error) { toast("Saved."); loadNotifySettings(); }
+  });
+}
+
+/* -- activity (C5 Q5.4 dedicated audit view) -- */
+async function loadActivity() {
+  const data = await jget("/api/activity?days=" + $("activityDays").value);
+  const box = $("activityList");
+  if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  box.innerHTML = data.items.length ? data.items.map(i =>
+    '<div class="act"><time>' + esc(String(i.at).slice(0, 16).replace("T", " ")) + '</time><span class="k">' +
+    esc(i.kind) + "</span><span>" + esc(i.text) + "</span></div>").join("") :
+    '<div class="empty">Nothing in this period.</div>';
+}
+$("activityDays").onchange = loadActivity;
+$("openActivity").onclick = () => showView("activity");
+
+/* -- periodic check-ins (intake-pattern.md Mode 2) -- */
+async function openCheckin() {
+  if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
+  CHECKIN_Q = await jget("/api/checkin/questions");
+  if (CHECKIN_Q.error || !CHECKIN_Q.profile) {
+    toast("Fill in your profile first; check-ins revise it.");
+    return openIntake();
+  }
+  INTAKE_MODE = "checkin";
+  const s = INTAKE_STATE = blankIntakeState();
+  const p = CHECKIN_Q.profile;
+  s.year_of_birth = p.year_of_birth;
+  s.sex_assigned_at_birth = p.sex_assigned_at_birth;
+  s.life_stage = p.life_stage;
+  s.height_cm = p.height_cm == null ? "" : p.height_cm;
+  s.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
+  s.allergens = new Set(p.allergens);
+  s.dietary_preferences = p.dietary_preferences.slice();
+  s.cooking_confidence = CHECKIN_Q.cooking_confidence.current;
+  s.weeknight_minutes = CHECKIN_Q.weeknight_minutes.current;
+  s.cuisines = new Set(CHECKIN_Q.cuisines.current);
+  INTAKE_STEP = 1;
+  renderIntakeStep();
+  $("intakeOverlay").classList.add("on");
+}
+async function saveCheckin() {
+  const s = INTAKE_STATE;
+  const conf = document.querySelector('input[name="ciConf"]:checked');
+  s.cooking_confidence = conf ? parseInt(conf.value) : null;
+  s.weeknight_minutes = $("ciMins").value ? parseInt($("ciMins").value) : null;
+  $("intakeNext").disabled = true;
+  const res = await jpost("/api/checkin", {
+    profile: {
+      year_of_birth: parseInt(s.year_of_birth),
+      sex_assigned_at_birth: s.sex_assigned_at_birth,
+      life_stage: s.life_stage,
+      height_cm: s.height_cm === "" ? null : parseInt(s.height_cm),
+      weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
+      allergens: [...s.allergens],
+      dietary_preferences: s.dietary_preferences,
+    },
+    screeners: s.screeners,
+    cooking_confidence: s.cooking_confidence,
+    weeknight_minutes: s.weeknight_minutes,
+    cuisines: [...s.cuisines],
+  }, true);
+  if (res.error) {
+    $("intakeNext").disabled = false;
+    $("intakeMsg").textContent = res.error;
+    return;
+  }
+  const changes = res.changes.length ?
+    "<ul>" + res.changes.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul>" :
+    '<p>Nothing changed. Your profile is still current.</p>';
+  const scr = res.screener_changes.map(c =>
+    "<li>" + esc(c.name) + ": " + (c.previous == null ? "" : c.previous + " → ") + c.now +
+    (c.positive ? " (worth mentioning to a doctor or dietitian)" : "") + "</li>").join("");
+  $("intakeSheet").innerHTML =
+    '<button class="closeX" onclick="closeIntake()" aria-label="Close">×</button>' +
+    "<h3>Check-in saved</h3>" + changes +
+    (scr ? "<h4>Screening questions</h4><ul>" + scr + "</ul>" : "") +
+    (res.constraints_added || res.constraints_retracted ?
+      '<p class="hint">Household avoid/prefer list: ' + res.constraints_added + " added, " +
+      res.constraints_retracted + " removed.</p>" : "") +
+    '<p class="hint">Next check-in around ' + esc(String(res.next_due_at).slice(0, 10)) + ".</p>" +
+    '<div class="stepNav"><button class="btn-go" onclick="closeIntake()">Done</button></div>';
+  $("checkinCard").hidden = true;
+  doSearch();
+  if (currentView() === "profile") loadProfile();
+}
+async function snoozeCheckin() {
+  const res = await jpost("/api/checkin/snooze", {});
+  if (res.error) return;
+  closeIntake();
+  $("checkinCard").hidden = true;
+  toast("OK. NutriMe will ask again in a week.");
+}
+async function loadCheckinCard() {
+  const st = await jget("/api/checkin/status", true);
+  $("checkinCard").hidden = !(st && st.due);
+  if (st && st.due && st.last_at) {
+    $("checkinCardText").textContent = "Time for your check-in, about 10 minutes. It’s been " +
+      Math.max(1, Math.round((Date.now() - Date.parse(st.last_at)) / 86400000)) +
+      " days; things change, and this keeps NutriMe’s picture of you current.";
+  }
+}
+async function loadCheckinSettings() {
+  const st = await jget("/api/checkin/status", true);
+  const box = $("checkinSettings");
+  if (st.error) { box.innerHTML = '<div class="errorBox">' + esc(st.error) + "</div>"; return; }
+  if (!st.has_profile) { box.innerHTML = '<p class="hint">Check-ins start once your profile is filled in.</p>'; return; }
+  const label = d => d % 7 === 0 ? "every " + (d / 7) + " weeks" : "every " + d + " days";
+  const sourceNote = st.interval_source === "life_stage" ?
+    " (more often during pregnancy and breastfeeding, when needs change quickly)" : "";
+  const opts = '<option value="">default</option>' + st.interval_choices.map(d =>
+    '<option value="' + d + '"' + (st.interval_source === "custom" && st.interval_days === d ? " selected" : "") +
+    ">" + label(d) + "</option>").join("");
+  const hist = st.history.length ? "<ul>" + st.history.map(h =>
+    "<li>" + esc(String(h.completed_at).slice(0, 10)) + ": " +
+    esc((h.changes || []).join("; ") || "no changes") + "</li>").join("") + "</ul>" :
+    '<p class="hint">No check-ins yet.</p>';
+  box.innerHTML =
+    '<p class="hint">' + (st.due ? "A check-in is due now." :
+      "Next check-in around " + esc(String(st.due_at).slice(0, 10)) + ".") +
+    " Currently " + label(st.interval_days) + sourceNote + ".</p>" +
+    '<div class="formRow"><label class="opt">How often <select id="ciInterval">' + opts + "</select></label>" +
+    '<button class="btn-go" id="ciNow">Check in now</button></div>' + hist;
+  $("ciInterval").onchange = async () => {
+    const res = await jpost("/api/checkin/interval", {days: $("ciInterval").value || null});
+    if (!res.error) { toast("Saved."); loadCheckinSettings(); }
+  };
+  $("ciNow").onclick = openCheckin;
+}
+$("checkinStart").onclick = openCheckin;
+$("checkinSnooze").onclick = snoozeCheckin;
+
+/* -- app shell (#33): views, adaptive home, plans, grocery, profile -- */
+const VIEWS = ["home", "recipes", "plans", "grocery", "profile", "activity"];
+function currentView() {
+  const h = (location.hash || "").replace("#", "");
+  return VIEWS.includes(h) ? h : "home";
+}
+const LOADERS = {
+  home: loadHome, recipes: () => {}, plans: loadPlans,
+  grocery: loadGrocery, profile: loadProfile, activity: loadActivity,
+};
+function showView(name, reload) {
+  $("overlay").classList.remove("on");  // a section change closes any open sheet
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.dataset.view !== name; });
+  document.querySelectorAll(".tabs button").forEach(b => {
+    if (b.dataset.view === name) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  if (location.hash.replace("#", "") !== name) history.replaceState(null, "", "#" + name);
+  LOADERS[name]();
+  if (!reload) window.scrollTo(0, 0);
+}
+document.querySelectorAll(".tabs button, .quick button[data-go]").forEach(b =>
+  b.addEventListener("click", () => showView(b.dataset.view || b.dataset.go)));
+window.addEventListener("hashchange", () => showView(currentView()));
+
+function dayLabel(day, today) {
+  if (day === today) return "Today";
+  if (day === today + 1) return "Tomorrow";
+  if (day === today - 1) return "Yesterday";
+  return "Day " + day;
+}
+async function latestPlan() {
+  const list = await jget("/api/plans", true);
+  if (!list.plans || !list.plans.length) return null;
+  return jget("/api/plans/" + list.plans[0].plan_id, true);
+}
+
+// C5 Q5.1: the home surface follows the time of day.
+async function loadHome() {
+  loadCheckinCard();
+  loadNotifications();
+  jget("/api/derived", true).then(d => { AVOID_COUNT = (d.constraints || []).length; });
+  const hour = new Date().getHours();
+  const who = MEMBERS.length > 1 && memberName() && !isDefaultName() ? ", " + memberName() : "";
+  let greet, sub, show;
+  if (hour < 5) { greet = "Late night" + who; sub = "Here's what's coming up tomorrow."; show = "tomorrow"; }
+  else if (hour < 11) { greet = "Good morning" + who; sub = "Tonight's meal, and what's planned for tomorrow."; show = "tomorrow"; }
+  else if (hour < 17) { greet = "Good afternoon" + who; sub = "Tonight's meal first. Change it if the day's gone sideways."; show = "none"; }
+  else if (hour < 21) { greet = "Good evening" + who; sub = "Cooked already? Tell NutriMe how it went."; show = "none"; }
+  else { greet = "Good evening" + who; sub = "How did tonight go? Tomorrow is below."; show = "tomorrow"; }
+  $("homeGreet").textContent = greet;
+  $("homeSub").textContent = sub;
+  const box = $("homePlan");
+  if (show === "none") { box.hidden = true; return; }
+  const plan = await latestPlan();
+  if (!plan || plan.error) { box.hidden = true; return; }
+  const want = show === "tomorrow" ? [plan.today_day + 1] : [plan.today_day, plan.today_day + 1];
+  const rows = plan.entries.filter(e => want.includes(e.day));
+  if (!rows.length) { box.hidden = true; return; }
+  $("homePlanLabel").textContent = show === "tomorrow" ? "Tomorrow" : "Today and tomorrow";
+  $("homePlanBody").innerHTML = rows.map(e => planRow(e, plan.today_day, false)).join("");
+  box.hidden = false;
+}
+
+function planRow(e, today, withActions) {
+  if (e.recipe_id) WHY[e.recipe_id] = {from: "plan", note: e.note};
+  const title = e.recipe_id ?
+    '<button class="btn-quiet" style="padding:0;text-align:left" onclick="openDetail(\\'' +
+      esc(e.recipe_id) + '\\')">' + esc(e.title) + "</button>" :
+    '<span class="hint">' + esc(e.note || "no recipe") + "</span>";
+  return '<div class="dayRow"><span class="dayTag' + (e.day === today ? " today" : "") + '">' +
+    esc(dayLabel(e.day, today)) + " · " + esc(e.slot) + '</span><div class="dayTitle">' + title +
+    (e.total_time_min ? ' <span class="hint">' + e.total_time_min + " min</span>" : "") +
+    (e.recipe_id && e.note ? '<div class="hint">' + esc(e.note) + "</div>" : "") +
+    (e.attribution ? '<div class="attr">' + esc(e.attribution) + "</div>" : "") + "</div></div>";
+}
+
+/* -- reorient tonight (C5 Q5.5) -- */
+let REORIENT = null;
+async function openReorient() {
+  const t = await jget("/api/tonight", true);
+  REORIENT = t && t.tonight ? t.tonight : null;
+  const plans = await jget("/api/plans", true);
+  if (!REORIENT && !(plans.plans && plans.plans.length)) {
+    toast("There's no plan yet, so there's nothing to change. Make one under Plans.");
+    showView("plans");
+    return;
+  }
+  $("sheet").innerHTML =
+    '<button class="closeX" onclick="closeDetail()" aria-label="Close">×</button>' +
+    "<h3>Change tonight's meal</h3>" +
+    '<p class="hint">' + (REORIENT ? "Planned: " + esc(REORIENT.title) + ". " : "") +
+    "Options stay within the household avoid-list and favour what's in the kitchen.</p>" +
+    '<div class="formRow">' +
+    '<label class="opt">I have <select id="roTime"><option value="">any time</option>' +
+    '<option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option></select></label>' +
+    '<label class="opt">skip <input type="text" id="roAvoid" placeholder="e.g. mushrooms" style="width:150px"></label>' +
+    '<button class="btn-go" id="roGo">Show options</button></div>' +
+    '<div id="roResults" style="margin-top:12px"></div>';
+  $("roGo").onclick = loadReorientOptions;
+  $("overlay").classList.add("on");
+  loadReorientOptions();
+}
+async function loadReorientOptions() {
+  const params = new URLSearchParams();
+  if ($("roTime").value) params.set("max_time", $("roTime").value);
+  if ($("roAvoid").value.trim()) params.set("avoid", $("roAvoid").value.trim());
+  if (REORIENT) params.set("exclude", REORIENT.recipe_id);
+  const data = await jget("/api/tonight/alternatives?" + params.toString());
+  const box = $("roResults");
+  if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  if (!data.results.length) { box.innerHTML = '<div class="empty">Nothing fits those limits. Try more time or skip fewer ingredients.</div>'; return; }
+  data.results.forEach(r => { WHY[r.recipe_id] = {from: "reorient", r}; });
+  box.innerHTML = data.results.map(r =>
+    '<div class="planItem"><div style="min-width:0;flex:1 1 220px"><b>' + esc(r.title) + "</b>" +
+    (r.total_time_min ? ' <span class="hint">' + r.total_time_min + " min</span>" : "") +
+    (r.on_hand_matches.length ? '<div class="hint">uses ' + esc(r.on_hand_matches.join(", ")) + "</div>" : "") +
+    '<div class="attr">' + esc(r.attribution) + "</div></div>" +
+    (REORIENT ? '<button class="btn-go" style="min-height:0;padding:9px 14px" onclick="swapTonight(\\'' +
+      esc(r.recipe_id) + '\\')">Cook this instead</button>' :
+      '<button class="btn-quiet" onclick="openDetail(\\'' + esc(r.recipe_id) + '\\')">view</button>') +
+    "</div>").join("");
+}
+async function swapTonight(recipeId) {
+  const res = await jpost("/api/plans/swap", {
+    plan_id: REORIENT.plan_id, day: REORIENT.day, slot: REORIENT.slot, recipe_id: recipeId});
+  if (res.error) return;
+  closeDetail();
+  toast("Tonight is now " + res.title + ".");
+  loadTonight(); loadHome();
+}
+$("qaReorient").onclick = openReorient;
+
+/* -- plans -- */
+async function loadPlans() {
+  const list = await jget("/api/plans");
+  const box = $("planList");
+  if (list.error) { box.innerHTML = '<div class="errorBox">' + esc(list.error) + "</div>"; return; }
+  if (!list.plans.length) { box.innerHTML = '<div class="empty">No plans yet. Make one above.</div>'; $("planDetailBox").hidden = true; return; }
+  box.innerHTML = list.plans.map(pl =>
+    '<div class="planItem"><span>' + esc(String(pl.created_at || "").slice(0, 10)) + " · " +
+    esc(pl.days) + " days · " + esc(pl.meals_planned) + " meals</span>" +
+    '<button class="btn-quiet" onclick="showPlan(\\'' + esc(pl.plan_id) + '\\')">open</button></div>').join("");
+  showPlan(list.plans[0].plan_id);
+}
+async function showPlan(planId) {
+  const plan = await jget("/api/plans/" + planId);
+  if (plan.error) return;
+  $("planDetailLabel").textContent = "Plan from " + String(plan.created_at || "").slice(0, 10);
+  $("planDetail").innerHTML = plan.entries.map(e => planRow(e, plan.today_day, true)).join("") ||
+    '<div class="hint">This plan has no meals.</div>';
+  $("planDetailBox").hidden = false;
+}
+$("planGo").onclick = async () => {
+  const slots = [["slotBreakfast", "breakfast"], ["slotLunch", "lunch"], ["slotDinner", "dinner"]]
+    .filter(([id]) => $(id).checked).map(([, s]) => s);
+  $("planError").innerHTML = "";
+  if (!slots.length) { $("planError").innerHTML = '<div class="errorBox">Pick at least one meal.</div>'; return; }
+  $("planGo").disabled = true; $("planBusy").hidden = false;
+  const res = await jpost("/api/plans/generate", {
+    days: parseInt($("planDays").value), slots,
+    max_time: $("planMaxTime").value ? parseInt($("planMaxTime").value) : null}, true);
+  $("planGo").disabled = false; $("planBusy").hidden = true;
+  if (res.error) { $("planError").innerHTML = '<div class="errorBox">' + esc(res.error) + "</div>"; return; }
+  toast("Planned " + res.filled + " of " + res.slots + " meals.");
+  loadPlans(); loadTonight();
+};
+
+/* -- grocery -- */
+function groceryChecked(planId) {
+  try { return new Set(JSON.parse(localStorage.getItem("nutrime.groc." + planId) || "[]")); }
+  catch (e) { return new Set(); }
+}
+function saveGroceryChecked(planId, set) {
+  try { localStorage.setItem("nutrime.groc." + planId, JSON.stringify([...set])); } catch (e) {}
+}
+async function loadGrocery() {
+  const data = await jget("/api/grocery", true);
+  const box = $("groceryBody");
+  if (data.error) {
+    box.innerHTML = '<div class="empty">' + (data.error === "no plans yet" ?
+      "No plan yet. The list builds itself from your latest plan." : esc(data.error)) + "</div>";
+    return;
+  }
+  const checked = groceryChecked(data.plan_id);
+  const item = l => {
+    const key = l.food;
+    return '<li class="' + (checked.has(key) ? "done" : "") + '"><input type="checkbox" data-food="' +
+      esc(key) + '"' + (checked.has(key) ? " checked" : "") + ' aria-label="got ' + esc(key) + '">' +
+      '<div><span class="food">' + esc(l.amount ? l.amount + " " + l.food : l.food) + "</span>" +
+      "<small>" + esc(l.recipes.join(", ")) + "</small></div></li>";
+  };
+  box.innerHTML =
+    "<p class=\\"hint\\">From your latest plan. Ticks are saved on this device.</p>" +
+    (data.to_buy.length ? '<ul class="groc">' + data.to_buy.map(item).join("") + "</ul>" :
+      '<div class="empty">Nothing to buy. The kitchen covers it.</div>') +
+    (data.have.length ? '<details style="margin-top:14px"><summary class="hint">Already in the kitchen (' +
+      data.have.length + ")</summary><ul class=\\"groc\\">" +
+      data.have.map(l => "<li><div><span class=\\"food\\">" + esc(l.food) + "</span></div></li>").join("") +
+      "</ul></details>" : "");
+  box.querySelectorAll("input[data-food]").forEach(cb => cb.onchange = () => {
+    cb.checked ? checked.add(cb.dataset.food) : checked.delete(cb.dataset.food);
+    cb.closest("li").classList.toggle("done", cb.checked);
+    saveGroceryChecked(data.plan_id, checked);
+  });
+}
+
+/* -- profile: answers, avoid-list, privacy, household -- */
+async function loadProfile() {
+  $("profileHeading").textContent = profileLabel();
+  const status = await jget("/api/intake/status", true);
+  $("profileStatus").textContent = status.complete ?
+    "Saved. Change them any time; the household avoid-list updates straight away." :
+    "Not filled in yet. It takes about 5 minutes and stays on this computer.";
+  $("profileLink").textContent = status.complete ? "Edit my answers" : "Fill in my answers";
+  const derived = await jget("/api/derived", true);
+  $("derivedBody").innerHTML = (derived.constraints || []).length ?
+    '<div class="matchLine">' + derived.constraints.map(c =>
+      '<span class="tag">' + esc(c) + "</span>").join(" ") + "</div>" :
+    '<div class="hint">Nothing yet. Profile answers fill this in.</div>';
+  loadConsent();
+  renderMemberAdmin();
+  loadDoctor();
+  loadCheckinSettings();
+  loadNotifySettings();
+}
+async function loadDoctor() {
+  const data = await jget("/api/doctor", true);
+  if (data.error) { $("doctorBody").innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  const icon = {ok: "✓", warn: "!", fail: "✕"};
+  $("doctorBody").innerHTML = data.checks.map(c =>
+    '<div class="consentRow"><span><b>' + icon[c.status] + " " + esc(c.name) + "</b> " +
+    '<span class="hint">' + esc(c.detail) + "</span>" +
+    (c.fix && c.status !== "ok" ? '<br><span class="hint">Fix: ' + esc(c.fix) + "</span>" : "") +
+    "</span></div>").join("");
+}
+async function loadConsent() {
+  const data = await jget("/api/consent", true);
+  if (data.error) { $("consentBody").innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
+  const local = data.decisions.filter(d => d.purpose === "local_operation");
+  const pub = data.decisions.filter(d => d.purpose === "publication_aggregate");
+  const row = d =>
+    '<div class="consentRow"><span>' + esc(d.label) + ' <span class="scope">' + esc(d.scope) + "</span></span>" +
+    '<label class="switch"><input type="checkbox" data-cat="' + esc(d.category) + '" data-purpose="' +
+    esc(d.purpose) + '"' + (d.granted ? " checked" : "") + "> " + (d.granted ? "on" : "off") + "</label></div>";
+  $("consentBody").innerHTML = local.map(row).join("") +
+    '<details style="margin-top:12px"><summary class="hint">Contributing anonymous totals to research (off unless you turn it on)</summary>' +
+    pub.map(row).join("") + "</details>";
+  $("consentBody").querySelectorAll("input[data-cat]").forEach(cb => cb.onchange = async () => {
+    const res = await jpost("/api/consent", {category: cb.dataset.cat, purpose: cb.dataset.purpose, granted: cb.checked});
+    if (!res.error) { toast("Saved."); loadConsent(); } else cb.checked = !cb.checked;
+  });
+}
+function renderMemberAdmin() {
+  const others = MEMBERS.length > 1;
+  $("memberAdmin").innerHTML =
+    '<p class="hint">' + MEMBERS.map(m => esc(m.name) + (m.has_profile ? "" : " (no profile yet)")).join(" · ") + "</p>" +
+    '<div class="formRow"><button class="btn-quiet" id="maRename">Rename ' + esc(memberName() || "me") + "</button>" +
+    (others ? '<button class="btn-quiet" id="maArchive">Remove ' + esc(memberName()) + " from the picker</button>" : "") +
+    '<button class="btn-quiet" id="maAdd">Add a person</button></div>';
+  $("maRename").onclick = async () => {
+    const got = await formSheet({title: "Rename", submit: "Save",
+      fields: [{id: "name", label: "New name", value: memberName()}],
+      validate: o => o.name ? null : "Type a name."});
+    if (!got) return;
+    const name = got.name;
+    const res = await jpost("/api/members/rename", {id: MEMBER, name});
+    if (!res.error) { renderMembers(res); loadProfile(); }
+  };
+  if (others) $("maArchive").onclick = async () => {
+    const ok = await formSheet({title: "Remove " + memberName() + "?", submit: "Remove from the picker",
+      intro: "Their history is kept, and their allergies leave the household avoid-list.", fields: []});
+    if (!ok) return;
+    const res = await jpost("/api/members/archive", {id: MEMBER});
+    if (!res.error) { MEMBER = null; renderMembers(res); onMemberChange(); }
+  };
+  $("maAdd").onclick = () => { $("memberPicker").value = "__add"; onMemberChange(); };
+}
+
 loadPhases();
 loadSources();
 loadInventory();
 loadPinterestStatus();
-loadTonight();
-loadIntakeStatus();
+loadMembers().then(() => { loadTonight(); loadIntakeStatus(); showView(currentView(), true); });
 doSearch();
 </script>
 </body>
