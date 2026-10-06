@@ -285,7 +285,7 @@ def _profile_changes(old: IntakeProfile | None, new: IntakeProfile) -> list[str]
         if a != b:
             out.append(f"{label}: {a if a is not None else '—'} → {b if b is not None else '—'}")
     for attr, noun in (("allergens", "allergy"), ("dietary_preferences", "preference"),
-                       ("conditions", "condition")):
+                       ("conditions", "condition"), ("avoid_foods", "avoided food")):
         before = {x.lower() for x in getattr(old, attr)}
         after = {x.lower() for x in getattr(new, attr)}
         out += [f"added {noun}: {x}" for x in sorted(after - before)]

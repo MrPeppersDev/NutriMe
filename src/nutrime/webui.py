@@ -787,6 +787,9 @@ class _Handler(BaseHTTPRequestHandler):
                 conditions=tuple(
                     str(v).strip() for v in raw.get("conditions") or [] if str(v).strip()
                 ),
+                avoid_foods=tuple(
+                    str(v).strip() for v in raw.get("avoid_foods") or [] if str(v).strip()
+                ),
             )
             instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
             screeners = {}
@@ -974,6 +977,7 @@ class _Handler(BaseHTTPRequestHandler):
                         "personal_time_min": r.personal_time_min,
                         "expiring_matches": list(r.expiring_matches),
                         "novel_cuisine": r.novel_cuisine,
+                        "missing_ingredients": list(r.missing_ingredients),
                     }
                     for r in results
                 ],
@@ -1471,6 +1475,7 @@ class _Handler(BaseHTTPRequestHandler):
             "dietary_preferences": list(profile.dietary_preferences),
             "allergens": list(profile.allergens),
             "conditions": list(profile.conditions),
+            "avoid_foods": list(profile.avoid_foods),
         }
 
     def _api_intake_status(self) -> None:
@@ -1569,6 +1574,7 @@ class _Handler(BaseHTTPRequestHandler):
                 dietary_preferences=_str_list("dietary_preferences"),
                 allergens=_str_list("allergens"),
                 conditions=_str_list("conditions"),
+                avoid_foods=_str_list("avoid_foods"),
             )
         except (TypeError, ValueError) as err:
             self._json({"error": str(err)}, status=400)
@@ -2788,6 +2794,12 @@ async function doSearch(append) {
     const card = document.createElement("div");
     card.className = "card";
     let tags = "";
+    const missing = r.missing_ingredients || [];
+    if (r.on_hand_matches.length && !missing.length) {
+      tags += '<span class="tag have" style="font-weight:700">\\u2605 cook tonight \\u2014 nothing to buy</span>';
+    } else if (r.on_hand_matches.length && missing.length <= 3) {
+      tags += '<span class="tag">needs ' + missing.slice(0, 3).map(esc).join(", ") + '</span>';
+    }
     for (const m of r.on_hand_matches) {
       const urgent = (r.expiring_matches || []).includes(m);
       tags += '<span class="tag have">' + (urgent ? "\\u23f3 " : "\\u2713 ") + esc(m) +
@@ -3002,7 +3014,7 @@ function blankIntakeState() {
   return {
     year_of_birth: "", sex_assigned_at_birth: "", life_stage: "",
     height_cm: "", weight_kg: "",
-    allergens: new Set(), dietary_preferences: [], conditions: new Set(),
+    allergens: new Set(), dietary_preferences: [], avoid_foods: [], conditions: new Set(),
     screeners: {},  // instrument_id -> [value per item]
     cooking_confidence: null, weeknight_minutes: null, cuisines: new Set(),
   };
@@ -3022,6 +3034,7 @@ async function openIntake() {
     INTAKE_STATE.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
     INTAKE_STATE.allergens = new Set(p.allergens);
     INTAKE_STATE.dietary_preferences = p.dietary_preferences.slice();
+    INTAKE_STATE.avoid_foods = (p.avoid_foods || []).slice();
     INTAKE_STATE.conditions = new Set(p.conditions || []);
   }
   INTAKE_STEP = 1;
@@ -3082,6 +3095,9 @@ function renderIntakeStep() {
     const extras = s.dietary_preferences.map((p, i) =>
       '<span class="chip">' + esc(p) +
       '<button onclick="removePref(' + i + ')" title="Remove">\\u00d7</button></span>').join(" ");
+    const avoidChips = s.avoid_foods.map((a, i) =>
+      '<span class="chip">' + esc(a) +
+      '<button onclick="removeAvoid(' + i + ')" title="Remove">\\u00d7</button></span>').join(" ");
     const condChips = (INTAKE_Q.profile_fields.conditions || []).map(c => {
       const on = s.conditions.has(c);
       return '<button class="pill' + (on ? ' on' : '') + '" data-condition="' + esc(c) +
@@ -3092,11 +3108,20 @@ function renderIntakeStep() {
       .map(c => '<span class="chip">' + esc(c) +
         '<button onclick="removeCondition(' + JSON.stringify(c).replace(/"/g, "&quot;") +
         ')" title="Remove">\\u00d7</button></span>').join(" ");
-    sheet.innerHTML = intakeHeader("Allergens + preferences") +
-      '<div class="formRow"><label>Food allergens to avoid (tap to toggle)</label>' +
+    sheet.innerHTML = intakeHeader("What to avoid, what you enjoy") +
+      '<h4 style="margin:4px 0 2px">Never serve \\u2014 hard rules</h4>' +
+      '<p class="hint" style="margin:0 0 8px">Recipes with any of these never appear. ' +
+      'For everyone\\u2019s meals, not just yours.</p>' +
+      '<div class="formRow"><label>Allergens (tap to toggle)</label>' +
       '<div class="pillRow" id="allergenPills">' + chips + '</div></div>' +
-      '<div class="formRow"><label>Other allergens or dietary preferences ' +
-      '(vegetarian, halal, no cilantro\\u2026)</label>' +
+      '<div class="formRow"><label>Other foods you won\\u2019t eat (no cilantro, no mushrooms\\u2026)</label>' +
+      '<div class="chips" id="avoidChips">' + avoidChips +
+      '<span class="chipAdd"><input id="avoidInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
+      '<hr style="border:none;border-top:1.5px solid var(--line);margin:16px 0">' +
+      '<h4 style="margin:4px 0 2px">Preferences \\u2014 gentle nudges</h4>' +
+      '<p class="hint" style="margin:0 0 8px">These boost matching recipes in search and plans; ' +
+      'nothing is excluded because of them.</p>' +
+      '<div class="formRow"><label>Ways of eating or foods you love (vegetarian, halal, more fish\\u2026)</label>' +
       '<div class="chips" id="prefChips">' + extras +
       '<span class="chipAdd"><input id="prefInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
       '<div class="formRow"><label>Health conditions food should respect ' +
@@ -3113,6 +3138,13 @@ function renderIntakeStep() {
         INTAKE_STATE.dietary_preferences.push(e.target.value.trim());
         renderIntakeStep();
         $("prefInput").focus();
+      }
+    });
+    $("avoidInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.value.trim()) {
+        INTAKE_STATE.avoid_foods.push(e.target.value.trim());
+        renderIntakeStep();
+        $("avoidInput").focus();
       }
     });
     $("condInput").addEventListener("keydown", e => {
@@ -3189,6 +3221,10 @@ function removePref(i) {
   INTAKE_STATE.dietary_preferences.splice(i, 1);
   renderIntakeStep();
 }
+function removeAvoid(i) {
+  INTAKE_STATE.avoid_foods.splice(i, 1);
+  renderIntakeStep();
+}
 function toggleCondition(btn) {
   const c = btn.dataset.condition;
   if (INTAKE_STATE.conditions.has(c)) INTAKE_STATE.conditions.delete(c);
@@ -3251,6 +3287,7 @@ async function saveIntake() {
       weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
       allergens: [...s.allergens],
       dietary_preferences: s.dietary_preferences,
+      avoid_foods: s.avoid_foods,
       conditions: [...s.conditions],
     },
     screeners: s.screeners,
@@ -3477,6 +3514,7 @@ async function openCheckin() {
   s.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
   s.allergens = new Set(p.allergens);
   s.dietary_preferences = p.dietary_preferences.slice();
+  s.avoid_foods = (p.avoid_foods || []).slice();
   s.conditions = new Set(p.conditions || []);
   s.cooking_confidence = CHECKIN_Q.cooking_confidence.current;
   s.weeknight_minutes = CHECKIN_Q.weeknight_minutes.current;
@@ -3500,6 +3538,7 @@ async function saveCheckin() {
       weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
       allergens: [...s.allergens],
       dietary_preferences: s.dietary_preferences,
+      avoid_foods: s.avoid_foods,
       conditions: [...s.conditions],
     },
     screeners: s.screeners,

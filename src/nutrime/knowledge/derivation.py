@@ -81,8 +81,9 @@ class DerivationOutcome:
 
 def _load_profiles(
     conn: sqlite3.Connection, tenant_id: str
-) -> dict[str, tuple[list[str], list[str], list[str]]]:
-    """member_id → (allergens, preferences, conditions) for active members."""
+) -> dict[str, tuple[list[str], list[str], list[str], list[str]]]:
+    """member_id → (allergens, preferences, conditions, avoid_foods)
+    for active members."""
     from nutrime.intake.store import household_profiles
 
     return {
@@ -90,6 +91,7 @@ def _load_profiles(
             list(p.allergens),
             list(p.dietary_preferences),
             list(p.conditions),
+            list(p.avoid_foods),
         )
         for member_id, p in household_profiles(conn, tenant_id).items()
     }
@@ -219,6 +221,49 @@ def _sync_conditions(
         outcome.bump_atom("clinical_disclosure")
 
 
+def _sync_avoid_foods(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    member_id: str,
+    avoid_foods: list[str],
+    outcome: DerivationOutcome,
+) -> None:
+    """Non-allergen hard avoids ("no cilantro") — preference_statement
+    atoms with type food_avoidance. The constraint sync turns them into
+    household "avoids X" rows (hard exclusion), NOT "prefers X" boosts —
+    the distinction the single free-text field used to blur."""
+    existing = _member_atoms(conn, tenant_id, member_id, "preference_statement")
+    wanted = {a.strip().lower() for a in avoid_foods}
+    for atom in existing:
+        if atom.payload.get("preference_type") != "food_avoidance":
+            continue
+        if str(atom.payload.get("subject_text", "")).strip().lower() not in wanted:
+            if retract_entry(conn, tenant_id, atom.id, RetractionReason.USER_CORRECTION):
+                outcome.atoms_retracted += 1
+    existing = _member_atoms(conn, tenant_id, member_id, "preference_statement")
+    for food in avoid_foods:
+        if _payload_matches(
+            existing, preference_type="food_avoidance", subject_text=food
+        ):
+            continue
+        insert_atom(
+            conn,
+            tenant_id,
+            atom_type="preference_statement",
+            provenance=Provenance.CONVERSATIONAL_ELICITATION,
+            payload={
+                "preference_type": "food_avoidance",
+                "subject_text": food,
+                "strength": "hard",
+                "preference_format": "plain",
+            },
+            phi_categories=(),
+            source_identity=f"intake_profile:{member_id}",
+            subject_id=member_id,
+        )
+        outcome.bump_atom("preference_statement")
+
+
 def _sync_preferences(
     conn: sqlite3.Connection,
     tenant_id: str,
@@ -337,10 +382,15 @@ def _sync_abstracted_constraints(
         if atom.subject_id in active and atom.payload.get("disclosure_type") == "allergy":
             supporting.setdefault(f"avoids {atom.payload.get('disclosure_text', '')}", atom)
     for atom in list_atoms(conn, tenant_id, atom_type="preference_statement"):
-        if atom.subject_id in active and atom.payload.get(
-            "preference_type"
-        ) == "dietary_pattern_preference":
+        if atom.subject_id not in active:
+            continue
+        ptype = atom.payload.get("preference_type")
+        if ptype == "dietary_pattern_preference":
             supporting.setdefault(f"prefers {atom.payload.get('subject_text', '')}", atom)
+        elif ptype == "food_avoidance":
+            # Hard avoid, same constraint shape as allergens — search
+            # and planner exclude, never boost.
+            supporting.setdefault(f"avoids {atom.payload.get('subject_text', '')}", atom)
 
     # Cuisine interests chosen at a check-in nudge ranking the same way.
     for atom in list_atoms(conn, tenant_id, atom_type="cuisine_interest"):
@@ -394,10 +444,11 @@ def sync_from_intake(
     profiles = _load_profiles(conn, tenant_id)
     for member in list_members(conn, tenant_id):
         if member.id in profiles:
-            allergens, preferences, conditions = profiles[member.id]
+            allergens, preferences, conditions, avoids = profiles[member.id]
             _sync_allergens(conn, tenant_id, member.id, allergens, outcome)
             _sync_preferences(conn, tenant_id, member.id, preferences, outcome)
             _sync_conditions(conn, tenant_id, member.id, conditions, outcome)
+            _sync_avoid_foods(conn, tenant_id, member.id, avoids, outcome)
         _sync_screener_results(conn, tenant_id, member.id, outcome)
     _sync_abstracted_constraints(conn, tenant_id, outcome)
     return outcome

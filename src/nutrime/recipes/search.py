@@ -41,6 +41,32 @@ _EXPERIENCE_POINTS_PER_STAR = 1.0
 # weight; broadening nudges, never overrides stated taste.
 _NOVELTY_POINTS = 0.5
 
+# Pantry-first ranking (user direction 2026-10-06): recipes you can cook
+# WITHOUT buying anything rank first. Assumed-staple ingredients don't
+# count as "missing" — nobody shops for salt to fulfill a recipe.
+PANTRY_STAPLES = frozenset({
+    "salt", "pepper", "black pepper", "salt and pepper", "water", "ice",
+    "oil", "olive oil", "vegetable oil", "cooking oil", "canola oil",
+    "sugar", "flour", "all purpose flour", "butter",
+    "garlic powder", "onion powder", "paprika", "cumin", "oregano",
+    "chili powder", "cinnamon", "bay leaf", "bay leaves", "thyme",
+    "red pepper flakes", "cayenne pepper", "italian seasoning",
+    "vanilla extract", "baking powder", "baking soda", "cornstarch",
+    "soy sauce", "vinegar", "white vinegar", "ketchup", "mustard",
+    "mayonnaise", "honey", "hot sauce", "worcestershire sauce",
+    "cooking spray", "nonstick spray", "stock", "broth",
+})
+
+
+_STAPLE_KEYS: frozenset[str] | None = None  # built lazily (normalize_term below)
+
+
+def _is_staple(name: str) -> bool:
+    global _STAPLE_KEYS
+    if _STAPLE_KEYS is None:
+        _STAPLE_KEYS = frozenset(normalize_term(s) for s in PANTRY_STAPLES)
+    return normalize_term(name) in _STAPLE_KEYS
+
 
 @dataclass(frozen=True)
 class SearchFilters:
@@ -151,6 +177,9 @@ class SearchResult:
     # V2/V3 surface flags
     expiring_matches: tuple[str, ...] = ()
     novel_cuisine: bool = False
+    # Pantry-first: non-staple ingredients the kitchen doesn't have.
+    # Empty + inventory in play = cookable tonight with no shopping.
+    missing_ingredients: tuple[str, ...] = ()
 
 
 def normalize_term(term: str) -> str:
@@ -304,6 +333,7 @@ class _ScoreDetail:
     prefer_matches: tuple[str, ...]
     expiring_matches: tuple[str, ...]
     novel_cuisine: bool
+    missing_ingredients: tuple[str, ...] = ()
 
 
 def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
@@ -317,6 +347,23 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
             if any(_terms_match(item, name) for name in names)
         )
     )
+    # Pantry-first: which recipe ingredients does the kitchen NOT cover?
+    # Staples never count — nobody shops for salt. Only meaningful when
+    # inventory is in play (empty on_hand would mark everything missing).
+    missing: tuple[str, ...] = ()
+    if filters.on_hand:
+        missing = tuple(
+            sorted(
+                {
+                    name.strip()
+                    for name in names
+                    if not _is_staple(name)
+                    and not any(
+                        _terms_match(item, name) for item in filters.on_hand
+                    )
+                }
+            )
+        )
     prefer_matches = tuple(
         sorted(
             term
@@ -360,6 +407,7 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
         prefer_matches=prefer_matches,
         expiring_matches=expiring_matches,
         novel_cuisine=novel,
+        missing_ingredients=missing,
     )
 
 
@@ -429,15 +477,22 @@ def search(
                 personal_time_min=personal_time,
                 expiring_matches=detail.expiring_matches,
                 novel_cuisine=detail.novel_cuisine,
+                missing_ingredients=detail.missing_ingredients,
             )
         )
-    # On-hand match COUNT dominates the ordering: when the user says what
-    # they have, "uses most of my ingredients" beats any boost arithmetic —
-    # a 3-match recipe always outranks a 1-match recipe regardless of
-    # preference boosts. Score (which folds in boosts) breaks ties.
+    # Pantry-first ordering (user direction 2026-10-06). When inventory
+    # is in play, three tiers before boost arithmetic:
+    #   1. cookable-now first — zero missing non-staple ingredients
+    #      ("no new ingredients need to be bought to fulfill the meal");
+    #   2. then most on-hand matches — uses up the most of what's here;
+    #   3. then fewest missing — a 1-item shop beats a 6-item shop.
+    # Score (preference/expiring/experience boosts) breaks ties; without
+    # inventory the old count-then-score ordering is unchanged.
     results.sort(
         key=lambda r: (
+            0 if r.on_hand_matches and not r.missing_ingredients else 1,
             -len(r.on_hand_matches),
+            len(r.missing_ingredients),
             -r.score,
             r.title.lower(),
             r.recipe_id,

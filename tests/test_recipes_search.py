@@ -415,3 +415,77 @@ class TestOptInSourcesAndPagination:
         ids1 = {r.recipe_id for r in first.results}
         ids2 = {r.recipe_id for r in second.results}
         assert not ids1 & ids2
+
+
+class TestPantryFirstRanking:
+    """User direction 2026-10-06: cookable-without-shopping ranks first,
+    then most-on-hand, then fewest-missing; staples never count missing."""
+
+    def _vault(self, tmp_path):
+        vault = RecipeVault(tmp_path / "pantry-corpus")
+        vault.ensure()
+        vault.write(
+            "rcp-complete",
+            _frontmatter("rcp-complete", "Chicken and Rice"),
+            _body("@chicken{1%lb}", "@rice{1%cup}", "@salt{}", "@olive oil{}"),
+        )
+        vault.write(
+            "rcp-one-short",
+            _frontmatter("rcp-one-short", "Chicken Rice Almondine"),
+            _body("@chicken{1%lb}", "@rice{1%cup}", "@almonds{1%cup}"),
+        )
+        vault.write(
+            "rcp-big-shop",
+            _frontmatter("rcp-big-shop", "Chicken Rice Feast"),
+            _body(
+                "@chicken{1%lb}", "@rice{1%cup}", "@saffron{1%pinch}",
+                "@lobster{1}", "@creme fraiche{1%cup}",
+            ),
+        )
+        vault.write(
+            "rcp-unrelated",
+            _frontmatter("rcp-unrelated", "Aardvark Toast"),
+            _body("@bread{2%slices}", "@aardvark{1}"),
+        )
+        return vault
+
+    def test_cookable_now_beats_higher_match_count(self, tmp_path):
+        vault = self._vault(tmp_path)
+        results = search(
+            vault, SearchFilters(on_hand=frozenset({"chicken", "rice"}))
+        )
+        titles = [r.title for r in results]
+        # complete (2 matches, 0 missing) first; one-short (2 matches,
+        # 1 missing) second; big-shop (2 matches, 3 missing) third.
+        assert titles[:3] == [
+            "Chicken and Rice", "Chicken Rice Almondine", "Chicken Rice Feast"
+        ]
+
+    def test_staples_do_not_count_as_missing(self, tmp_path):
+        vault = self._vault(tmp_path)
+        results = search(
+            vault, SearchFilters(on_hand=frozenset({"chicken", "rice"}))
+        )
+        complete = next(r for r in results if r.recipe_id == "rcp-complete")
+        assert complete.missing_ingredients == ()
+
+    def test_missing_lists_what_to_buy(self, tmp_path):
+        vault = self._vault(tmp_path)
+        results = search(
+            vault, SearchFilters(on_hand=frozenset({"chicken", "rice"}))
+        )
+        short = next(r for r in results if r.recipe_id == "rcp-one-short")
+        assert short.missing_ingredients == ("almonds",)
+
+    def test_fewest_missing_breaks_match_ties(self, tmp_path):
+        vault = self._vault(tmp_path)
+        results = search(
+            vault, SearchFilters(on_hand=frozenset({"chicken", "rice"}))
+        )
+        ids = [r.recipe_id for r in results]
+        assert ids.index("rcp-one-short") < ids.index("rcp-big-shop")
+
+    def test_no_inventory_means_no_missing_tracking(self, tmp_path):
+        vault = self._vault(tmp_path)
+        results = search(vault, SearchFilters())
+        assert all(r.missing_ingredients == () for r in results)
