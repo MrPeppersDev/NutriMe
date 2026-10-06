@@ -75,5 +75,12 @@ base branch is merged and deleted.
 - Crawl auto-vets new recipes; installers schedule a weekly crawl (Sunday 3 am).
 - Not verified live (egress-blocked); fake-site tests cover robots sitemaps, Pinterest link extraction, destination robots, Pinterest-disallow, facet separation.
 
+### Grocery parsing rebuild (flagged critical by the household)
+- Measured first: every ingredient line in the snapshot (21,294) parsed and checked for empty foods, digits in foods, descriptor-only foods, compounds. Before: ~1,190 bad parses (e.g. "boneless, skinless chicken breasts" → food "boneless"; "2 & 1/2 tbsp" stored as qty 2 + name "& 1/2 tbsp olive oil"). After: ~140, nearly all unusable import junk (whole recipes pasted into one line, French text) or legitimate product names ("90% lean ground beef", "half and half").
+- `grocery/parse.py` rebuilt as staged repair: quantity repair (continuations, units in the qty field, quantities/metric echoes in names, package sizes), balanced nested parentheticals (food recovered from parens when the name is empty), descriptor-aware comma joining, trailing/usage phrases to notes, head units ("pinch of"), alternatives with shared heads, compound splitting ("salt and pepper" → two lines; "each: rosemary and thyme"; "egg and 1 egg yolk"), prep/size words to notes while identity words stay, prose lines dropped, link markup and invisible characters cleaned.
+- Aggregation: one line can yield several needs; water/ice never listed; "4 garlic cloves" merges with "garlic (2 cloves)"; plural normalization fixed (tomatoes/tomato, berries/berry, leaves/leaf).
+- Display: kitchen fractions (1½, ⅓, ¾) and plural units ("cups").
+- Regression gate `tests/test_grocery_corpus.py`: 50 hand-labelled real lines + whole-corpus invariants (every line parses, no descriptor-only foods, ≤10 empty foods all prose, stray numbers <0.5%).
+
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

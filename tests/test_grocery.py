@@ -138,7 +138,7 @@ class TestAggregate:
             ]
         )
         (line,) = lines
-        assert display_amount(line) == "1.5 cup"
+        assert display_amount(line) == "1½ cups"  # kitchen fractions + plural
 
     def test_incompatible_units_stay_separate(self) -> None:
         lines = aggregate(

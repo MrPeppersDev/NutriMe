@@ -26,7 +26,7 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "gallon": ("gallon", "gallons", "gal"),
     "ml": ("ml", "milliliter", "milliliters", "millilitre", "millilitres"),
     "l": ("l", "liter", "liters", "litre", "litres"),
-    "g": ("g", "gram", "grams", "gr"),
+    "g": ("g", "gram", "grams", "gr", "gms", "gm"),
     "kg": ("kg", "kilogram", "kilograms", "kilo", "kilos"),
     "mg": ("mg", "milligram", "milligrams"),
     "oz": ("oz", "ounce", "ounces", "oz."),
@@ -45,6 +45,19 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "pack": ("pack", "packs", "package", "packages", "packet", "packets"),
     "stick": ("stick", "sticks"),
     "serving": ("serving", "servings"),
+    "jar": ("jar", "jars"),
+    "bag": ("bag", "bags"),
+    "box": ("box", "boxes"),
+    "bottle": ("bottle", "bottles"),
+    "container": ("container", "containers", "tub", "tubs"),
+    "carton": ("carton", "cartons"),
+    "envelope": ("envelope", "envelopes", "sachet", "sachets"),
+    "handful": ("handful", "handfuls"),
+    "stalk": ("stalk", "stalks", "rib", "ribs"),
+    "inch": ("inch", "inches", "in."),
+    "scoop": ("scoop", "scoops"),
+    "drop": ("drop", "drops"),
+    "spray": ("spray", "sprays", "spritz"),
 }
 
 _LOOKUP: dict[str, str] = {}
