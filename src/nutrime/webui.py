@@ -2048,6 +2048,7 @@ PAGE = """<!doctype html>
   <nav class="tabs" aria-label="Sections">
     <button data-view="home"><span class="ico" aria-hidden="true">⌂</span>Home</button>
     <button data-view="recipes"><span class="ico" aria-hidden="true">☰</span>Recipes</button>
+    <button data-view="pantry"><span class="ico" aria-hidden="true">◫</span>Pantry</button>
     <button data-view="plans"><span class="ico" aria-hidden="true">▦</span>Plans</button>
     <button data-view="grocery"><span class="ico" aria-hidden="true">✓</span>Grocery</button>
     <button data-view="profile"><span class="ico" aria-hidden="true">◉</span>Profile</button>
@@ -2138,7 +2139,8 @@ PAGE = """<!doctype html>
 
   <section class="kitchen">
     <h2 class="serif">In my kitchen</h2>
-    <p class="hint">These count toward "what we already have" when the box above is ticked.</p>
+    <p class="hint">These count toward "what we already have" when the box above is
+      ticked — add or remove items in the <a href="#pantry">Pantry</a> tab.</p>
     <div class="chips" id="chips"></div>
   </section>
 
@@ -2173,6 +2175,29 @@ PAGE = """<!doctype html>
       </div>
     </details>
   </section>
+ </div>
+
+ <div class="view" id="view-pantry" data-view="pantry" hidden>
+  <h1>What's in <em>the kitchen?</em></h1>
+  <p class="sub">The household's running list — fridge, pantry, freezer, countertop.
+  Recipe search and meal plans lean on this when "include my kitchen list" is on.</p>
+
+  <section class="ask">
+    <label class="lbl" for="pantryNewItem">Add an item</label>
+    <div class="haveRow">
+      <input type="text" id="pantryNewItem" placeholder="e.g. brown rice" autocomplete="off">
+      <select id="pantryNewLoc"
+              style="font-size:14.5px;padding:11px 14px;border:1.5px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-family:inherit">
+        <option value="pantry">pantry</option>
+        <option value="fridge">fridge</option>
+        <option value="freezer">freezer</option>
+        <option value="countertop">countertop</option>
+      </select>
+      <button class="btn-go" id="pantryAdd">Add</button>
+    </div>
+  </section>
+
+  <section class="kitchen" id="pantrySections"></section>
  </div>
 
  <div class="view" id="view-plans" data-view="plans" hidden>
@@ -2433,36 +2458,70 @@ function setPhase(key, btn) {
   doSearch();
 }
 
-/* -- kitchen chips -- */
+/* -- kitchen chips (read-only strip on Recipes; managed in Pantry) -- */
 async function loadInventory() {
   const data = await jget("/api/inventory");
   const box = $("chips");
   box.innerHTML = "";
+  if (!data.items.length) {
+    box.innerHTML = '<span class="hint">Nothing tracked yet — add what you have in the Pantry tab.</span>';
+    return;
+  }
   for (const item of data.items) {
     const chip = document.createElement("span");
     chip.className = "chip";
     chip.innerHTML = esc(item.name) + ' <span class="loc">' + esc(item.location) + "</span>";
-    const x = document.createElement("button");
-    x.textContent = "\\u00d7"; x.title = "Remove " + item.name;
-    x.onclick = async () => { await jpost("/api/inventory/remove", {id: item.id});
-                              loadInventory(); };
-    chip.appendChild(x);
     box.appendChild(chip);
   }
-  const add = document.createElement("span");
-  add.className = "chipAdd";
-  add.innerHTML = '<input id="newItem" placeholder="add an item…">' +
-    '<select id="newLoc"><option value="fridge">fridge</option>' +
-    '<option value="pantry">pantry</option><option value="freezer">freezer</option>' +
-    '<option value="countertop">countertop</option></select>';
-  box.appendChild(add);
-  $("newItem").addEventListener("keydown", async e => {
-    if (e.key === "Enter" && e.target.value.trim()) {
-      await jpost("/api/inventory", {name: e.target.value.trim(), location: $("newLoc").value});
-      loadInventory();
-    }
-  });
 }
+
+/* -- pantry view -- */
+const PANTRY_LOCATIONS = ["fridge", "pantry", "freezer", "countertop"];
+async function loadPantry() {
+  const data = await jget("/api/inventory");
+  const box = $("pantrySections");
+  box.innerHTML = "";
+  if (!data.items.length) {
+    box.innerHTML = '<div class="empty">Nothing here yet — add your first item above.</div>';
+    return;
+  }
+  for (const loc of PANTRY_LOCATIONS) {
+    const items = data.items.filter(i => i.location === loc);
+    if (!items.length) continue;
+    const h = document.createElement("h2");
+    h.className = "serif";
+    h.textContent = loc[0].toUpperCase() + loc.slice(1) + " (" + items.length + ")";
+    box.appendChild(h);
+    const chips = document.createElement("div");
+    chips.className = "chips";
+    for (const item of items) {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.innerHTML = esc(item.name) +
+        (item.quantity ? ' <span class="loc">' + esc(String(item.quantity)) +
+          (item.unit ? " " + esc(item.unit) : "") + "</span>" : "");
+      const x = document.createElement("button");
+      x.textContent = "\\u00d7"; x.title = "Remove " + item.name;
+      x.onclick = async () => { await jpost("/api/inventory/remove", {id: item.id});
+                                loadPantry(); loadInventory(); };
+      chip.appendChild(x);
+      chips.appendChild(chip);
+    }
+    box.appendChild(chips);
+  }
+}
+async function pantryAddItem() {
+  const name = $("pantryNewItem").value.trim();
+  if (!name) return;
+  await jpost("/api/inventory", {name, location: $("pantryNewLoc").value});
+  $("pantryNewItem").value = "";
+  $("pantryNewItem").focus();
+  loadPantry(); loadInventory();
+}
+$("pantryAdd").onclick = pantryAddItem;
+$("pantryNewItem").addEventListener("keydown", e => {
+  if (e.key === "Enter") pantryAddItem();
+});
 
 /* -- search -- */
 let OFFSET = 0;
@@ -3255,13 +3314,13 @@ $("checkinStart").onclick = openCheckin;
 $("checkinSnooze").onclick = snoozeCheckin;
 
 /* -- app shell (#33): views, adaptive home, plans, grocery, profile -- */
-const VIEWS = ["home", "recipes", "plans", "grocery", "profile", "activity"];
+const VIEWS = ["home", "recipes", "pantry", "plans", "grocery", "profile", "activity"];
 function currentView() {
   const h = (location.hash || "").replace("#", "");
   return VIEWS.includes(h) ? h : "home";
 }
 const LOADERS = {
-  home: loadHome, recipes: () => {}, plans: loadPlans,
+  home: loadHome, recipes: () => {}, pantry: loadPantry, plans: loadPlans,
   grocery: loadGrocery, profile: loadProfile, activity: loadActivity,
 };
 function showView(name, reload) {
