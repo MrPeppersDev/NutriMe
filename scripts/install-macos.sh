@@ -16,6 +16,8 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DATA_DIR="${NUTRIME_DATA_DIR:-$HOME/.nutrime}"
 LABEL="dev.nutrime.serve"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+CRAWL_LABEL="dev.nutrime.crawl"
+CRAWL_PLIST="$HOME/Library/LaunchAgents/$CRAWL_LABEL.plist"
 AUTOSTART=1
 
 step() { printf '\n==> %s\n' "$1"; }
@@ -23,8 +25,9 @@ step() { printf '\n==> %s\n' "$1"; }
 case "${1:-}" in
   --uninstall)
     launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-    rm -f "$PLIST"
-    echo "Removed the login agent. Your data in $DATA_DIR is untouched."
+    launchctl bootout "gui/$(id -u)/$CRAWL_LABEL" 2>/dev/null || true
+    rm -f "$PLIST" "$CRAWL_PLIST"
+    echo "Removed the login and weekly-crawl agents. Your data in $DATA_DIR is untouched."
     exit 0 ;;
   --no-autostart) AUTOSTART=0 ;;
   "") ;;
@@ -88,6 +91,28 @@ if [ "$AUTOSTART" = 1 ]; then
 PLISTEOF
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$PLIST"
+
+  step "Collecting new recipes weekly (Sunday 3 am; sites' robots.txt decides)"
+  cat > "$CRAWL_PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$CRAWL_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$UV</string><string>run</string><string>--no-dev</string><string>--directory</string><string>$REPO</string>
+    <string>nutrime</string><string>recipes</string><string>crawl</string><string>--data-dir</string><string>$DATA_DIR</string>
+  </array>
+  <key>WorkingDirectory</key><string>$REPO</string>
+  <key>StartCalendarInterval</key><dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>$DATA_DIR/logs/crawl.log</string>
+  <key>StandardErrorPath</key><string>$DATA_DIR/logs/crawl.log</string>
+</dict>
+</plist>
+PLISTEOF
+  launchctl bootout "gui/$(id -u)/$CRAWL_LABEL" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$CRAWL_PLIST"
 fi
 
 step "Checking everything"

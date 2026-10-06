@@ -85,6 +85,7 @@ SOURCE_COLLECTIONS: dict[str, str] = {
     "nhlbi_html_v1": "nhlbi",
     "gutenberg_text_v1": "historical",
     "crawl_jsonld_v1": "web",
+    "pinterest_top_jsonld_v1": "pinterest_top",
 }
 
 SOURCE_LABELS: dict[str, str] = {
@@ -94,6 +95,7 @@ SOURCE_LABELS: dict[str, str] = {
     "nhlbi": "NHLBI heart-healthy",
     "historical": "Historical cookbooks",
     "web": "Public web (crawled)",
+    "pinterest_top": "Pinterest top pins",
     "other": "Other",
 }
 

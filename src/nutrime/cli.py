@@ -770,7 +770,7 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
 
 def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
     from nutrime.recipes.crawl import (
-        EXAMPLE_SOURCES_TOML,
+        DEFAULT_SOURCES_PATH,
         SOURCES_FILE,
         STATE_FILE,
         CrawlConfigError,
@@ -779,17 +779,24 @@ def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
     )
 
     if args.example:
-        print(EXAMPLE_SOURCES_TOML, end="")
+        print(DEFAULT_SOURCES_PATH.read_text(encoding="utf-8"), end="")
         return 0
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    custom = app.data_dir / SOURCES_FILE
     try:
-        sources = load_sources(app.data_dir / SOURCES_FILE)
+        sources = load_sources(custom)
     except CrawlConfigError as err:
         print(str(err))
         return 2
+    origin = str(custom) if custom.exists() else "the bundled default list"
+    if args.list:
+        print(f"crawl sources from {origin}:")
+        for s in sources.values():
+            print(f"  {s.key:<22} {s.kind:<9} {s.name}  (budget {s.max_pages}/run)")
+        return 0
     if not sources:
-        print(f"no [[source]] entries in {app.data_dir / SOURCES_FILE}")
+        print(f"no enabled sources in {origin}")
         return 2
     if args.source:
         unknown = [k for k in args.source if k not in sources]
@@ -800,6 +807,8 @@ def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
         chosen = [sources[k] for k in args.source]
     else:
         chosen = list(sources.values())
+    print(f"crawling {len(chosen)} source(s) from {origin}; each site's"
+          " robots.txt decides whether NutriMe may fetch it")
 
     def _report(url: str, result: str) -> None:
         if args.verbose or result not in ("known",):
@@ -813,8 +822,11 @@ def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
         on_page=_report,
     )
+    verb = "would fetch" if args.dry_run else "fetched"
     for o in outcomes:
-        verb = "would fetch" if args.dry_run else "fetched"
+        if o.listings_blocked and not o.listings_fetched:
+            print(f"— {o.source}: skipped — its robots.txt doesn't allow NutriMe's crawler")
+            continue
         print(
             f"— {o.source}: {o.discovered} found; {verb} {o.fetched};"
             f" wrote {o.written}; {o.already_known} already known;"
@@ -823,7 +835,15 @@ def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
             + ("; budget reached — run again to continue" if o.budget_exhausted else "")
         )
     if not args.dry_run and any(o.written for o in outcomes):
-        print("next: `nutrime recipes vet` to vet the new recipes")
+        # New recipes are vetted straight away so junk and cross-source
+        # duplicates never surface in search.
+        from nutrime.recipes.vetting import vet_vault
+
+        vetted = vet_vault(RecipeVault(app.corpus_dir))
+        print(
+            f"vetted new recipes: {vetted.quarantined} hidden as junk,"
+            f" {vetted.duplicates} duplicate(s) hidden, {vetted.flagged} flagged"
+        )
     return 0
 
 
@@ -1449,8 +1469,8 @@ def build_parser() -> argparse.ArgumentParser:
     rec_crawl = recipes_sub.add_parser(
         "crawl",
         help=(
-            "Crawl configured public recipe sites (robots.txt-respecting,"
-            " paced, attributed) into the 'web' collection (#32)."
+            "Crawl major public recipe sites + Pinterest top food pins"
+            " (robots.txt decides per site; paced, attributed) (#32)."
         ),
     )
     rec_crawl.add_argument(
@@ -1467,7 +1487,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rec_crawl.add_argument(
         "--example", action="store_true",
-        help="Print an example crawl_sources.toml and exit.",
+        help="Print the bundled source list (a starting point for crawl_sources.toml).",
+    )
+    rec_crawl.add_argument(
+        "--list", action="store_true", help="Show the sources a run would use."
     )
     rec_crawl.add_argument("--verbose", action="store_true")
     rec_crawl.add_argument("--data-dir")

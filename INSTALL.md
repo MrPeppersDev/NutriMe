@@ -36,6 +36,13 @@ copies the bundled recipe collection, downloads the local model (one time,
 several GB), takes a first backup, and starts NutriMe whenever you sign in.
 Running it again is safe; it only does what's still missing.
 
+It also schedules a weekly recipe collection (Sunday 3 am). NutriMe reads
+the major public recipe sites and Pinterest's top food pins, but only
+where each site's robots.txt allows its crawler. Sites that say no are
+skipped, every run. New recipes are vetted straight away, and each one
+links back to the site it came from. Run it by hand with
+`uv run nutrime recipes crawl`; see the source list with `--list`.
+
 ## Everyday care
 
 | Task | Command |

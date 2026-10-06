@@ -19,6 +19,7 @@ base branch is merged and deleted.
 | 5 | #32 crawler | `claude/32-crawler` | #39 | crawler + CLI done; no sources enabled by default |
 | 6 | #33 product UI | `claude/33-product-ui` | #40 | first full slice: app shell, adaptive home, reorient, plans, grocery, profile/consent, error surfaces |
 | 7 | #34 self-host packaging | `claude/34-packaging` | #41 | backup/restore, doctor, installers (untested on real Windows/macOS), INSTALL.md |
+| 8 | #32 follow-up: default sources + Pinterest top pins | `claude/32b-default-sources` | see PR list | household decision: crawl major bot-permitting recipe sites + Pinterest top food pins |
 
 ### #23 — attribution on every web surface
 - Tonight panel renders the credit line; `TestAttributionGate` covers search cards, detail, Tonight, page markup.
@@ -65,6 +66,14 @@ base branch is merged and deleted.
 - `scripts/install-windows.ps1` (winget Ollama + uv, model pull, corpus seed, vet, first backup, Task Scheduler at sign-in, `-Uninstall`) and `scripts/install-macos.sh` (Homebrew, launchd agent, `--uninstall`). **Not executed** — the cloud container has neither OS; bash syntax-checked only.
 - `INSTALL.md` (non-operator guide) linked from README.
 - Not done: phone access over Wi-Fi (needs auth/transport, #12); signed installer/packaged app.
+
+### #32 follow-up — default sources + Pinterest top pins (household decision)
+- Decision (2026-10-06): crawl all the top food recipe sites that allow third-party bots (not NYT Cooking), plus Pinterest's top food pins.
+- Bundled `recipes/default_crawl_sources.toml`: 35 recipe sites (major publishers, independent sites, cuisine specialists) + `pinterest_top`. NYT Cooking and paywalled ATK/Cook's Illustrated deliberately absent. "Allows bots" is decided live by each site's robots.txt on every run; disallowing sites are skipped and reported. A household `crawl_sources.toml` replaces the list; `enabled = false` drops an entry.
+- Root seeds expand to the sitemaps robots.txt advertises (recipe sitemaps preferred).
+- Pinterest as discovery: public food pages → pins' outbound links → recipe fetched from the original site; robots checked on Pinterest and each destination; collection "Pinterest top pins" (distinct from the household's own pins); credit names the site "(via Pinterest)". No robots bypass — the gallery-dl board path (which reads Pinterest's internal API, disallowed for generic crawlers) is not used for this. If Pinterest's robots.txt disallows NutriMe, the run reports it and fetches nothing from Pinterest. The seed URL (food-and-drink ideas page) is unverified from the cloud session.
+- Crawl auto-vets new recipes; installers schedule a weekly crawl (Sunday 3 am).
+- Not verified live (egress-blocked); fake-site tests cover robots sitemaps, Pinterest link extraction, destination robots, Pinterest-disallow, facet separation.
 
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

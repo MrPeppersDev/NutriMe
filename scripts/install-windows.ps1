@@ -16,7 +16,7 @@
 .PARAMETER NoAutostart
   Don't register the sign-in task.
 .PARAMETER Uninstall
-  Remove the sign-in task only. Your data in %USERPROFILE%\.nutrime stays.
+  Remove the scheduled tasks only. Your data in %USERPROFILE%\.nutrime stays.
 #>
 param(
     [string]$Model = "qwen3:8b",
@@ -38,7 +38,8 @@ function Refresh-Path {
 
 if ($Uninstall) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "Removed the '$TaskName' sign-in task. Your data in $DataDir is untouched."
+    Unregister-ScheduledTask -TaskName "$TaskName crawl" -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Host "Removed the '$TaskName' tasks. Your data in $DataDir is untouched."
     exit 0
 }
 
@@ -98,6 +99,15 @@ try {
         Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
             -Settings $settings -Description "NutriMe home server (localhost:8765)" -Force | Out-Null
         Start-ScheduledTask -TaskName $TaskName
+
+        Step "Collecting new recipes weekly (Sunday 3 am; sites' robots.txt decides)"
+        $crawlAction = New-ScheduledTaskAction -Execute $uv `
+            -Argument "run --no-dev --directory `"$Repo`" nutrime recipes crawl --data-dir `"$DataDir`"" `
+            -WorkingDirectory $Repo
+        $crawlTrigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 3am
+        $crawlSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries
+        Register-ScheduledTask -TaskName "$TaskName crawl" -Action $crawlAction -Trigger $crawlTrigger `
+            -Settings $crawlSettings -Description "NutriMe weekly recipe collection" -Force | Out-Null
     }
 
     Step "Checking everything"
