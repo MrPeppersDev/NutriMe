@@ -801,17 +801,36 @@ def _cmd_recipes_vet(args: argparse.Namespace) -> int:
     if args.list_quarantined:
         shown = 0
         for record in vault.iter_recipes():
-            if record.frontmatter.get("vetting_status") == "quarantined":
+            status = record.frontmatter.get("vetting_status")
+            if status == "quarantined":
                 shown += 1
                 print(f"  {record.recipe_id}")
                 print(f"    title:  {record.frontmatter.get('title')}")
                 print(f"    reason: {record.frontmatter.get('vetting_reason')}")
-        print(f"— {shown} quarantined recipe(s) —")
+            elif status == "duplicate":
+                shown += 1
+                print(f"  {record.recipe_id}")
+                print(f"    title:  {record.frontmatter.get('title')}")
+                print(f"    duplicate of: {record.frontmatter.get('duplicate_of')}")
+        print(f"— {shown} hidden recipe(s) (quarantined or duplicate) —")
+        return 0
+    if args.list_flagged:
+        shown = 0
+        for record in vault.iter_recipes():
+            flags = record.frontmatter.get("vetting_flags") or []
+            if flags:
+                shown += 1
+                print(f"  {record.recipe_id}  {record.frontmatter.get('title')}")
+                print(f"    flags: {', '.join(flags)}")
+        print(f"— {shown} flagged recipe(s) (still searchable) —")
         return 0
     outcome = vet_vault(vault, revet=args.revet)
     print(
         f"Examined {outcome.examined}; normalized {outcome.titles_normalized}"
         f" title(s); quarantined {outcome.quarantined};"
+        f" flagged {outcome.flagged} for review;"
+        f" {outcome.duplicates} duplicate(s) hidden;"
+        f" allergen tags added on {outcome.allergens_added};"
         f" {outcome.already_vetted} already vetted."
     )
     return 0
@@ -1366,7 +1385,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     rec_vet = recipes_sub.add_parser(
         "vet",
-        help="Normalize titles + quarantine junk entries (idempotent).",
+        help=(
+            "Normalize titles, quarantine junk, flag quality issues, reconcile"
+            " allergen tags, hide cross-source duplicates (idempotent)."
+        ),
     )
     rec_vet.add_argument(
         "--revet", action="store_true", help="Re-examine already-vetted rows."
@@ -1374,7 +1396,12 @@ def build_parser() -> argparse.ArgumentParser:
     rec_vet.add_argument(
         "--list-quarantined",
         action="store_true",
-        help="Show quarantined entries instead of running the pass.",
+        help="Show hidden entries (quarantined + duplicates) instead of running the pass.",
+    )
+    rec_vet.add_argument(
+        "--list-flagged",
+        action="store_true",
+        help="Show entries flagged for review (still searchable).",
     )
     rec_vet.add_argument(
         "--data-dir",

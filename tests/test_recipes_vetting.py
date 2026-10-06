@@ -109,3 +109,215 @@ class TestVetVault:
         vet_vault(vault)
         results = search(vault, SearchFilters())
         assert [r.recipe_id for r in results] == [rid_good]
+
+
+# -- V2 (issue #31) -------------------------------------------------------------
+
+
+def _body(ingredients: list[str], steps: list[str]) -> str:
+    return (
+        "-- Ingredients\n\n" + "\n".join(ingredients)
+        + "\n\n-- Instructions\n\n" + "\n".join(steps) + "\n"
+    )
+
+
+GOOD_STEPS = [
+    "Brown the beef in batches over high heat.",
+    "Add the carrots and stock, then simmer for two hours until tender.",
+]
+
+
+def _write_v2(
+    vault, title, body, *, method="test_v1", allergens=(), yields=2,
+    ingested_at="2026-10-04T00:00:00Z", **extra,
+):
+    rid = new_recipe_id()
+    fm = build_recipe_frontmatter(
+        recipe_id=rid,
+        title=title,
+        attribution=Attribution(
+            source_name="t", source_url="https://e.com/r", source_license="t",
+            ingested_at=ingested_at, ingestion_method=method,
+        ),
+        source_status="live",
+        last_source_check_at="2026-10-04T00:00:00Z",
+        yields=Yields(count=yields),
+        top_allergens_present=list(allergens),
+    )
+    fm.update(extra)
+    vault.write(rid, fm, body)
+    return rid
+
+
+def _vault(tmp_path: Path) -> RecipeVault:
+    vault = RecipeVault(tmp_path)
+    vault.ensure()
+    return vault
+
+
+class TestQualityFindings:
+    def test_clean_recipe_has_no_flags(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(vault, "Beef Stew", _body(["@beef{500%g}", "@carrot{3}"], GOOD_STEPS))
+        vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert fm["vetting_status"] == "vetted"
+        assert "vetting_flags" not in fm
+        assert fm["vetting_version"] == 2
+
+    def test_pointer_only_method_quarantined(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Mystery Cake",
+            _body(["@flour{2%cups}", "@sugar{1%cup}"], ["Watch the video for the full method."]),
+        )
+        vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert fm["vetting_status"] == "quarantined"
+        assert fm["vetting_reason"].startswith("instructions_elsewhere")
+
+    def test_page_chrome_ingredient_quarantined(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Soup",
+            _body(["@onion{1}", "@Subscribe to our newsletter{}"], GOOD_STEPS),
+        )
+        vet_vault(vault)
+        assert vault.read(rid).frontmatter["vetting_status"] == "quarantined"
+
+    def test_linked_ingredient_only_flagged(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Bowl",
+            _body(["@[granola | https://example.com/granola]{1%cup}", "@yogurt{1%cup}"], GOOD_STEPS),
+        )
+        vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert fm["vetting_status"] == "vetted"
+        assert fm["vetting_flags"] == ["ingredient_has_link"]
+
+    def test_roundup_page_quarantined(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "40 Spooky Halloween Cocktail Recipes", _body(["@vodka{2%oz}"], []),
+        )
+        vet_vault(vault)
+        assert vault.read(rid).frontmatter["vetting_reason"].startswith("roundup_page")
+
+    def test_review_flags(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        no_method = _write_v2(vault, "Lime Chicken", _body(["@chicken{1}", "@lime{2}"], []))
+        thin = _write_v2(vault, "Omelette", _body(["@egg{2}"], ["Cook."]))
+        huge_qty = _write_v2(
+            vault, "Brine", _body(["@salt{200%tbsp}", "@water{4%l}"], GOOD_STEPS)
+        )
+        odd_yield = _write_v2(vault, "Dressing Mix", _body(["@oregano{1%tbsp}"], GOOD_STEPS), yields=300)
+        odd_time = _write_v2(
+            vault, "Spinach", _body(["@spinach{1}"], GOOD_STEPS),
+            estimated_active_time_min=30, estimated_total_time_min=10,
+        )
+        vet_vault(vault)
+        flags = {rid: vault.read(rid).frontmatter.get("vetting_flags") for rid in
+                 (no_method, thin, huge_qty, odd_yield, odd_time)}
+        assert flags[no_method] == ["no_instructions"]
+        assert flags[thin] == ["thin_instructions"]
+        assert flags[huge_qty] == ["implausible_quantity"]
+        assert flags[odd_yield] == ["implausible_yield"]
+        assert flags[odd_time] == ["active_exceeds_total"]
+        # flagged rows stay searchable
+        assert vault.read(no_method).frontmatter["vetting_status"] == "vetted"
+
+    def test_multi_component_repeats_are_fine(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Pie",
+            _body(["@butter{100%g}", "@flour{200%g}", "@butter{20%g}", "@apple{4}"], GOOD_STEPS),
+        )
+        vet_vault(vault)
+        assert "vetting_flags" not in vault.read(rid).frontmatter
+
+
+class TestAllergenReconcile:
+    def test_undeclared_allergen_added_original_kept(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Peanut Noodles",
+            _body(["@noodles{200%g}", "@peanut butter{2%tbsp}"], GOOD_STEPS),
+            allergens=["wheat"],
+        )
+        outcome = vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert "peanuts" in fm["top_allergens_present"]
+        assert fm["allergens_original"] == ["wheat"]
+        assert outcome.allergens_added == 1
+
+    def test_reconciled_allergen_filters_search(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        _write_v2(
+            vault, "Peanut Noodles",
+            _body(["@noodles{200%g}", "@peanut butter{2%tbsp}"], GOOD_STEPS),
+        )
+        vet_vault(vault)
+        assert search(vault, SearchFilters(exclude_allergens=frozenset({"peanuts"}))) == []
+
+
+class TestDuplicates:
+    def test_same_recipe_two_sources_one_hidden_pin_wins(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        ings = ["@chicken{1}", "@rice{2%cups}", "@peas{1%cup}", "@soy sauce{2%tbsp}"]
+        api = _write_v2(vault, "Easy Chicken Fried Rice", _body(ings, GOOD_STEPS),
+                        method="themealdb_api_v1")
+        pin = _write_v2(vault, "Chicken Fried Rice", _body(ings[:3], GOOD_STEPS),
+                        method="schema_org_jsonld_v1")
+        outcome = vet_vault(vault)
+        assert outcome.duplicates == 1
+        hidden = vault.read(api).frontmatter
+        assert hidden["vetting_status"] == "duplicate"
+        assert hidden["duplicate_of"] == pin
+        assert [r.recipe_id for r in search(vault, SearchFilters())] == [pin]
+
+    def test_same_title_different_dish_both_kept(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        a = _write_v2(vault, "Summer Salad", _body(["@tomato{3}", "@basil{1}", "@mozzarella{1}"], GOOD_STEPS))
+        b = _write_v2(vault, "Summer Salad", _body(["@watermelon{1}", "@feta{100%g}", "@mint{1}"], GOOD_STEPS))
+        vet_vault(vault)
+        assert {vault.read(r).frontmatter["vetting_status"] for r in (a, b)} == {"vetted"}
+
+    def test_duplicate_released_when_twin_quarantined(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        ings = ["@beef{500%g}", "@carrot{3}", "@onion{1}"]
+        first = _write_v2(vault, "Beef Stew", _body(ings, GOOD_STEPS), ingested_at="2026-01-01T00:00:00Z")
+        second = _write_v2(vault, "Beef Stew", _body(ings, GOOD_STEPS), ingested_at="2026-02-01T00:00:00Z")
+        vet_vault(vault)
+        assert vault.read(second).frontmatter["duplicate_of"] == first
+        # the canonical copy goes away (quarantined by hand) → its twin returns
+        fm = dict(vault.read(first).frontmatter)
+        fm["vetting_status"] = "quarantined"
+        fm["vetting_reason"] = "de-scope: test"
+        vault.write(first, fm, vault.read(first).body)
+        vet_vault(vault, revet=True)
+        released = vault.read(second).frontmatter
+        assert released["vetting_status"] == "vetted"
+        assert "duplicate_of" not in released
+
+    def test_v1_rows_reexamined_and_manual_quarantine_kept(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Old Book Recipe", _body(["@flour{1}"], GOOD_STEPS),
+            vetting_status="quarantined", vetting_reason="de-scope: historical corpus",
+        )
+        v1 = _write_v2(vault, "Stew", _body(["@beef{1}"], GOOD_STEPS), vetting_status="vetted")
+        outcome = vet_vault(vault)
+        assert outcome.already_vetted == 0  # no version stamp → re-examined
+        assert vault.read(rid).frontmatter["vetting_status"] == "quarantined"
+        assert vault.read(rid).frontmatter["vetting_reason"].startswith("de-scope")
+        assert vault.read(v1).frontmatter["vetting_version"] == 2
+
+    def test_second_pass_writes_nothing(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(vault, "Stew", _body(["@beef{1}"], GOOD_STEPS))
+        vet_vault(vault)
+        before = vault.path_for(rid).stat().st_mtime_ns
+        outcome = vet_vault(vault)
+        assert outcome.already_vetted == 1
+        assert vault.path_for(rid).stat().st_mtime_ns == before

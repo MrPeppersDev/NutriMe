@@ -1104,8 +1104,10 @@ class _Handler(BaseHTTPRequestHandler):
         for record in self.server.vault.iter_recipes():
             # Facet counts mirror what search can actually surface —
             # quarantined rows (junk + the de-scoped historical corpus)
-            # are invisible here too.
-            if record.frontmatter.get("vetting_status") == "quarantined":
+            # and cross-source duplicates are invisible here too.
+            if record.frontmatter.get("vetting_status") in (
+                "quarantined", "duplicate"
+            ):
                 continue
             key = source_collection(record.frontmatter)
             counts[key] = counts.get(key, 0) + 1

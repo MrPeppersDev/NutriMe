@@ -209,9 +209,10 @@ def filters_from_constraints(
 
 def _passes(record: RecipeRecord, filters: SearchFilters) -> bool:
     fm = record.frontmatter
-    # Corpus hygiene (V0): rows the vetting pass quarantined never rank.
-    # Un-vetted rows (no stamp yet) pass — new ingests stay searchable.
-    if fm.get("vetting_status") == "quarantined":
+    # Corpus hygiene (V0/V2): rows the vetting pass quarantined or marked
+    # as a cross-source duplicate never rank. Un-vetted rows (no stamp
+    # yet) pass — new ingests stay searchable.
+    if fm.get("vetting_status") in ("quarantined", "duplicate"):
         return False
     collection = source_collection(fm)
     if filters.sources:
