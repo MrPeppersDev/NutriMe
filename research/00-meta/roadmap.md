@@ -45,6 +45,10 @@ User direction, superseding several standing decisions:
 
 Issues: #29 (per-member), #30 (constitutional+attribution), #31 (vetting engine v2), #32 (crawler service), #33 (UI overhaul), #34 (tier-3 packaging).
 
+**#29 per-member identity LANDED 2026-10-06** (branch `claude/build-2026-10-06`, `60de445` + `49be2a0`; rebuilt from the issue's handoff checklist — the MVP host's uncommitted WIP is superseded and can be discarded). Migration 0006 (`member`, `intake_profile_v2`, `member_id` on screener responses; legacy profile moves under the bootstrap "Me" once); per-member profiles, screeners, feedback atoms (`subject_id` = member) and consent (member row overrides the household row for that member only); household constraints = union of active members' avoids/prefers, which search + planner already consume; web picker ("Who's using this?", `X-NutriMe-Member`); `nutrime members …` + `--member`. Follow-ups, not blocking: constraints are add-only, so an archived member's or a removed allergen's "avoids X" stays in force until retraction semantics land; cooking-experience ratings stay household-level (the cook's), body response is per member.
+
+**#23 attribution:** Tonight panel now renders the credit line; every web recipe surface is covered by `TestAttributionGate` (`0a6d776`). Remains open only as the gate for future surfaces.
+
 ### Primary host change (2026-10-05) — Windows workstation
 
 The primary run host moves from the MBP M4 Pro 24 GB to a **Windows 11 Lenovo Legion** (Core Ultra 9 275HX, 32 GB DDR5, **RTX 5080 Laptop 16 GB VRAM**, 1 TB SSD). The Mac stays a supported dev/run platform. Consequences:
