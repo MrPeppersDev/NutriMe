@@ -84,6 +84,7 @@ SOURCE_COLLECTIONS: dict[str, str] = {
     "myplate_wayback_html_v1": "myplate",
     "nhlbi_html_v1": "nhlbi",
     "gutenberg_text_v1": "historical",
+    "crawl_jsonld_v1": "web",
 }
 
 SOURCE_LABELS: dict[str, str] = {
@@ -92,6 +93,7 @@ SOURCE_LABELS: dict[str, str] = {
     "myplate": "USDA MyPlate",
     "nhlbi": "NHLBI heart-healthy",
     "historical": "Historical cookbooks",
+    "web": "Public web (crawled)",
     "other": "Other",
 }
 

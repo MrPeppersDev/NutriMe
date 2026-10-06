@@ -228,8 +228,15 @@ def convert_recipe_node(
     *,
     source_url: str,
     ingested_at: str | None = None,
+    ingestion_method: str = INGESTION_METHOD,
+    source_license: str = SOURCE_LICENSE,
+    source_name: str | None = None,
 ) -> ConvertedRecipe:
-    """Map one schema.org Recipe node → (frontmatter, Cooklang body)."""
+    """Map one schema.org Recipe node → (frontmatter, Cooklang body).
+
+    The crawler (#32) reuses this with its own ingestion method, licence
+    note and site name so crawled pages stay a distinct collection.
+    """
     when = ingested_at or now_iso()
     recipe_id = new_recipe_id()
     title = strip_tags(str(node.get("name") or "")) or "Untitled Recipe"
@@ -264,11 +271,11 @@ def convert_recipe_node(
     ]
 
     attribution = Attribution(
-        source_name=_host(source_url),
+        source_name=source_name or _host(source_url),
         source_url=source_url,
-        source_license=SOURCE_LICENSE,
+        source_license=source_license,
         ingested_at=when,
-        ingestion_method=INGESTION_METHOD,
+        ingestion_method=ingestion_method,
         upstream_id=normalize_url(source_url),
     )
     frontmatter = build_recipe_frontmatter(
@@ -301,7 +308,7 @@ def convert_recipe_node(
         steps=tuple(steps),
         servings=yields.count,
         source_url=source_url,
-        attribution=_host(source_url),
+        attribution=source_name or _host(source_url),
     )
     return ConvertedRecipe(
         recipe_id=recipe_id,

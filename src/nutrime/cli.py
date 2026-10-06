@@ -792,6 +792,65 @@ def _cmd_plans_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
+    from nutrime.recipes.crawl import (
+        EXAMPLE_SOURCES_TOML,
+        SOURCES_FILE,
+        STATE_FILE,
+        CrawlConfigError,
+        crawl_sources,
+        load_sources,
+    )
+
+    if args.example:
+        print(EXAMPLE_SOURCES_TOML, end="")
+        return 0
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        sources = load_sources(app.data_dir / SOURCES_FILE)
+    except CrawlConfigError as err:
+        print(str(err))
+        return 2
+    if not sources:
+        print(f"no [[source]] entries in {app.data_dir / SOURCES_FILE}")
+        return 2
+    if args.source:
+        unknown = [k for k in args.source if k not in sources]
+        if unknown:
+            print(f"unknown source(s): {', '.join(unknown)};"
+                  f" configured: {', '.join(sorted(sources))}")
+            return 2
+        chosen = [sources[k] for k in args.source]
+    else:
+        chosen = list(sources.values())
+
+    def _report(url: str, result: str) -> None:
+        if args.verbose or result not in ("known",):
+            print(f"  {result:<14} {url}")
+
+    outcomes = crawl_sources(
+        RecipeVault(app.corpus_dir),
+        chosen,
+        app.data_dir / STATE_FILE,
+        max_pages=args.max_pages,
+        dry_run=args.dry_run,
+        on_page=_report,
+    )
+    for o in outcomes:
+        verb = "would fetch" if args.dry_run else "fetched"
+        print(
+            f"— {o.source}: {o.discovered} found; {verb} {o.fetched};"
+            f" wrote {o.written}; {o.already_known} already known;"
+            f" {o.not_recipes} not recipes; {o.blocked_by_robots} blocked by"
+            f" robots.txt; {len(o.failures)} failed"
+            + ("; budget reached — run again to continue" if o.budget_exhausted else "")
+        )
+    if not args.dry_run and any(o.written for o in outcomes):
+        print("next: `nutrime recipes vet` to vet the new recipes")
+    return 0
+
+
 def _cmd_recipes_vet(args: argparse.Namespace) -> int:
     from nutrime.recipes.vetting import vet_vault
 
@@ -1382,6 +1441,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
     rec_search.set_defaults(func=_cmd_recipes_search)
+
+    rec_crawl = recipes_sub.add_parser(
+        "crawl",
+        help=(
+            "Crawl configured public recipe sites (robots.txt-respecting,"
+            " paced, attributed) into the 'web' collection (#32)."
+        ),
+    )
+    rec_crawl.add_argument(
+        "--source", action="append", default=None,
+        help="Source key from crawl_sources.toml (repeatable; default: all).",
+    )
+    rec_crawl.add_argument(
+        "--max-pages", type=int, default=None,
+        help="Fetch budget per source this run (default: the source's max_pages).",
+    )
+    rec_crawl.add_argument(
+        "--dry-run", action="store_true",
+        help="Discover and list what would be fetched; fetch no recipe pages.",
+    )
+    rec_crawl.add_argument(
+        "--example", action="store_true",
+        help="Print an example crawl_sources.toml and exit.",
+    )
+    rec_crawl.add_argument("--verbose", action="store_true")
+    rec_crawl.add_argument("--data-dir")
+    rec_crawl.set_defaults(func=_cmd_recipes_crawl)
 
     rec_vet = recipes_sub.add_parser(
         "vet",
