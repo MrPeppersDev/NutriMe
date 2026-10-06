@@ -1094,6 +1094,7 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NutriMe — what can we make?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23476341'/%3E%3Cpath d='M16 7c-5 4-6 10-3 16 5-2 8-8 3-16z' fill='%23f7f1e5'/%3E%3C/svg%3E">
 <style>
   :root {
     --paper: #f7f1e5;
@@ -1349,7 +1350,7 @@ PAGE = """<!doctype html>
   </div>
   <h1>What can we make with <em>what we already have?</em></h1>
   <p class="sub">Search the household recipe collection by what's in the kitchen —
-  and, if you like, tilt the ranking toward foods that fit where you are in your cycle.</p>
+  and, if you track a cycle, tilt the ranking toward foods that fit its current phase.</p>
 </header>
 
 <main>
@@ -1639,6 +1640,8 @@ async function doSearch(append) {
 }
 
 /* -- detail -- */
+// Source URLs come from imported pages; only http(s) becomes a link.
+function safeUrl(u) { return typeof u === "string" && /^https?:[/][/]/i.test(u); }
 async function openDetail(id) {
   const d = await jget("/api/recipes/" + id);
   if (d.error) return;
@@ -1657,7 +1660,7 @@ async function openDetail(id) {
     d.ingredients.map(i => "<li>" + esc(i) + "</li>").join("") + "</ul>" +
     "<h4>Steps</h4><ol>" +
     d.steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>" +
-    (d.source_url ? '<div class="srcLink"><a href="' + esc(d.source_url) +
+    (safeUrl(d.source_url) ? '<div class="srcLink"><a href="' + esc(d.source_url) +
       '" target="_blank" rel="noopener">Open the original \\u2197</a></div>' : "") +
     '<div class="attr">' + esc(d.attribution) + "</div>";
   $("overlay").classList.add("on");
@@ -1718,7 +1721,8 @@ async function loadTonight() {
       '<button class="btn-quiet" onclick="openDetail(\\'' + esc(t.recipe_id) + '\\')">view recipe</button>' +
       '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="markCooked(\\'' +
       esc(t.recipe_id) + '\\',\\'' + esc(t.plan_id) + '\\')">We cooked it</button>' +
-      "</div>"
+      "</div>" +
+      (t.attribution ? '<div class="attr" style="margin-top:8px">' + esc(t.attribution) + "</div>" : "")
     );
   } else {
     // Tonight-first: the panel is always present; with no plan covering

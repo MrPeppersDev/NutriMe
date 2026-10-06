@@ -572,3 +572,73 @@ class TestIntakePageMarkup:
         # Tonight-first: the tonight panel markup precedes the search box
         assert body.index('id="tonightBox"') < body.index('id="searchBox"')
         assert "No meal planned tonight" in body
+
+
+class TestAttributionGate:
+    """Issue #23 pre-ship gate: every web surface that shows recipe content
+    carries the source credit line (TheMealDB free tier requires it)."""
+
+    def _page(self, server) -> str:
+        port = server.server_address[1]
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as resp:
+            return resp.read().decode("utf-8")
+
+    def test_search_results_carry_credit(self, server) -> None:
+        results = _get(server, "/api/search")["results"]
+        assert results
+        for r in results:
+            assert "TheMealDB" in r["attribution"]
+
+    def test_detail_carries_credit(self, server) -> None:
+        recipe_id = _get(server, "/api/search?have=beef")["results"][0]["recipe_id"]
+        detail = _get(server, f"/api/recipes/{recipe_id}")
+        assert "TheMealDB" in detail["attribution"]
+
+    def test_tonight_carries_credit(self, server) -> None:
+        from datetime import date
+
+        from nutrime.plans.store import (
+            PlanEntry,
+            PlanVault,
+            new_plan_id,
+            render_plan_body,
+        )
+
+        found = _get(server, "/api/search?have=beef")["results"][0]
+        plan_id = new_plan_id()
+        fm = {
+            "plan_id": plan_id,
+            "content_type": "meal_plan",
+            # local date: /api/tonight derives the day index from date.today()
+            "created_at": f"{date.today().isoformat()}T00:00:00",
+            "tenant_id": server.app.tenant_id,
+            "days": 1,
+            "meal_slots": ["dinner"],
+            "meals_planned": 1,
+            "model": "test",
+            "llm_request_ids": [],
+            "llm_request_log_ids": [],
+            "constraints_applied": [],
+            "candidate_count": 1,
+        }
+        entries = (
+            PlanEntry(day=1, slot="dinner", recipe_id=found["recipe_id"],
+                      title=found["title"]),
+        )
+        PlanVault(server.app.corpus_dir).write(
+            plan_id, fm, render_plan_body(entries)
+        )
+        tonight = _get(server, "/api/tonight")["tonight"]
+        assert tonight["recipe_id"] == found["recipe_id"]
+        assert "TheMealDB" in tonight["attribution"]
+
+    def test_page_renders_credit_on_every_surface(self, server) -> None:
+        body = self._page(server)
+        # search cards, detail sheet, tonight panel
+        assert "esc(r.attribution)" in body
+        assert "esc(d.attribution)" in body
+        assert "esc(t.attribution)" in body
+
+    def test_detail_links_only_http_urls(self, server) -> None:
+        body = self._page(server)
+        assert "safeUrl(d.source_url)" in body
