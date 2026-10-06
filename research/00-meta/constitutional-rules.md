@@ -19,6 +19,8 @@ The disclaimer must be **adjacent to the uncertain content**, not buried in a fo
 
 **Enforcement** (per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback)): the hardest condition-gated enforcement for this rule lives in a **deterministic hardcoded rule layer outside any LLM**, not in LLM instruction-following. T4 surfaced that adversarial constitutional robustness does not close with parameter count alone; the OSS field hasn't matched Anthropic Constitutional AI / OpenAI deliberative alignment on this dimension. Pre-MVP-ship gate is L1 — an adversarial-rule load test against the hardcoded layer.
 
+*Implemented (2026-10-06, #30):* `src/nutrime/surface_rules.py` `ConsultProfessionalRule` — model-written text that is clinical-adjacent, rests on Tier 3+ evidence, or makes a health claim for an eater with a disclosed condition / sensitive life stage gets the consult line appended *to the text itself*. Never blocks. L1 corpus: `tests/test_surface_rules.py`.
+
 ## Rule 2 — Evidence transparency over evidence gating
 
 NutriMe surfaces weak evidence rather than hiding it, but always with a clear declaration of evidence quality. See [evidence-tiers.md](evidence-tiers.md). The product never claims certainty it does not have.
@@ -65,6 +67,8 @@ Tier 4 *may* appear as informational / cultural / historical context where no he
 See [evidence-tiers.md](evidence-tiers.md) for tier definitions and surfacing rules.
 
 **Enforcement** (per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback)): peer-reviewed-floor gating for the hardest claims is enforced by the **deterministic hardcoded rule layer outside any LLM**, same as Rule 1. The LLM is not the gatekeeper for this rule.
+
+*Implemented (2026-10-06, #30):* `EvidenceFloorRule` blocks model-written health claims that carry no Tier 1–3 reference (Tier 4 alone blocks too); `BannedContentRule` blocks Rule 3 logging prompts, Rule 4 generated recipes, cure/reversal claims and eating-disorder-adjacent advice. Wired at the planner's reason text, with every finding audited (`surface_rule` events).
 
 ## Rule 10 — User decides with full context
 

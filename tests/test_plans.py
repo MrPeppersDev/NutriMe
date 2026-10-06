@@ -440,6 +440,66 @@ class TestAssemble:
             )
 
 
+
+class ReasonProvider(SelectingProvider):
+    """Selects the first candidate with a fixed, scripted reason."""
+
+    def __init__(self, reason: str):
+        super().__init__()
+        self._reason = reason
+
+    def complete(self, request: LlmRequest) -> ProviderResult:
+        result = super().complete(request)
+        chosen = json.loads(result.text)["recipe_id"]
+        return ProviderResult(
+            text=json.dumps({"recipe_id": chosen, "reason": self._reason}),
+            model=result.model,
+            stop_reason=result.stop_reason,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            request_payload=result.request_payload,
+            response_payload=result.response_payload,
+        )
+
+
+class TestPlanReasonSurfaceGuard:
+    """#30: the model's reason is surface-checked before it is stored."""
+
+    def _one(self, recipes, engine, audit, reason, **kw):
+        plan = assemble_plan(
+            recipes, _client(engine, audit, ReasonProvider(reason)),
+            PlanSpec(days=1, slots=("dinner",)), SearchFilters(), **kw,
+        )
+        return plan.outcomes[0]
+
+    def test_benign_reason_kept(self, recipes, engine, audit):
+        outcome = self._one(recipes, engine, audit, "Quick and uses the spinach.")
+        assert outcome.entry.note == "Quick and uses the spinach."
+        assert outcome.surface_findings == ()
+
+    def test_unsupported_claim_dropped_selection_stands(self, recipes, engine, audit):
+        outcome = self._one(recipes, engine, audit, "Garlic lowers blood pressure.")
+        assert outcome.entry.recipe_id is not None  # corpus pick still valid
+        assert outcome.entry.note == ""
+        assert outcome.surface_findings[0].rule_name == "evidence-floor"
+
+    def test_clinical_reason_annotated(self, recipes, engine, audit):
+        from nutrime.surface_rules import CONSULT_LINE
+
+        outcome = self._one(
+            recipes, engine, audit, "Low sodium, kind to kidney disease."
+        )
+        assert outcome.entry.note.endswith(CONSULT_LINE)
+
+    def test_generated_recipe_in_reason_blocked(self, recipes, engine, audit):
+        outcome = self._one(
+            recipes, engine, audit,
+            "Here's a recipe: fry onions, add rice, simmer 20 minutes.",
+        )
+        assert outcome.entry.note == ""
+        assert outcome.surface_findings[0].rule_name == "banned-content"
+
+
 # -- CLI -------------------------------------------------------------------
 
 
@@ -535,6 +595,38 @@ class TestPlansCLI:
         out = capsys.readouterr().out
         assert rc == 0
         assert out.index("pln-b") < out.index("pln-a")
+
+
+    def test_generate_audits_surface_findings(self, tmp_path, capsys, monkeypatch):
+        # #30: a dropped reason leaves an audit row naming the rule.
+        import nutrime.cli as cli
+        from nutrime.app import initialize
+
+        self._seed(tmp_path)
+        monkeypatch.setattr(
+            cli, "_build_llm_client",
+            lambda app, provider, model: LlmClient(
+                (ReasonProvider("Ginger boosts your immune system."),),
+                app.rule_engine, app.audit,
+            ),
+        )
+        rc = cli.main(
+            ["plans", "generate", "--data-dir", str(tmp_path),
+             "--days", "1", "--meals", "dinner"]
+        )
+        assert rc == 0
+        app = initialize(data_dir=tmp_path)
+        try:
+            rows = [
+                e for e in app.audit.events(limit=50)
+                if e.event_subkind == "surface_rule"
+            ]
+            assert len(rows) == 1
+            assert rows[0].payload["rule"] == "evidence-floor"
+            assert rows[0].payload["action"] == "block"
+        finally:
+            app.substrate.close()
+            app.operational.close()
 
 
 class TestSlotProfiles:

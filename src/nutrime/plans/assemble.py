@@ -15,6 +15,13 @@ constraint. That local filtering *is* the aggregation half of decomposition.
 
 Variety is deterministic, not delegated: already-chosen recipe ids are removed
 from later slots' candidate pools rather than asked-for in the prompt.
+
+Pre-surface (#30): the model's one-line ``reason`` is the only model-written
+text a plan shows, so it passes the constitutional surface guard before it
+is stored. A blocked reason is dropped (the selection stands — the recipe
+came from the corpus, not the model); an annotated one carries the
+consult-professional line adjacent to it. Findings ride on the outcome so
+the caller can audit them.
 """
 
 from __future__ import annotations
@@ -36,6 +43,12 @@ from nutrime.phi import PhiCategory
 from nutrime.plans.store import PlanEntry
 from nutrime.recipes.search import SearchFilters, SearchResult, search
 from nutrime.recipes.store import RecipeVault
+from nutrime.surface_rules import (
+    SurfaceContent,
+    SurfaceFinding,
+    SurfaceGuard,
+    default_surface_guard,
+)
 
 # Slot vocabulary -> corpus category profile.
 #
@@ -122,6 +135,7 @@ class SlotOutcome:
     request_id: str | None = None
     llm_request_log_id: str | None = None
     error: str | None = None
+    surface_findings: tuple[SurfaceFinding, ...] = ()
 
 
 @dataclass
@@ -246,6 +260,8 @@ def assemble_plan(
     *,
     max_tokens: int = 256,
     on_progress: Callable[[SlotOutcome], None] | None = None,
+    surface_guard: SurfaceGuard | None = None,
+    eater_sensitivities: frozenset[str] = frozenset(),
 ) -> AssembledPlan:
     """Fill every day x slot, one audited crossing each.
 
@@ -255,6 +271,7 @@ def assemble_plan(
     """
     plan = AssembledPlan()
     chosen: set[str] = set()
+    guard = surface_guard or default_surface_guard()
 
     for day in range(1, spec.days + 1):
         for slot in spec.slots:
@@ -361,12 +378,20 @@ def assemble_plan(
                 continue
 
             chosen.add(recipe_id)
+            verdict = guard.check(
+                SurfaceContent(
+                    surface="plan_reason",
+                    text=reason,
+                    generated=True,
+                    eater_sensitivities=eater_sensitivities,
+                )
+            )
             entry = PlanEntry(
                 day=day,
                 slot=slot,
                 recipe_id=recipe_id,
                 title=titles.get(recipe_id, ""),
-                note=reason,
+                note=verdict.text,
             )
             outcome = SlotOutcome(
                 day=day,
@@ -375,6 +400,7 @@ def assemble_plan(
                 candidate_count=len(candidates),
                 request_id=response.request_id,
                 llm_request_log_id=response.llm_request_log_id,
+                surface_findings=verdict.findings,
             )
             plan.entries.append(entry)
             plan.outcomes.append(outcome)

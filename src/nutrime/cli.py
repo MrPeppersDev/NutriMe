@@ -661,13 +661,38 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         else:
             print(f"{label}: {outcome.entry.title}  [{outcome.entry.recipe_id}]")
 
+    from nutrime.surface_rules import household_sensitivities
+
     try:
         plan = assemble_plan(
-            vault, client, spec, filters, on_progress=_progress
+            vault, client, spec, filters, on_progress=_progress,
+            eater_sensitivities=household_sensitivities(
+                app.substrate, app.tenant_id
+            ),
         )
     except MissingApiKeyError as exc:
         print(f"config error: {exc}")
         return 2
+
+    # #30: every pre-surface finding is audited (the reason text itself is
+    # not — a blocked reason is not worth preserving, and the request log
+    # already holds the raw response).
+    for outcome in plan.outcomes:
+        for finding in outcome.surface_findings:
+            app.audit.record_event(
+                event_kind="audit",
+                event_subkind="surface_rule",
+                actor="planner",
+                request_id=outcome.request_id,
+                payload={
+                    "surface": "plan_reason",
+                    "rule": finding.rule_name,
+                    "action": finding.action,
+                    "reason": finding.reason,
+                    "day": outcome.day,
+                    "slot": outcome.slot,
+                },
+            )
 
     plan_id = new_plan_id()
     frontmatter = {
