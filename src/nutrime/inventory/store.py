@@ -168,6 +168,37 @@ def expiring_names(
     ]
 
 
+def staples_out(conn: sqlite3.Connection, tenant_id: str) -> frozenset[str]:
+    """Staples the household marked as out of stock — search counts
+    these as missing again (pantry-first ranking escape hatch)."""
+    return frozenset(
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM staple_out WHERE tenant_id = ?", (tenant_id,)
+        ).fetchall()
+    )
+
+
+def set_staple_out(
+    conn: sqlite3.Connection, tenant_id: str, name: str, out: bool
+) -> None:
+    name = name.strip().lower()
+    if not name:
+        raise ValueError("staple name must not be blank")
+    if out:
+        conn.execute(
+            "INSERT OR IGNORE INTO staple_out (tenant_id, name, marked_at)"
+            " VALUES (?, ?, ?)",
+            (tenant_id, name, _now_iso()),
+        )
+    else:
+        conn.execute(
+            "DELETE FROM staple_out WHERE tenant_id = ? AND name = ?",
+            (tenant_id, name),
+        )
+    conn.commit()
+
+
 def remove_items_by_name(
     conn: sqlite3.Connection, tenant_id: str, names: list[str]
 ) -> list[str]:

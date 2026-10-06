@@ -206,6 +206,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_questions()
             elif route == "/api/grocery":
                 self._api_grocery(query)
+            elif route == "/api/staples":
+                self._api_staples()
             elif route == "/api/members":
                 self._api_members_list()
             elif route == "/api/plans":
@@ -244,6 +246,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_inventory_remove()
             elif parsed.path == "/api/inventory/bulk/preview":
                 self._api_inventory_bulk_preview()
+            elif parsed.path == "/api/staples/toggle":
+                self._api_staples_toggle()
             elif parsed.path == "/api/inventory/bulk":
                 self._api_inventory_bulk_commit()
             elif parsed.path == "/api/import":
@@ -930,6 +934,8 @@ class _Handler(BaseHTTPRequestHandler):
                 cooked_cuisines(app.substrate, app.tenant_id, self.server.vault)
             )
 
+        from nutrime.inventory.store import staples_out
+
         filters = SearchFilters(
             query=first("q") or None,
             max_total_time_min=max_time,
@@ -939,6 +945,7 @@ class _Handler(BaseHTTPRequestHandler):
             expiring=expiring,
             experience=experience,
             cooked_cuisines=novelty,
+            out_of_staples=staples_out(app.substrate, app.tenant_id),
         )
         if first("apply_constraints") == "1":
             from nutrime.knowledge.store import list_synthesized_entries
@@ -1045,7 +1052,49 @@ class _Handler(BaseHTTPRequestHandler):
         app = self.server.app
         item = InventoryItem(name=name, location=location)
         item_id = add_item(app.substrate, app.tenant_id, item)
+        self._restock_staple(name)
         self._json({"id": item_id, "name": name, "location": location})
+
+    def _restock_staple(self, name: str) -> None:
+        """Adding an item that IS an out-of-stock staple restocks it —
+        the out flag exists only until the household buys more."""
+        from nutrime.inventory.store import set_staple_out, staples_out
+        from nutrime.recipes.search import normalize_term
+
+        app = self.server.app
+        key = normalize_term(name)
+        for out_name in staples_out(app.substrate, app.tenant_id):
+            if normalize_term(out_name) == key:
+                set_staple_out(app.substrate, app.tenant_id, out_name, False)
+
+    def _api_staples(self) -> None:
+        """The assumed-staples shelf: every staple + whether the
+        household marked it out of stock."""
+        from nutrime.inventory.store import staples_out
+        from nutrime.recipes.search import PANTRY_STAPLES
+
+        app = self.server.app
+        out = staples_out(app.substrate, app.tenant_id)
+        self._json({
+            "staples": [
+                {"name": name, "out": name in out}
+                for name in sorted(PANTRY_STAPLES)
+            ]
+        })
+
+    def _api_staples_toggle(self) -> None:
+        from nutrime.inventory.store import set_staple_out
+        from nutrime.recipes.search import PANTRY_STAPLES
+
+        payload = self._read_json_body()
+        name = str(payload.get("name") or "").strip().lower()
+        if name not in PANTRY_STAPLES:
+            self._json({"error": f"not an assumed staple: {name!r}"}, status=400)
+            return
+        out = bool(payload.get("out"))
+        app = self.server.app
+        set_staple_out(app.substrate, app.tenant_id, name, out)
+        self._json({"name": name, "out": out})
 
     def _api_inventory_bulk_preview(self) -> None:
         """Paste-a-list step 1: parse + classify, nothing stored yet.
@@ -1125,6 +1174,7 @@ class _Handler(BaseHTTPRequestHandler):
                 errors.append(f"{name}: {err}")
                 continue
             item_id = add_item(app.substrate, app.tenant_id, item)
+            self._restock_staple(name)
             added.append({"id": item_id, "name": name,
                           "location": item.location, "best_by_date": best_by})
         app.audit.record_event(
@@ -2341,6 +2391,14 @@ PAGE = """<!doctype html>
   </section>
 
   <section class="kitchen" id="pantrySections"></section>
+
+  <section class="kitchen">
+    <h2 class="serif">Staples shelf</h2>
+    <p class="hint">NutriMe assumes these basics are around, so recipes never count
+    them as "missing". Out of one? Tap it — recipes that need it will say so until
+    you add it back (adding it to the pantry restocks it automatically).</p>
+    <div class="pillRow" id="staplePills" style="margin-top:8px"></div>
+  </section>
  </div>
 
  <div class="view" id="view-plans" data-view="plans" hidden>
@@ -2620,7 +2678,29 @@ async function loadInventory() {
 
 /* -- pantry view -- */
 const PANTRY_LOCATIONS = ["fridge", "pantry", "freezer", "countertop"];
+async function loadStaples() {
+  const data = await jget("/api/staples", true);
+  const row = $("staplePills");
+  if (!row || data.error) return;
+  row.innerHTML = "";
+  for (const s of data.staples) {
+    const b = document.createElement("button");
+    b.className = "pill" + (s.out ? "" : " on");
+    b.textContent = (s.out ? "✗ " : "✓ ") + s.name;
+    b.title = s.out ? "Marked out of stock — tap when restocked" :
+      "Assumed on hand — tap if you're out";
+    b.onclick = async () => {
+      const res = await jpost("/api/staples/toggle", {name: s.name, out: !s.out}, true);
+      if (res.error) { toast(res.error); return; }
+      loadStaples();
+      toast(res.out ? ("Noted — out of " + s.name + ". Recipes needing it will say so.") :
+        (s.name + " restocked."));
+    };
+    row.appendChild(b);
+  }
+}
 async function loadPantry() {
+  loadStaples();
   const data = await jget("/api/inventory");
   const box = $("pantrySections");
   box.innerHTML = "";

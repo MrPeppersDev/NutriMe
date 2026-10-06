@@ -52,8 +52,14 @@ def plan_base_filters(
         filters = filters_from_constraints(entries, base=filters)
         applied.append(f"{len(entries)} abstracted constraint(s)")
     if use_inventory:
+        from nutrime.inventory.store import staples_out
+
         items = list_items(app.substrate, app.tenant_id)
-        filters = replace(filters, on_hand=frozenset(item.name for item in items))
+        filters = replace(
+            filters,
+            on_hand=frozenset(item.name for item in items),
+            out_of_staples=staples_out(app.substrate, app.tenant_id),
+        )
         applied.append(f"{len(items)} inventory item(s)")
         # V2: expiring items tilt candidate pools toward use-it-up.
         expiring = expiring_names(

@@ -504,3 +504,16 @@ class TestMembersCli:
             tmp_path, capsys, "consent", "list", "--member", "Nobody"
         )
         assert code == 2 and "no active member named 'Nobody'" in out
+
+
+class TestStapleOutStore:
+    def test_toggle_round_trip(self, app) -> None:
+        from nutrime.inventory.store import set_staple_out, staples_out
+
+        assert staples_out(app.substrate, app.tenant_id) == frozenset()
+        set_staple_out(app.substrate, app.tenant_id, "olive oil", True)
+        assert staples_out(app.substrate, app.tenant_id) == {"olive oil"}
+        set_staple_out(app.substrate, app.tenant_id, "olive oil", True)  # idempotent
+        assert staples_out(app.substrate, app.tenant_id) == {"olive oil"}
+        set_staple_out(app.substrate, app.tenant_id, "olive oil", False)
+        assert staples_out(app.substrate, app.tenant_id) == frozenset()

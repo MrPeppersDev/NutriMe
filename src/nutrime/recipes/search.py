@@ -92,6 +92,9 @@ class SearchFilters:
     # V2: subset of on_hand names whose best_by_date is near — matches
     # earn _EXPIRING_POINTS on top of on-hand points.
     expiring: frozenset[str] = field(default_factory=frozenset)
+    # Staples the household marked as out of stock: these count as
+    # missing again despite PANTRY_STAPLES assuming them on hand.
+    out_of_staples: frozenset[str] = field(default_factory=frozenset)
     # V1: recipe_id → experience summary (feedback.experience_summaries
     # shape). None = no history consulted.
     experience: Any = None
@@ -348,16 +351,24 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
         )
     )
     # Pantry-first: which recipe ingredients does the kitchen NOT cover?
-    # Staples never count — nobody shops for salt. Only meaningful when
-    # inventory is in play (empty on_hand would mark everything missing).
+    # Staples never count — nobody shops for salt — UNLESS the household
+    # marked that staple as out of stock. Only meaningful when inventory
+    # is in play (empty on_hand would mark everything missing).
     missing: tuple[str, ...] = ()
     if filters.on_hand:
+        def _assumed(name: str) -> bool:
+            if not _is_staple(name):
+                return False
+            return not any(
+                _terms_match(out, name) for out in filters.out_of_staples
+            )
+
         missing = tuple(
             sorted(
                 {
                     name.strip()
                     for name in names
-                    if not _is_staple(name)
+                    if not _assumed(name)
                     and not any(
                         _terms_match(item, name) for item in filters.on_hand
                     )

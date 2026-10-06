@@ -489,3 +489,57 @@ class TestPantryFirstRanking:
         vault = self._vault(tmp_path)
         results = search(vault, SearchFilters())
         assert all(r.missing_ingredients == () for r in results)
+
+
+class TestStaplesOutOfStock:
+    """Staples are assumed on hand — unless the household says otherwise."""
+
+    def _vault(self, tmp_path):
+        vault = RecipeVault(tmp_path / "staple-corpus")
+        vault.ensure()
+        vault.write(
+            "rcp-oily",
+            _frontmatter("rcp-oily", "Pan-Fried Chicken"),
+            _body("@chicken{1%lb}", "@olive oil{2%tbsp}", "@salt{}"),
+        )
+        return vault
+
+    def test_out_staple_counts_missing(self, tmp_path):
+        vault = self._vault(tmp_path)
+        base = SearchFilters(on_hand=frozenset({"chicken"}))
+        (hit,) = search(vault, base)
+        assert hit.missing_ingredients == ()  # oil + salt assumed
+        from dataclasses import replace
+
+        (hit,) = search(
+            vault, replace(base, out_of_staples=frozenset({"olive oil"}))
+        )
+        assert hit.missing_ingredients == ("olive oil",)
+
+    def test_other_staples_stay_assumed(self, tmp_path):
+        vault = self._vault(tmp_path)
+        from dataclasses import replace
+
+        base = SearchFilters(on_hand=frozenset({"chicken"}))
+        (hit,) = search(
+            vault, replace(base, out_of_staples=frozenset({"olive oil"}))
+        )
+        assert "salt" not in hit.missing_ingredients
+
+    def test_out_staple_demotes_from_cook_tonight(self, tmp_path):
+        from dataclasses import replace
+
+        vault = self._vault(tmp_path)
+        vault.write(
+            "rcp-no-oil",
+            _frontmatter("rcp-no-oil", "Zesty Boiled Chicken"),
+            _body("@chicken{1%lb}", "@salt{}"),
+        )
+        filters = replace(
+            SearchFilters(on_hand=frozenset({"chicken"})),
+            out_of_staples=frozenset({"olive oil"}),
+        )
+        results = search(vault, filters)
+        # the oil-free recipe is now the only cookable-tonight one
+        assert results[0].recipe_id == "rcp-no-oil"
+        assert results[0].missing_ingredients == ()
