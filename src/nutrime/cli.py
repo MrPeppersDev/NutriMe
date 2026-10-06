@@ -516,54 +516,14 @@ def _atom_summary(atom_type: str, payload: dict) -> str:
 
 def _plan_base_filters(app, args) -> tuple[object, list[str]]:
     """Build the shared search filters for every slot + a note of what applied."""
-    from dataclasses import replace as _replace
+    from nutrime.plans.service import plan_base_filters
 
-    from nutrime.knowledge.store import list_synthesized_entries
-    from nutrime.recipes.search import SearchFilters, filters_from_constraints
-
-    filters = SearchFilters(max_total_time_min=args.max_time)
-    applied: list[str] = []
-    if args.apply_constraints:
-        entries = list_synthesized_entries(
-            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
-        )
-        filters = filters_from_constraints(entries, base=filters)
-        applied.append(f"{len(entries)} abstracted constraint(s)")
-    if args.use_inventory:
-        items = list_items(app.substrate, app.tenant_id)
-        filters = _replace(
-            filters, on_hand=frozenset(item.name for item in items)
-        )
-        applied.append(f"{len(items)} inventory item(s)")
-        # V2: expiring items tilt candidate pools toward use-it-up.
-        from datetime import date
-
-        from nutrime.inventory.store import expiring_names
-
-        expiring = expiring_names(
-            app.substrate, app.tenant_id, today=date.today().isoformat()
-        )
-        if expiring:
-            filters = _replace(
-                filters,
-                expiring=frozenset(i.name.lower() for i in expiring),
-            )
-            applied.append(f"{len(expiring)} expiring item(s) prioritized")
-    # V1: cook history boosts candidate pools (loved up, disliked down).
-    from nutrime.feedback import cooked_cuisines, experience_summaries
-
-    experience = experience_summaries(app.substrate, app.tenant_id)
-    if experience:
-        filters = _replace(filters, experience=experience)
-        applied.append(f"experience from {len(experience)} cooked recipe(s)")
-    # V3: novelty nudge is planner-default (broadening is a planning-time
-    # concern, not a what-can-I-make-right-now concern).
-    vault = RecipeVault(app.corpus_dir)
-    cooked = cooked_cuisines(app.substrate, app.tenant_id, vault)
-    if cooked:
-        filters = _replace(filters, cooked_cuisines=frozenset(cooked))
-        applied.append("novelty nudge (new-cuisine candidates boosted)")
-    return filters, applied
+    return plan_base_filters(
+        app,
+        max_time=args.max_time,
+        apply_constraints=args.apply_constraints,
+        use_inventory=args.use_inventory,
+    )
 
 
 def _build_llm_client(app, provider_choice: str, model: str | None):
@@ -587,26 +547,21 @@ def _build_llm_client(app, provider_choice: str, model: str | None):
         )
     else:
         if not is_available():
-            print(
-                "The local model isn't running. One-time setup:\n"
-                "  brew install ollama && ollama pull qwen3:8b\n"
-                "then start it with: ollama serve"
-            )
+            from nutrime.plans.service import LOCAL_MODEL_SETUP
+
+            print(LOCAL_MODEL_SETUP)
             return None
         providers = (OllamaProvider(model=model or ""),)
     return LlmClient(providers, app.rule_engine, app.audit)
 
 
 def _cmd_plans_generate(args: argparse.Namespace) -> int:
-    from nutrime.audit import _now_iso
     from nutrime.llm.base import MissingApiKeyError
     from nutrime.plans.assemble import (
         MEAL_SLOTS,
         PlanSpec,
-        assemble_plan,
         candidates_for_slot,
     )
-    from nutrime.plans.store import PlanVault, new_plan_id, render_plan_body
 
     slots = tuple(s.strip().lower() for s in args.meals.split(",") if s.strip())
     unknown = [s for s in slots if s not in MEAL_SLOTS]
@@ -661,58 +616,16 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         else:
             print(f"{label}: {outcome.entry.title}  [{outcome.entry.recipe_id}]")
 
-    from nutrime.surface_rules import household_sensitivities
+    from nutrime.plans.service import generate_and_store
 
     try:
-        plan = assemble_plan(
-            vault, client, spec, filters, on_progress=_progress,
-            eater_sensitivities=household_sensitivities(
-                app.substrate, app.tenant_id
-            ),
+        plan_id, path, plan = generate_and_store(
+            app, client, spec, filters, applied,
+            model_hint=args.model, on_progress=_progress,
         )
     except MissingApiKeyError as exc:
         print(f"config error: {exc}")
         return 2
-
-    # #30: every pre-surface finding is audited (the reason text itself is
-    # not — a blocked reason is not worth preserving, and the request log
-    # already holds the raw response).
-    for outcome in plan.outcomes:
-        for finding in outcome.surface_findings:
-            app.audit.record_event(
-                event_kind="audit",
-                event_subkind="surface_rule",
-                actor="planner",
-                request_id=outcome.request_id,
-                payload={
-                    "surface": "plan_reason",
-                    "rule": finding.rule_name,
-                    "action": finding.action,
-                    "reason": finding.reason,
-                    "day": outcome.day,
-                    "slot": outcome.slot,
-                },
-            )
-
-    plan_id = new_plan_id()
-    frontmatter = {
-        "plan_id": plan_id,
-        "content_type": "meal_plan",
-        "created_at": _now_iso(),
-        "tenant_id": app.tenant_id,
-        "days": spec.days,
-        "meal_slots": list(spec.slots),
-        "meals_planned": plan.filled,
-        "model": plan.model or args.model,
-        "llm_request_ids": list(plan.request_ids),
-        "llm_request_log_ids": list(plan.llm_request_log_ids),
-        "constraints_applied": applied,
-        "candidate_count": plan.candidate_count,
-    }
-    plan_vault = PlanVault(app.corpus_dir)
-    path = plan_vault.write(
-        plan_id, frontmatter, render_plan_body(plan.entries)
-    )
 
     print(f"— plan {plan_id} written to {path} —")
     print(f"{plan.filled} of {spec.crossings} slot(s) filled")

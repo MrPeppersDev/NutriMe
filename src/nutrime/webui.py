@@ -54,6 +54,7 @@ from nutrime.recipes.search import (
     SearchFilters,
     attribution_line,
     filters_from_constraints,
+    search,
     search_page,
     source_collection,
 )
@@ -122,6 +123,9 @@ class NutriMeWebServer(HTTPServer):
         self.ingest_fetcher = None
         self.ingest_pacer: Pacer | None = None
         self.pinterest_api_fetcher = None
+        # Injectable for tests: app → LlmClient | None (None = local model
+        # not running). Default: the local Ollama daemon.
+        self.llm_client_factory = None
         # "Skip for now" on the first-run intake card: session-scoped only
         # (no persistence — the invitation simply returns next launch).
         # Per member (#29): member ids that skipped this session.
@@ -204,6 +208,16 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_grocery(query)
             elif route == "/api/members":
                 self._api_members_list()
+            elif route == "/api/plans":
+                self._api_plans_list()
+            elif route.startswith("/api/plans/"):
+                self._api_plan_detail(route.removeprefix("/api/plans/"))
+            elif route == "/api/tonight/alternatives":
+                self._api_tonight_alternatives(query)
+            elif route == "/api/consent":
+                self._api_consent_list()
+            elif route == "/api/derived":
+                self._api_derived()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -234,6 +248,12 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_skip()
             elif parsed.path == "/api/members":
                 self._api_members_add()
+            elif parsed.path == "/api/plans/generate":
+                self._api_plans_generate()
+            elif parsed.path == "/api/plans/swap":
+                self._api_plans_swap()
+            elif parsed.path == "/api/consent":
+                self._api_consent_set()
             elif parsed.path == "/api/members/rename":
                 self._api_members_rename()
             elif parsed.path == "/api/members/archive":
@@ -331,6 +351,278 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": str(err)}, status=400)
             return
         self._json(self._members_payload())
+
+    # -- plans (#33): browse, generate, swap ------------------------------------
+
+    @staticmethod
+    def _plan_day_today(plan) -> int:
+        """Which plan day is today (day 1 = the day the plan was made)."""
+        from datetime import date, datetime
+
+        created = str(plan.frontmatter.get("created_at", ""))[:10]
+        try:
+            return (date.today() - datetime.fromisoformat(created).date()).days + 1
+        except ValueError:
+            return 1
+
+    def _api_plans_list(self) -> None:
+        from nutrime.plans.store import PlanVault
+
+        vault = PlanVault(self.server.app.corpus_dir)
+        plans = vault.list_plans() if vault.root.exists() else []
+        self._json({
+            "plans": [
+                {
+                    "plan_id": p.plan_id,
+                    "created_at": p.frontmatter.get("created_at"),
+                    "days": p.frontmatter.get("days"),
+                    "meal_slots": p.frontmatter.get("meal_slots"),
+                    "meals_planned": p.frontmatter.get("meals_planned"),
+                    "today_day": self._plan_day_today(p),
+                }
+                for p in reversed(plans)
+            ]
+        })
+
+    def _api_plan_detail(self, plan_id: str) -> None:
+        from nutrime.plans.store import PlanVault
+
+        vault = PlanVault(self.server.app.corpus_dir)
+        if not plan_id.startswith("pln-") or not vault.exists(plan_id):
+            self._json({"error": "That plan doesn't exist any more."}, status=404)
+            return
+        plan = vault.read(plan_id)
+        entries = []
+        for e in plan.entries():
+            item = {
+                "day": e.day, "slot": e.slot, "recipe_id": e.recipe_id,
+                "title": e.title, "note": e.note,
+            }
+            if e.recipe_id and self.server.vault.exists(e.recipe_id):
+                fm = self.server.vault.read(e.recipe_id).frontmatter
+                item["attribution"] = attribution_line(fm)
+                item["total_time_min"] = fm.get("estimated_total_time_min")
+            entries.append(item)
+        self._json({
+            "plan_id": plan.plan_id,
+            "created_at": plan.frontmatter.get("created_at"),
+            "days": plan.frontmatter.get("days"),
+            "today_day": self._plan_day_today(plan),
+            "entries": entries,
+        })
+
+    def _api_plans_generate(self) -> None:
+        from nutrime.plans.assemble import MEAL_SLOTS, PlanSpec
+        from nutrime.plans.service import (
+            LOCAL_MODEL_SETUP,
+            generate_and_store,
+            local_client,
+            plan_base_filters,
+        )
+
+        payload = self._read_json_body()
+        slots = tuple(
+            str(s).strip().lower() for s in (payload.get("slots") or ["dinner"])
+        )
+        if any(s not in MEAL_SLOTS for s in slots):
+            self._json({"error": f"Meal slots must be among: {', '.join(MEAL_SLOTS)}."},
+                       status=400)
+            return
+        try:
+            spec = PlanSpec(
+                days=int(payload.get("days") or 7), slots=slots,
+                servings=int(payload.get("servings") or 2),
+            )
+        except (TypeError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        if spec.days > 14:
+            self._json({"error": "Plans go up to 14 days at a time."}, status=400)
+            return
+        app = self.server.app
+        factory = self.server.llm_client_factory or local_client
+        client = factory(app)
+        if client is None:
+            self._json({"error": LOCAL_MODEL_SETUP, "code": "local_model_unavailable"},
+                       status=503)
+            return
+        max_time = payload.get("max_time")
+        filters, applied = plan_base_filters(
+            app, max_time=int(max_time) if max_time else None
+        )
+        plan_id, _, plan = generate_and_store(
+            app, client, spec, filters, applied, actor="webui"
+        )
+        self._json({
+            "plan_id": plan_id,
+            "filled": plan.filled,
+            "slots": spec.crossings,
+            "unfilled": [o.error for o in plan.outcomes if o.error],
+        })
+
+    def _api_plans_swap(self) -> None:
+        """'Reorient tonight' (C5 Q5.5): replace one slot's recipe with a
+        household-chosen one. Plan files are the household's own data, so
+        the swap rewrites the entry in place and is audited."""
+        from nutrime.plans.store import PlanEntry, PlanVault, render_plan_body
+
+        payload = self._read_json_body()
+        plan_id = str(payload.get("plan_id") or "")
+        recipe_id = str(payload.get("recipe_id") or "")
+        try:
+            day = int(payload.get("day"))
+        except (TypeError, ValueError):
+            self._json({"error": "day is required"}, status=400)
+            return
+        slot = str(payload.get("slot") or "dinner")
+        vault = PlanVault(self.server.app.corpus_dir)
+        if not plan_id.startswith("pln-") or not vault.exists(plan_id):
+            self._json({"error": "That plan doesn't exist any more."}, status=404)
+            return
+        if not self.server.vault.exists(recipe_id):
+            self._json({"error": "That recipe isn't in the collection."}, status=404)
+            return
+        recipe = self.server.vault.read(recipe_id)
+        if recipe.frontmatter.get("vetting_status") in ("quarantined", "duplicate"):
+            self._json({"error": "That recipe is hidden by vetting."}, status=400)
+            return
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        plan = vault.read(plan_id)
+        entries = list(plan.entries())
+        idx = next(
+            (i for i, e in enumerate(entries) if e.day == day and e.slot == slot),
+            None,
+        )
+        replaced = PlanEntry(
+            day=day, slot=slot, recipe_id=recipe_id,
+            title=str(recipe.frontmatter.get("title", "")),
+            note="swapped in for tonight",
+        )
+        previous = entries[idx].recipe_id if idx is not None else None
+        if idx is None:
+            entries.append(replaced)
+        else:
+            entries[idx] = replaced
+        entries.sort(key=lambda e: (e.day, e.slot))
+        fm = dict(plan.frontmatter)
+        fm["meals_planned"] = sum(1 for e in entries if e.filled)
+        vault.write(plan_id, fm, render_plan_body(entries))
+        self.server.app.audit.record_event(
+            event_kind="system",
+            event_subkind="plan_slot_swapped",
+            actor="webui",
+            subject_id=member_id,
+            payload={"plan_id": plan_id, "day": day, "slot": slot,
+                     "from": previous, "to": recipe_id},
+        )
+        self._json({"swapped": True, "title": replaced.title})
+
+    def _api_tonight_alternatives(self, query: dict[str, list[str]]) -> None:
+        """Quick, local, no-model alternatives for tonight within the
+        household's constraints — the reorient affordance's candidate list."""
+        from dataclasses import replace as _replace
+
+        from nutrime.plans.service import plan_base_filters
+
+        def first(key: str) -> str:
+            return (query.get(key) or [""])[0].strip()
+
+        app = self.server.app
+        max_time = int(first("max_time")) if first("max_time").isdigit() else None
+        filters, _ = plan_base_filters(app, max_time=max_time)
+        skip = first("avoid")
+        if skip:
+            filters = _replace(
+                filters,
+                exclude_ingredients=filters.exclude_ingredients
+                | frozenset(t.strip().lower() for t in skip.split(",") if t.strip()),
+            )
+        exclude = first("exclude")
+        results = [
+            r for r in search(self.server.vault, filters, limit=12)
+            if r.recipe_id != exclude
+        ][:6]
+        self._json({
+            "results": [
+                {
+                    "recipe_id": r.recipe_id, "title": r.title,
+                    "total_time_min": r.total_time_min,
+                    "on_hand_matches": list(r.on_hand_matches),
+                    "attribution": r.attribution,
+                }
+                for r in results
+            ]
+        })
+
+    # -- consent + derived (profile view, #33) ----------------------------------
+
+    _CONSENT_LABELS = {
+        "intake_profile": "Your profile answers",
+        "intake_screener": "Screening questions",
+        "inventory": "Kitchen inventory",
+        "knowledge_derived": "What the app works out from your answers",
+        "meal_feedback_time": "Cooking ratings and times",
+        "meal_feedback_semantic": "How meals made you feel",
+    }
+
+    def _api_consent_list(self) -> None:
+        from nutrime.consent import list_current
+
+        app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self._json({
+            "decisions": [
+                {
+                    "category": r.data_category,
+                    "label": self._CONSENT_LABELS.get(r.data_category, r.data_category),
+                    "purpose": r.purpose,
+                    "granted": r.granted,
+                    "scope": "own" if r.subject_user == member_id else "household",
+                }
+                for r in list_current(app.substrate, app.tenant_id, member_id=member_id)
+            ]
+        })
+
+    def _api_consent_set(self) -> None:
+        from nutrime.consent import record_decision
+
+        payload = self._read_json_body()
+        app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        try:
+            record_decision(
+                app.substrate, app.tenant_id,
+                data_category=str(payload.get("category") or ""),
+                purpose=str(payload.get("purpose") or "local_operation"),
+                granted=bool(payload.get("granted")),
+                note="set from the profile page",
+                member_id=member_id,
+            )
+        except ValueError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._api_consent_list()
+
+    def _api_derived(self) -> None:
+        """'Show me what you know' (C5 Q5.5), household level: the
+        abstracted constraints every plan and search respects."""
+        from nutrime.knowledge.store import list_synthesized_entries
+
+        app = self.server.app
+        entries = list_synthesized_entries(
+            app.substrate, app.tenant_id, entry_type="abstracted_constraint"
+        )
+        self._json({
+            "constraints": sorted(
+                {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
+            )
+        })
 
     # -- API: search -----------------------------------------------------------
 
