@@ -23,6 +23,12 @@ feedback carry no PHI categories.
 
 Both prompts are skippable — fail-open on absence of feedback, only
 fail-closed on absence of consent.
+
+Members (#29): every atom's ``subject_id`` is the member who gave it
+(``member_id=None`` means the household's default member), and consent
+resolves per member. The meal event and cooking experience describe the
+household's cook; body response is personal, so each member answers for
+themselves and ``meal_history(member_id=...)`` shows that member's own.
 """
 
 from __future__ import annotations
@@ -45,6 +51,14 @@ def new_meal_event_id() -> str:
     return f"mev-{uuid7()}"
 
 
+def _member(conn: sqlite3.Connection, tenant_id: str, member_id: str | None) -> str:
+    from nutrime.members import default_member_id, get_member
+
+    if member_id is None:
+        return default_member_id(conn, tenant_id)
+    return get_member(conn, tenant_id, member_id).id
+
+
 def record_meal_event(
     conn: sqlite3.Connection,
     tenant_id: str,
@@ -53,13 +67,17 @@ def record_meal_event(
     recipe_title: str,
     plan_id: str | None = None,
     cooked_at: str | None = None,
+    member_id: str | None = None,
 ) -> str:
     """Record "we cooked this" — the anchor the feedback atoms reference.
 
     Passive observation provenance: confirming a cook is inventory-grade
     observation, not a clinical statement.
     """
-    consent_id = require_consent(conn, tenant_id, "meal_feedback_time")
+    member_id = _member(conn, tenant_id, member_id)
+    consent_id = require_consent(
+        conn, tenant_id, "meal_feedback_time", member_id=member_id
+    )
     meal_event_id = new_meal_event_id()
     insert_atom(
         conn,
@@ -74,6 +92,7 @@ def record_meal_event(
             "cooked_at": cooked_at or _now_iso(),
         },
         consent_record_id=consent_id,
+        subject_id=member_id,
     )
     return meal_event_id
 
@@ -86,12 +105,16 @@ def record_cooking_experience(
     ease_rating: int,
     enjoyment_rating: int,
     freetext_notes: str | None = None,
+    member_id: str | None = None,
 ) -> str:
     """Immediate prompt: "How easy / how enjoyable was this to make?"."""
     for name, value in (("ease", ease_rating), ("enjoyment", enjoyment_rating)):
         if not 1 <= value <= 5:
             raise ValueError(f"{name}_rating must be 1-5, got {value}")
-    consent_id = require_consent(conn, tenant_id, "meal_feedback_time")
+    member_id = _member(conn, tenant_id, member_id)
+    consent_id = require_consent(
+        conn, tenant_id, "meal_feedback_time", member_id=member_id
+    )
     payload: dict[str, Any] = {
         "meal_event_id": meal_event_id,
         "ease_rating": ease_rating,
@@ -108,6 +131,7 @@ def record_cooking_experience(
         provenance=Provenance.CONVERSATIONAL_ELICITATION,
         payload=payload,
         consent_record_id=consent_id,
+        subject_id=member_id,
     )
 
 
@@ -121,6 +145,7 @@ def record_body_response(
     digestion_rating: int | None = None,
     fullness_rating: int | None = None,
     mood_rating: int | None = None,
+    member_id: str | None = None,
 ) -> str:
     """Later prompt: "How did this make your body feel?" (plain text is
     the data; ratings only if volunteered)."""
@@ -134,7 +159,10 @@ def record_body_response(
     ):
         if value is not None and not 1 <= value <= 5:
             raise ValueError(f"{name}_rating must be 1-5, got {value}")
-    consent_id = require_consent(conn, tenant_id, "meal_feedback_semantic")
+    member_id = _member(conn, tenant_id, member_id)
+    consent_id = require_consent(
+        conn, tenant_id, "meal_feedback_semantic", member_id=member_id
+    )
     payload: dict[str, Any] = {
         "meal_event_id": meal_event_id,
         "freetext_response": freetext_response.strip(),
@@ -156,6 +184,7 @@ def record_body_response(
         provenance=Provenance.CONVERSATIONAL_ELICITATION,
         payload=payload,
         consent_record_id=consent_id,
+        subject_id=member_id,
     )
 
 
@@ -166,11 +195,15 @@ def record_time_feedback(
     meal_event_id: str,
     estimated_time_min: int | None,
     actual_time_min: int,
+    member_id: str | None = None,
 ) -> str:
     """Time-accuracy loop: stated vs actual minutes."""
     if actual_time_min <= 0:
         raise ValueError("actual_time_min must be positive")
-    consent_id = require_consent(conn, tenant_id, "meal_feedback_time")
+    member_id = _member(conn, tenant_id, member_id)
+    consent_id = require_consent(
+        conn, tenant_id, "meal_feedback_time", member_id=member_id
+    )
     delta = (
         actual_time_min - estimated_time_min
         if estimated_time_min is not None
@@ -189,6 +222,7 @@ def record_time_feedback(
             "prompt_responded_at": _now_iso(),
         },
         consent_record_id=consent_id,
+        subject_id=member_id,
     )
 
 
@@ -209,12 +243,25 @@ class MealHistoryEntry:
 
 
 def meal_history(
-    conn: sqlite3.Connection, tenant_id: str, *, limit: int = 20
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    *,
+    limit: int = 20,
+    member_id: str | None = None,
 ) -> list[MealHistoryEntry]:
-    """Joined view of meal events + their feedback atoms, newest first."""
+    """Joined view of meal events + their feedback atoms, newest first.
+
+    With ``member_id``, ``body_response`` is that member's own answer
+    (None until they give one); without it, any member's latest.
+    """
     events = [
         a for a in list_atoms(conn, tenant_id, atom_type="meal_event")
     ]
+    own_subjects: tuple[str, ...] | None = None
+    if member_id is not None:
+        from nutrime.members import subject_ids_for
+
+        own_subjects = subject_ids_for(conn, tenant_id, member_id)
     by_meal: dict[str, dict[str, Any]] = {}
     for atom_type in (
         "meal_feedback_cooking_experience",
@@ -222,6 +269,12 @@ def meal_history(
         "meal_feedback_time",
     ):
         for atom in list_atoms(conn, tenant_id, atom_type=atom_type):
+            if (
+                own_subjects is not None
+                and atom_type == "meal_feedback_body_response"
+                and atom.subject_id not in own_subjects
+            ):
+                continue
             mev = str(atom.payload.get("meal_event_id") or "")
             by_meal.setdefault(mev, {})[atom_type] = atom.payload
     entries = []

@@ -43,6 +43,12 @@ class Application:
     phi_envelope: PhiEnvelopeRegistry
     audit: AuditLog
 
+    @property
+    def default_member_id(self) -> str:
+        from nutrime.members import default_member_id
+
+        return default_member_id(self.substrate, self.tenant_id)
+
 
 def initialize(
     data_dir: Path | None = None,
@@ -72,6 +78,12 @@ def initialize(
     apply_migrations(operational, operational_migrations)
 
     tenant_id = bootstrap_tenant(substrate, name=tenant_name)
+
+    # Household members (#29): every install has at least one; the legacy
+    # single profile moves under it on first run after migration 0006.
+    from nutrime.members import bootstrap_default_member
+
+    bootstrap_default_member(substrate, tenant_id)
 
     audit = AuditLog(operational)
     audit.ensure_tenant_created(tenant_id)

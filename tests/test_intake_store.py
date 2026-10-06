@@ -67,7 +67,7 @@ def test_save_profile_writes_row(initialized_app) -> None:
 
     row = initialized_app.substrate.execute(
         "SELECT year_of_birth, life_stage, height_cm, weight_kg,"
-        " dietary_preferences, allergens FROM intake_profile"
+        " dietary_preferences, allergens FROM intake_profile_v2"
         " WHERE tenant_id = ?",
         (initialized_app.tenant_id,),
     ).fetchone()
@@ -98,12 +98,12 @@ def test_save_profile_upserts(initialized_app) -> None:
     save_profile(initialized_app.substrate, initialized_app.tenant_id, second)
 
     (count,) = initialized_app.substrate.execute(
-        "SELECT COUNT(*) FROM intake_profile"
+        "SELECT COUNT(*) FROM intake_profile_v2"
     ).fetchone()
     assert count == 1
 
     row = initialized_app.substrate.execute(
-        "SELECT life_stage, allergens FROM intake_profile"
+        "SELECT life_stage, allergens FROM intake_profile_v2"
     ).fetchone()
     assert row[0] == "pregnant"
     assert json.loads(row[1]) == ["egg"]

@@ -81,7 +81,7 @@ def test_baseline_end_to_end_persists_and_scores(initialized_app) -> None:
     assert by_id["hunger_vital_sign"].positive
 
     (profile_count,) = initialized_app.substrate.execute(
-        "SELECT COUNT(*) FROM intake_profile"
+        "SELECT COUNT(*) FROM intake_profile_v2"
     ).fetchone()
     assert profile_count == 1
 

@@ -124,7 +124,8 @@ class NutriMeWebServer(HTTPServer):
         self.pinterest_api_fetcher = None
         # "Skip for now" on the first-run intake card: session-scoped only
         # (no persistence — the invitation simply returns next launch).
-        self.intake_skipped = False
+        # Per member (#29): member ids that skipped this session.
+        self.intake_skipped: set[str] = set()
 
     @property
     def app(self):
@@ -201,6 +202,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_questions()
             elif route == "/api/grocery":
                 self._api_grocery(query)
+            elif route == "/api/members":
+                self._api_members_list()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -229,10 +232,105 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_intake_save()
             elif parsed.path == "/api/intake/skip":
                 self._api_intake_skip()
+            elif parsed.path == "/api/members":
+                self._api_members_add()
+            elif parsed.path == "/api/members/rename":
+                self._api_members_rename()
+            elif parsed.path == "/api/members/archive":
+                self._api_members_archive()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
             self._json({"error": str(exc)}, status=500)
+
+    # -- members (#29) -----------------------------------------------------------
+    # One shared device, no auth: the page sends the picked member in the
+    # X-NutriMe-Member header. Absent → the household's default member, so
+    # member-unaware clients keep working. Unknown/archived → 400.
+
+    def _member_id(self) -> str:
+        from nutrime.members import get_member
+
+        app = self.server.app
+        raw = (self.headers.get("X-NutriMe-Member") or "").strip()
+        if not raw:
+            return app.default_member_id
+        return get_member(app.substrate, app.tenant_id, raw).id
+
+    def _member_or_400(self) -> str | None:
+        from nutrime.members import MemberError
+
+        try:
+            return self._member_id()
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return None
+
+    def _members_payload(self) -> dict[str, Any]:
+        from nutrime.intake.store import household_profiles
+        from nutrime.members import list_members
+
+        app = self.server.app
+        profiled = household_profiles(app.substrate, app.tenant_id)
+        return {
+            "default_member_id": app.default_member_id,
+            "members": [
+                {
+                    "id": m.id,
+                    "name": m.display_name,
+                    "has_profile": m.id in profiled,
+                }
+                for m in list_members(app.substrate, app.tenant_id)
+            ],
+        }
+
+    def _api_members_list(self) -> None:
+        self._json(self._members_payload())
+
+    def _api_members_add(self) -> None:
+        from nutrime.members import MemberError, add_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            member = add_member(
+                app.substrate, app.tenant_id, str(payload.get("name") or "")
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json({"added": member.id, **self._members_payload()})
+
+    def _api_members_rename(self) -> None:
+        from nutrime.members import MemberError, rename_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            rename_member(
+                app.substrate,
+                app.tenant_id,
+                str(payload.get("id") or ""),
+                str(payload.get("name") or ""),
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._members_payload())
+
+    def _api_members_archive(self) -> None:
+        from nutrime.members import MemberError, archive_member
+
+        payload = self._read_json_body()
+        app = self.server.app
+        try:
+            archive_member(
+                app.substrate, app.tenant_id, str(payload.get("id") or "")
+            )
+        except MemberError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(self._members_payload())
 
     # -- API: search -----------------------------------------------------------
 
@@ -525,7 +623,12 @@ class _Handler(BaseHTTPRequestHandler):
                         "title": pick.title,
                         **detail,
                     }
-        history = meal_history(app.substrate, app.tenant_id, limit=8)
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        history = meal_history(
+            app.substrate, app.tenant_id, limit=8, member_id=member_id
+        )
         awaiting_feel = next(
             (e for e in history if e.body_response is None), None
         )
@@ -593,10 +696,14 @@ class _Handler(BaseHTTPRequestHandler):
             return
         record = self.server.vault.read(recipe_id)
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
             meal_event_id = record_meal_event(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 recipe_id=recipe_id,
                 recipe_title=str(record.frontmatter.get("title", "")),
                 plan_id=str(payload.get("plan_id") or "") or None,
@@ -607,6 +714,7 @@ class _Handler(BaseHTTPRequestHandler):
                 record_cooking_experience(
                     app.substrate,
                     app.tenant_id,
+                    member_id=member_id,
                     meal_event_id=meal_event_id,
                     ease_rating=int(ease),
                     enjoyment_rating=int(enjoyment),
@@ -618,6 +726,7 @@ class _Handler(BaseHTTPRequestHandler):
                 record_time_feedback(
                     app.substrate,
                     app.tenant_id,
+                    member_id=member_id,
                     meal_event_id=meal_event_id,
                     estimated_time_min=(
                         int(estimated) if estimated is not None else None
@@ -700,10 +809,14 @@ class _Handler(BaseHTTPRequestHandler):
 
         payload = self._read_json_body()
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
             atom_id = record_body_response(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=str(payload.get("meal_event_id") or ""),
                 freetext_response=str(payload.get("response") or ""),
                 energy_rating=payload.get("energy"),
@@ -734,32 +847,33 @@ class _Handler(BaseHTTPRequestHandler):
     )
     _INTAKE_SEX_OPTIONS = ("female", "male", "intersex", "prefer_not_to_say")
 
-    def _intake_profile_row(self) -> dict[str, Any] | None:
+    def _intake_profile_row(self, member_id: str) -> dict[str, Any] | None:
+        from nutrime.intake.store import load_member_profile
+
         app = self.server.app
-        row = app.substrate.execute(
-            "SELECT year_of_birth, sex_assigned_at_birth, life_stage,"
-            " height_cm, weight_kg, dietary_preferences, allergens"
-            " FROM intake_profile WHERE tenant_id = ?",
-            (app.tenant_id,),
-        ).fetchone()
-        if row is None:
+        profile = load_member_profile(app.substrate, app.tenant_id, member_id)
+        if profile is None:
             return None
         return {
-            "year_of_birth": row[0],
-            "sex_assigned_at_birth": row[1],
-            "life_stage": row[2],
-            "height_cm": row[3],
-            "weight_kg": row[4],
-            "dietary_preferences": json.loads(row[5]),
-            "allergens": json.loads(row[6]),
+            "year_of_birth": profile.year_of_birth,
+            "sex_assigned_at_birth": profile.sex_assigned_at_birth,
+            "life_stage": profile.life_stage,
+            "height_cm": profile.height_cm,
+            "weight_kg": profile.weight_kg,
+            "dietary_preferences": list(profile.dietary_preferences),
+            "allergens": list(profile.allergens),
         }
 
     def _api_intake_status(self) -> None:
-        profile = self._intake_profile_row()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        profile = self._intake_profile_row(member_id)
         self._json(
             {
+                "member_id": member_id,
                 "complete": profile is not None,
-                "skipped": self.server.intake_skipped,
+                "skipped": member_id in self.server.intake_skipped,
                 "profile": profile,
             }
         )
@@ -799,7 +913,7 @@ class _Handler(BaseHTTPRequestHandler):
         from nutrime.intake.baseline import MVP_INSTRUMENTS
         from nutrime.intake.store import (
             IntakeProfile,
-            save_profile,
+            save_member_profile,
             save_screener_responses,
         )
         from nutrime.knowledge.derivation import sync_from_intake
@@ -892,29 +1006,37 @@ class _Handler(BaseHTTPRequestHandler):
             responses_by_instrument[instrument_id] = responses
 
         app = self.server.app
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
         try:
-            require_consent(app.substrate, app.tenant_id, "intake_profile")
+            require_consent(
+                app.substrate, app.tenant_id, "intake_profile",
+                member_id=member_id,
+            )
             if responses_by_instrument:
                 require_consent(
-                    app.substrate, app.tenant_id, "intake_screener"
+                    app.substrate, app.tenant_id, "intake_screener",
+                    member_id=member_id,
                 )
         except ConsentError as err:
             self._json({"error": str(err)}, status=400)
             return
 
-        # save_profile upserts (ON CONFLICT(tenant_id) DO UPDATE), so a
-        # revision from the Profile link overwrites in place; screener
-        # responses append as a new administered_at batch (honest record).
-        save_profile(app.substrate, app.tenant_id, profile)
+        # save_member_profile upserts per (tenant, member), so a revision
+        # from the Profile link overwrites in place; screener responses
+        # append as a new administered_at batch (honest record).
+        save_member_profile(app.substrate, app.tenant_id, member_id, profile)
         for instrument_id, responses in responses_by_instrument.items():
             save_screener_responses(
                 app.substrate,
                 app.tenant_id,
                 instruments[instrument_id],
                 responses,
+                member_id=member_id,
             )
         outcome = sync_from_intake(app.substrate, app.tenant_id)
-        self.server.intake_skipped = False
+        self.server.intake_skipped.discard(member_id)
         self._json(
             {
                 "saved": True,
@@ -925,8 +1047,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _api_intake_skip(self) -> None:
         # Session-scoped choice only — nothing persisted; the welcome card
-        # simply stays away for this server process.
-        self.server.intake_skipped = True
+        # simply stays away for this member for this server process.
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        self.server.intake_skipped.add(member_id)
         self._json({"ok": True})
 
     def _api_grocery(self, query: dict[str, list[str]]) -> None:
@@ -1340,13 +1465,25 @@ PAGE = """<!doctype html>
     header { padding-top: 26px; }
     .ask { padding: 16px; }
   }
+  .whoRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .whoRow label { font-size: 12.5px; color: var(--ink-soft); }
+  #memberPicker {
+    font: inherit; font-size: 14px; padding: 7px 10px; min-height: 36px;
+    border: 1.5px solid var(--line); border-radius: 9px;
+    background: var(--card); color: var(--ink); max-width: 46vw;
+  }
+  #memberPicker:focus { outline: 2px solid var(--leaf); outline-offset: 1px; }
 </style>
 </head>
 <body>
 <header>
   <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
     <div class="wordmark">NutriMe</div>
-    <button class="btn-quiet" id="profileLink" style="font-size:13.5px">Profile</button>
+    <div class="whoRow">
+      <label for="memberPicker">Who's using this?</label>
+      <select id="memberPicker" aria-label="Household member"></select>
+      <button class="btn-quiet" id="profileLink" style="font-size:13.5px">Profile</button>
+    </div>
   </div>
   <h1>What can we make with <em>what we already have?</em></h1>
   <p class="sub">Search the household recipe collection by what's in the kitchen —
@@ -1356,7 +1493,7 @@ PAGE = """<!doctype html>
 <main>
   <section class="ask welcome" id="welcomeCard" style="display:none">
     <label class="lbl">Welcome</label>
-    <p style="margin-bottom:12px">Set up your household profile &mdash; 5 minutes,
+    <p style="margin-bottom:12px"><span id="welcomeWho">Set up your profile</span> &mdash; 5 minutes,
     stays on this device. It teaches the planner what to avoid and what you love.</p>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <button class="btn-go" id="welcomeStart">Set up my profile</button>
@@ -1462,11 +1599,67 @@ function esc(s) {
     c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 
-async function jget(url) { const r = await fetch(url); return r.json(); }
+/* -- household member (#29): one shared device, picker not login -- */
+let MEMBER = null, MEMBERS = [];
+try { MEMBER = localStorage.getItem("nutrime.member"); } catch (e) {}
+function memberHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  if (MEMBER) h["X-NutriMe-Member"] = MEMBER;
+  return h;
+}
+function memberName() {
+  const m = MEMBERS.find(x => x.id === MEMBER);
+  return m ? m.name : "";
+}
+// "Sam's profile" once a household has several people; "Your profile" alone.
+function profileLabel() {
+  return MEMBERS.length > 1 && memberName() ?
+    memberName() + "\\u2019s profile" : "Your profile";
+}
+async function jget(url) { const r = await fetch(url, {headers: memberHeaders()}); return r.json(); }
 async function jpost(url, body) {
-  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
+  const r = await fetch(url, {method:"POST",
+                              headers: memberHeaders({"Content-Type":"application/json"}),
                               body: JSON.stringify(body)});
   return r.json();
+}
+function renderMembers(data) {
+  MEMBERS = data.members;
+  if (!MEMBERS.some(m => m.id === MEMBER)) MEMBER = data.default_member_id;
+  try { localStorage.setItem("nutrime.member", MEMBER); } catch (e) {}
+  const sel = $("memberPicker");
+  sel.innerHTML = MEMBERS.map(m =>
+    '<option value="' + esc(m.id) + '"' + (m.id === MEMBER ? " selected" : "") + ">" +
+    esc(m.name) + "</option>").join("") +
+    '<option value="__add">+ Add person\u2026</option>';
+}
+async function loadMembers() {
+  // Resolve the stored pick before anything member-scoped loads; a stale
+  // id (archived member, fresh install) falls back to the default.
+  const r = await fetch("/api/members");
+  renderMembers(await r.json());
+}
+async function onMemberChange() {
+  const sel = $("memberPicker");
+  if (sel.value === "__add") {
+    const name = (prompt("Name for the new household member?") || "").trim();
+    if (name) {
+      const r = await fetch("/api/members", {method: "POST",
+        headers: {"Content-Type": "application/json"}, body: JSON.stringify({name})});
+      const data = await r.json();
+      if (data.error) { toast(data.error); renderMembers({members: MEMBERS, default_member_id: MEMBER}); return; }
+      MEMBER = data.added;
+      renderMembers(data);
+    } else {
+      sel.value = MEMBER;
+      return;
+    }
+  } else {
+    MEMBER = sel.value;
+    try { localStorage.setItem("nutrime.member", MEMBER); } catch (e) {}
+  }
+  loadTonight();
+  loadIntakeStatus();
 }
 
 /* -- source filter -- */
@@ -1862,7 +2055,7 @@ $("intakeOverlay").addEventListener("click", e => {
 
 function intakeHeader(title) {
   return '<button class="closeX" onclick="closeIntake()" aria-label="Close">\\u00d7</button>' +
-    '<div class="stepTag">Household profile \\u00b7 step ' + INTAKE_STEP + ' of 4</div>' +
+    '<div class="stepTag">' + esc(profileLabel()) + " \\u00b7 step " + INTAKE_STEP + ' of 4</div>' +
     '<h3>' + esc(title) + '</h3>';
 }
 function intakeNav(backLabel, nextLabel, nextFn) {
@@ -2033,9 +2226,12 @@ async function skipIntake() {
 
 async function loadIntakeStatus() {
   const status = await jget("/api/intake/status");
+  $("welcomeWho").textContent = "Set up " +
+    (MEMBERS.length > 1 ? profileLabel() : "your profile");
   $("welcomeCard").style.display =
     (status.complete || status.skipped) ? "none" : "block";
 }
+$("memberPicker").addEventListener("change", onMemberChange);
 $("welcomeStart").onclick = openIntake;
 $("welcomeSkip").onclick = skipIntake;
 $("profileLink").onclick = openIntake;
@@ -2049,8 +2245,7 @@ loadPhases();
 loadSources();
 loadInventory();
 loadPinterestStatus();
-loadTonight();
-loadIntakeStatus();
+loadMembers().then(() => { loadTonight(); loadIntakeStatus(); });
 doSearch();
 </script>
 </body>
