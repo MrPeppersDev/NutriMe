@@ -124,17 +124,21 @@ class TestSearchApi:
         assert set(top["on_hand_matches"]) == {"spinach", "chicken"}
         assert "Source:" in top["attribution"]
 
-    def test_phase_boost_and_note(self, server) -> None:
-        data = _get(server, "/api/search?phase=menstrual")
+    def test_phase_boost_comes_from_member_profile(self, server) -> None:
+        # Opt in + set a phase on the member's profile; search picks it
+        # up with no query parameter (the Recipes page no longer asks).
+        _post(server, "/api/cycle", {"enabled": True, "phase": "menstrual"})
+        data = _get(server, "/api/search")
         assert data["phase"]["label"] == "Menstrual"
         assert "well-supported" in data["phase"]["evidence_note"]
         by_title = {r["title"]: r for r in data["results"]}
         # spinach + beef are menstrual boost terms
         assert by_title["Chicken Spinach Bake"]["prefer_matches"]
         assert by_title["Beef Stew"]["prefer_matches"]
+        _post(server, "/api/cycle", {"enabled": False})
 
-    def test_unknown_phase_harmless(self, server) -> None:
-        data = _get(server, "/api/search?phase=nonsense")
+    def test_untracked_member_gets_no_phase(self, server) -> None:
+        data = _get(server, "/api/search")
         assert data["phase"] is None
         assert len(data["results"]) == 2
 
@@ -216,13 +220,43 @@ class TestImportApi:
         assert "error" in err
 
 
-class TestPhasesApi:
-    def test_phases_listed_with_disclosure(self, server) -> None:
-        data = _get(server, "/api/phases")
+class TestCycleApi:
+    def test_catalog_and_default_state(self, server) -> None:
+        data = _get(server, "/api/cycle")
         keys = [p["key"] for p in data["phases"]]
         assert keys == ["menstrual", "follicular", "ovulatory", "luteal"]
         assert all(p["evidence_note"] for p in data["phases"])
         assert "prototype" in data["disclosure"]
+        assert data["enabled"] is False
+        assert data["phase"] == ""
+
+    def test_opt_in_set_phase_and_disable_clears(self, server) -> None:
+        got = _post(server, "/api/cycle", {"enabled": True, "phase": "luteal"})
+        assert got["enabled"] is True and got["phase"] == "luteal"
+        got = _post(server, "/api/cycle", {"enabled": False})
+        assert got["enabled"] is False and got["phase"] == ""
+
+    def test_unknown_phase_rejected(self, server) -> None:
+        got = _post(server, "/api/cycle", {"enabled": True, "phase": "nonsense"})
+        assert "unknown phase" in got.get("error", "")
+        _post(server, "/api/cycle", {"enabled": False})
+
+    def test_per_member_isolation(self, server) -> None:
+        import json as _json
+        import urllib.request
+
+        added = _post(server, "/api/members", {"name": "Cyc"})
+        other = added["added"]
+        _post(server, "/api/cycle", {"enabled": True, "phase": "follicular"})
+        # the other member sees no phase
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{server.server_address[1]}/api/cycle",
+            headers={"X-NutriMe-Member": other},
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = _json.loads(resp.read())
+        assert data["enabled"] is False and data["phase"] == ""
+        _post(server, "/api/cycle", {"enabled": False})
 
 
 class TestPinterestApi:

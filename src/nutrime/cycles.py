@@ -23,6 +23,7 @@ Iron repletion around menstruation is the solid one; most broader
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 
 
@@ -108,3 +109,81 @@ def phase_prefer_terms(phase_key: str) -> frozenset[str]:
     if profile is None:
         return frozenset()
     return frozenset(profile.prefer_terms)
+
+
+# -- per-member tracking (2026-10-06) -------------------------------------------
+# User direction: cycle tracking belongs on the member's profile, not as
+# a question the Recipes page asks everyone every time. A member opts in
+# once (Profile → "Track my cycle"); their current phase is stored as a
+# member_setting and applied automatically to search and plans whenever
+# that member is the active picker choice. Members who don't opt in
+# never see cycle UI anywhere.
+
+_SETTING_ENABLED = "cycle.enabled"
+_SETTING_PHASE = "cycle.phase"
+
+
+def cycle_settings(
+    conn: sqlite3.Connection, tenant_id: str, member_id: str
+) -> dict:
+    """{'enabled': bool, 'phase': str} for one member ('' = none set)."""
+    rows = dict(
+        conn.execute(
+            "SELECT key, value FROM member_setting"
+            " WHERE tenant_id = ? AND member_id = ? AND key LIKE 'cycle.%'",
+            (tenant_id, member_id),
+        ).fetchall()
+    )
+    phase = rows.get(_SETTING_PHASE, "")
+    if phase not in PHASES_BY_KEY:
+        phase = ""
+    return {
+        "enabled": rows.get(_SETTING_ENABLED) == "on",
+        "phase": phase,
+    }
+
+
+def set_cycle_tracking(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    member_id: str,
+    *,
+    enabled: bool | None = None,
+    phase: str | None = None,
+) -> dict:
+    """Update a member's cycle settings; returns the new state.
+
+    Disabling clears the stored phase — no stale phase lingers for a
+    member who turned tracking off.
+    """
+    def _put(key: str, value: str) -> None:
+        conn.execute(
+            "INSERT INTO member_setting (tenant_id, member_id, key, value)"
+            " VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(tenant_id, member_id, key) DO UPDATE"
+            " SET value = excluded.value",
+            (tenant_id, member_id, key, value),
+        )
+
+    if phase is not None:
+        if phase and phase not in PHASES_BY_KEY:
+            raise ValueError(f"unknown phase {phase!r}")
+        _put(_SETTING_PHASE, phase)
+    if enabled is not None:
+        _put(_SETTING_ENABLED, "on" if enabled else "off")
+        if not enabled:
+            _put(_SETTING_PHASE, "")
+    conn.commit()
+    return cycle_settings(conn, tenant_id, member_id)
+
+
+def member_phase_terms(
+    conn: sqlite3.Connection, tenant_id: str, member_id: str
+) -> tuple[frozenset[str], "PhaseProfile | None"]:
+    """(boost terms, phase profile) for the member's CURRENT phase —
+    empty/None unless they opted in and set one."""
+    settings = cycle_settings(conn, tenant_id, member_id)
+    if not settings["enabled"] or not settings["phase"]:
+        return frozenset(), None
+    profile = PHASES_BY_KEY[settings["phase"]]
+    return frozenset(profile.prefer_terms), profile
