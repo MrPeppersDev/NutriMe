@@ -558,12 +558,20 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         f"plan: {spec.days} day(s) x {len(spec.slots)} slot(s)"
         f" = {spec.crossings} LLM crossing(s)"
     )
+    import random
+
+    seed = args.seed if args.seed is not None else random.randrange(2**31)
+    print(f"(candidate seed {seed} — pass --seed {seed} to reproduce these pools)")
 
     if args.dry_run:
         print("(dry run — nothing crosses)")
         for slot in spec.slots:
             pool = candidates_for_slot(
-                vault, filters, slot, limit=spec.candidates_per_slot
+                vault,
+                filters,
+                slot,
+                limit=spec.candidates_per_slot,
+                rng=random.Random(seed),
             )
             preview = ", ".join(c.title for c in pool[:5]) or "(none)"
             print(f"  {slot}: {len(pool)} candidate(s) — {preview}")
@@ -582,7 +590,7 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
 
     try:
         plan = assemble_plan(
-            vault, client, spec, filters, on_progress=_progress
+            vault, client, spec, filters, on_progress=_progress, seed=seed
         )
     except MissingApiKeyError as exc:
         print(f"config error: {exc}")
@@ -602,6 +610,7 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
         "llm_request_log_ids": list(plan.llm_request_log_ids),
         "constraints_applied": applied,
         "candidate_count": plan.candidate_count,
+        "candidate_seed": seed,
     }
     plan_vault = PlanVault(app.corpus_dir)
     path = plan_vault.write(
@@ -1341,6 +1350,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Show the candidate pools and crossing count without calling out.",
+    )
+    pl_gen.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help=(
+            "Seed for shuffling equally-ranked candidates (default: random;"
+            " recorded in the plan so it can be reproduced)."
+        ),
     )
     pl_gen.add_argument(
         "--provider",

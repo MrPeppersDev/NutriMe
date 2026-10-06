@@ -20,6 +20,7 @@ from later slots' candidate pools rather than asked-for in the prompt.
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass, field, replace
 from typing import Callable, Sequence
@@ -152,11 +153,19 @@ def candidates_for_slot(
     *,
     exclude_ids: frozenset[str] = frozenset(),
     limit: int = DEFAULT_CANDIDATES,
+    rng: random.Random | None = None,
 ) -> list[SearchResult]:
     """Pool for one meal slot: 5.3 search, minus anything already chosen.
 
     ``exclude_ids`` is applied after ranking, so over-fetching keeps the pool
     full once earlier slots have consumed the top results.
+
+    ``rng`` shuffles *within* ranking ties. Search breaks ties by title A-Z,
+    which is right for a browsable list but wrong for a pool: with no
+    inventory / constraints / history every recipe scores 0, and the planner
+    saw the same dozen digit- and quote-led titles out of ~2,200 on every
+    run. Ranking signal still dominates — only equal (match-count, score)
+    rows are reordered.
     """
     profile = SLOT_PROFILES.get(slot, SlotProfile(include_any=frozenset({slot})))
     filters = replace(
@@ -164,8 +173,14 @@ def candidates_for_slot(
         meal_categories_any=profile.include_any,
         exclude_categories=profile.exclude,
     )
-    over_fetch = limit + len(exclude_ids)
-    results = search(vault, filters, limit=over_fetch)
+    if rng is None:
+        over_fetch = limit + len(exclude_ids)
+        results = search(vault, filters, limit=over_fetch)
+    else:
+        results = search(vault, filters, limit=None)
+        rng.shuffle(results)
+        # Stable sort: ties keep their shuffled order.
+        results.sort(key=lambda r: (-len(r.on_hand_matches), -r.score))
     return [r for r in results if r.recipe_id not in exclude_ids][:limit]
 
 
@@ -246,15 +261,20 @@ def assemble_plan(
     *,
     max_tokens: int = 256,
     on_progress: Callable[[SlotOutcome], None] | None = None,
+    seed: int | None = None,
 ) -> AssembledPlan:
     """Fill every day x slot, one audited crossing each.
 
     Fails soft per slot: a provider error or a rejected selection leaves that
     slot unfilled and the run continues. Every failure is already recorded in
     ``op_llm_request_log`` by the client, so nothing is lost by carrying on.
+
+    ``seed`` turns on tie-shuffled candidate pools (see
+    :func:`candidates_for_slot`); the same seed reproduces the same pools.
     """
     plan = AssembledPlan()
     chosen: set[str] = set()
+    rng = random.Random(seed) if seed is not None else None
 
     for day in range(1, spec.days + 1):
         for slot in spec.slots:
@@ -264,6 +284,7 @@ def assemble_plan(
                 slot,
                 exclude_ids=frozenset(chosen),
                 limit=spec.candidates_per_slot,
+                rng=rng,
             )
             plan.candidate_count += len(candidates)
 

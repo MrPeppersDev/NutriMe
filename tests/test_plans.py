@@ -10,6 +10,7 @@ surfaces including attribution-at-render (#23) on the plan display.
 from __future__ import annotations
 
 import json
+import random
 
 import pytest
 
@@ -278,6 +279,49 @@ class TestCandidates:
     def test_exclusion_keeps_pool_full(self, recipes):
         pool = candidates_for_slot(
             recipes, SearchFilters(), "dinner", exclude_ids=frozenset({"rcp-d1"}), limit=3
+        )
+        assert "rcp-d1" not in {c.recipe_id for c in pool}
+        assert len(pool) == 3
+
+    def test_seeded_pool_breaks_ties_off_alphabetical(self, tmp_path):
+        # All-tie corpus (no inventory/constraints/history — a fresh
+        # household): without a seed the pool is the first N titles A-Z.
+        vault = RecipeVault(tmp_path / "corpus")
+        for n in range(30):
+            vault.write(
+                f"rcp-t{n:02d}", _frontmatter(f"rcp-t{n:02d}", f"Dish {n:02d}"),
+                _body("@rice{1}"),
+            )
+        alphabetical = [c.recipe_id for c in candidates_for_slot(
+            vault, SearchFilters(), "dinner", limit=5
+        )]
+        assert alphabetical == [f"rcp-t{n:02d}" for n in range(5)]
+
+        def seeded(seed):
+            return [c.recipe_id for c in candidates_for_slot(
+                vault, SearchFilters(), "dinner", limit=5,
+                rng=random.Random(seed),
+            )]
+
+        assert seeded(7) == seeded(7)  # reproducible
+        pools = {tuple(seeded(s)) for s in range(10)}
+        assert len(pools) > 1
+        assert any(p != tuple(alphabetical) for p in pools)
+
+    def test_seeded_pool_keeps_ranking_signal_first(self, recipes):
+        # Shuffling only reorders ties: an on-hand match still outranks
+        # every zero-match recipe whatever the seed.
+        filters = SearchFilters(on_hand=frozenset({"oats"}))
+        for seed in range(5):
+            pool = candidates_for_slot(
+                recipes, filters, "breakfast", rng=random.Random(seed)
+            )
+            assert {c.recipe_id for c in pool[:2]} == {"rcp-b1", "rcp-b2"}
+
+    def test_seeded_pool_honours_exclusions(self, recipes):
+        pool = candidates_for_slot(
+            recipes, SearchFilters(), "dinner",
+            exclude_ids=frozenset({"rcp-d1"}), limit=3, rng=random.Random(1),
         )
         assert "rcp-d1" not in {c.recipe_id for c in pool}
         assert len(pool) == 3

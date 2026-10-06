@@ -119,7 +119,25 @@ class OllamaProvider:
         url = f"{self._resolved_url()}/api/chat"
         try:
             status, raw = _post(url, body, self.timeout_s)
-        except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        except TimeoutError as exc:
+            # Daemon answered the connect but the model ran past the budget
+            # (model too large for VRAM, or contention) — not "not running".
+            raise ProviderError(
+                "error_timeout",
+                f"Ollama model {model!r} did not answer within"
+                f" {self.timeout_s:.0f}s — the daemon is up but the model is"
+                " too slow here (too large for this GPU, or contended); try a"
+                " smaller model.",
+                request_payload=body,
+            ) from exc
+        except (urllib.error.URLError, OSError) as exc:
+            if isinstance(getattr(exc, "reason", None), TimeoutError):
+                raise ProviderError(
+                    "error_timeout",
+                    f"Ollama at {url} did not respond within"
+                    f" {self.timeout_s:.0f}s ({exc.reason})",
+                    request_payload=body,
+                ) from exc
             # Local daemon down — fail fast with the setup hint, no retry.
             raise ProviderError(
                 "error_timeout",

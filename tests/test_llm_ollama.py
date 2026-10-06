@@ -81,6 +81,28 @@ class TestOllamaProvider:
         assert ollama_mod.INSTALL_COMMAND in err.value.detail
         assert err.value.retry_attempts == 0
 
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            TimeoutError("timed out"),
+            ollama_mod.urllib.error.URLError(TimeoutError("timed out")),
+        ],
+    )
+    def test_slow_model_timeout_is_not_reported_as_daemon_down(
+        self, monkeypatch, exc
+    ) -> None:
+        # Seen live: qwen3:30b-a3b spilling past 16 GB VRAM hit the read
+        # timeout and was misreported as "daemon isn't running".
+        def fake_post(url, body, timeout):
+            raise exc
+
+        monkeypatch.setattr(ollama_mod, "_post", fake_post)
+        with pytest.raises(ProviderError) as err:
+            OllamaProvider().complete(_request())
+        assert err.value.outcome == "error_timeout"
+        assert "isn't running" not in err.value.detail
+        assert "did not" in err.value.detail
+
     def test_http_error_classified_provider(self, monkeypatch) -> None:
         monkeypatch.setattr(
             ollama_mod, "_post", lambda u, b, t: (500, "boom")
