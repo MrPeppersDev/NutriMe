@@ -220,6 +220,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_derived()
             elif route == "/api/doctor":
                 self._api_doctor()
+            elif route == "/api/checkin/status":
+                self._api_checkin_status()
+            elif route == "/api/checkin/questions":
+                self._api_checkin_questions()
             elif route.startswith("/api/recipes/"):
                 self._api_recipe_detail(route.removeprefix("/api/recipes/"))
             else:
@@ -256,6 +260,12 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_plans_swap()
             elif parsed.path == "/api/consent":
                 self._api_consent_set()
+            elif parsed.path == "/api/checkin":
+                self._api_checkin_save()
+            elif parsed.path == "/api/checkin/snooze":
+                self._api_checkin_snooze()
+            elif parsed.path == "/api/checkin/interval":
+                self._api_checkin_interval()
             elif parsed.path == "/api/members/rename":
                 self._api_members_rename()
             elif parsed.path == "/api/members/archive":
@@ -625,6 +635,119 @@ class _Handler(BaseHTTPRequestHandler):
                 {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
             )
         })
+
+    # -- periodic check-ins (intake-pattern.md Mode 2) ----------------------------
+
+    def _api_checkin_status(self) -> None:
+        from dataclasses import asdict
+
+        from nutrime.checkins import INTERVAL_CHOICES, checkin_history, checkin_status
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        app = self.server.app
+        status = checkin_status(app.substrate, app.tenant_id, member_id)
+        self._json({
+            **asdict(status),
+            "interval_choices": list(INTERVAL_CHOICES),
+            "history": checkin_history(app.substrate, app.tenant_id, member_id, limit=6),
+        })
+
+    def _api_checkin_questions(self) -> None:
+        from nutrime.checkins import checkin_questions, cuisine_options
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        app = self.server.app
+        if getattr(self.server, "_cuisine_options", None) is None:
+            self.server._cuisine_options = cuisine_options(self.server.vault)
+        self._json(checkin_questions(
+            app.substrate, app.tenant_id, member_id,
+            cuisine_options=self.server._cuisine_options,
+        ))
+
+    def _api_checkin_save(self) -> None:
+        from dataclasses import asdict
+
+        from nutrime.checkins import complete_checkin
+        from nutrime.consent import ConsentError
+        from nutrime.intake.baseline import MVP_INSTRUMENTS
+        from nutrime.intake.store import IntakeProfile
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        raw = payload.get("profile")
+        if not isinstance(raw, dict):
+            self._json({"error": "profile required"}, status=400)
+            return
+        try:
+            height, weight = raw.get("height_cm"), raw.get("weight_kg")
+            profile = IntakeProfile(
+                year_of_birth=int(raw.get("year_of_birth")),
+                sex_assigned_at_birth=str(raw.get("sex_assigned_at_birth") or ""),
+                life_stage=str(raw.get("life_stage") or ""),
+                height_cm=int(height) if height not in (None, "") else None,
+                weight_kg=float(weight) if weight not in (None, "") else None,
+                dietary_preferences=tuple(
+                    str(v).strip() for v in raw.get("dietary_preferences") or [] if str(v).strip()
+                ),
+                allergens=tuple(
+                    str(v).strip() for v in raw.get("allergens") or [] if str(v).strip()
+                ),
+            )
+            instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
+            screeners = {}
+            for inst_id, answers in (payload.get("screeners") or {}).items():
+                inst = instruments.get(inst_id)
+                if inst is None or not isinstance(answers, list) or len(answers) != len(inst.items):
+                    raise ValueError(f"{inst_id}: answer every question or none")
+                screeners[inst_id] = {
+                    item.item_id: int(v) for item, v in zip(inst.items, answers)
+                }
+            conf = payload.get("cooking_confidence")
+            mins = payload.get("weeknight_minutes")
+            cuisines = payload.get("cuisines")
+            app = self.server.app
+            result = complete_checkin(
+                app.substrate, app.tenant_id, member_id,
+                profile=profile, screeners=screeners,
+                cooking_confidence=int(conf) if conf not in (None, "") else None,
+                weeknight_minutes=int(mins) if mins not in (None, "") else None,
+                cuisines_to_try=[str(c) for c in cuisines] if isinstance(cuisines, list) else None,
+            )
+        except (TypeError, ValueError, ConsentError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json(asdict(result))
+
+    def _api_checkin_snooze(self) -> None:
+        from nutrime.checkins import snooze
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        until = snooze(self.server.app.substrate, self.server.app.tenant_id, member_id)
+        self._json({"snoozed_until": until})
+
+    def _api_checkin_interval(self) -> None:
+        from nutrime.checkins import set_interval
+
+        payload = self._read_json_body()
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        days = payload.get("days")
+        try:
+            set_interval(self.server.app.substrate, self.server.app.tenant_id, member_id,
+                         int(days) if days not in (None, "") else None)
+        except (TypeError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._api_checkin_status()
 
     def _api_doctor(self) -> None:
         """System check for the Profile page (#34) — the same checks as
@@ -1874,6 +1997,16 @@ PAGE = """<!doctype html>
     </div>
   </section>
 
+  <section class="ask welcome" id="checkinCard" hidden>
+    <label class="lbl">Check-in</label>
+    <p style="margin-bottom:12px" id="checkinCardText">Time for your check-in — about 10 minutes.
+    Things change; this keeps NutriMe's picture of you current.</p>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn-go" id="checkinStart">Start check-in</button>
+      <button class="btn-quiet" id="checkinSnooze">not now (ask in a week)</button>
+    </div>
+  </section>
+
   <section class="ask" id="tonightBox" style="margin-bottom:0">
     <label class="lbl">Tonight</label>
     <div id="tonightBody"></div>
@@ -2016,6 +2149,10 @@ PAGE = """<!doctype html>
     <div class="formRow">
       <button class="btn-go" id="profileLink">Edit my answers</button>
     </div>
+  </section>
+  <section class="ask">
+    <label class="lbl">Check-ins</label>
+    <div id="checkinSettings"><div class="hint">Loading…</div></div>
   </section>
   <section class="ask">
     <label class="lbl">What the household avoids and prefers</label>
@@ -2491,6 +2628,8 @@ $("pinSync").onclick = async () => {
 let INTAKE_Q = null;        // questions payload from /api/intake/questions
 let INTAKE_STEP = 1;
 let INTAKE_STATE = null;    // collected form state across steps
+let INTAKE_MODE = "intake"; // "intake" | "checkin" (periodic revision)
+let CHECKIN_Q = null;       // /api/checkin/questions payload
 
 function toast(msg, isError) {
   const t = $("toast");
@@ -2507,10 +2646,12 @@ function blankIntakeState() {
     height_cm: "", weight_kg: "",
     allergens: new Set(), dietary_preferences: [],
     screeners: {},  // instrument_id -> [value per item]
+    cooking_confidence: null, weeknight_minutes: null, cuisines: new Set(),
   };
 }
 
 async function openIntake() {
+  INTAKE_MODE = "intake";
   if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
   INTAKE_STATE = blankIntakeState();
   const status = await jget("/api/intake/status");
@@ -2534,15 +2675,20 @@ $("intakeOverlay").addEventListener("click", e => {
 });
 
 function intakeHeader(title) {
-  return '<button class="closeX" onclick="closeIntake()" aria-label="Close">\\u00d7</button>' +
-    '<div class="stepTag">' + esc(profileLabel()) + " \\u00b7 step " + INTAKE_STEP + ' of 4</div>' +
+  const tag = INTAKE_MODE === "checkin" ?
+    (MEMBERS.length > 1 && memberName() && !isDefaultName() ? memberName() + "’s check-in" : "Check-in") :
+    profileLabel();
+  return '<button class="closeX" onclick="closeIntake()" aria-label="Close">×</button>' +
+    '<div class="stepTag">' + esc(tag) + " · step " + INTAKE_STEP + ' of 4</div>' +
     '<h3>' + esc(title) + '</h3>';
 }
 function intakeNav(backLabel, nextLabel, nextFn) {
   return '<div class="stepNav">' +
     (backLabel ? '<button class="btn-quiet" onclick="intakeBack()">' + esc(backLabel) + '</button>' : '') +
     '<button class="btn-go" id="intakeNext" onclick="' + nextFn + '">' + esc(nextLabel) + '</button>' +
-    '<button class="btn-quiet" onclick="skipIntake()">skip for now</button>' +
+    (INTAKE_MODE === "checkin" ?
+      '<button class="btn-quiet" onclick="snoozeCheckin()">not now</button>' :
+      '<button class="btn-quiet" onclick="skipIntake()">skip for now</button>') +
     '</div><div class="intakeMsg" id="intakeMsg"></div>';
 }
 function intakeBack() { INTAKE_STEP -= 1; renderIntakeStep(); }
@@ -2597,7 +2743,10 @@ function renderIntakeStep() {
       '<p class="hint" style="margin-top:6px">These are screening questions, not a diagnosis ' +
       '\\u2014 they help the planner notice when food support matters most. Optional: leave any blank.</p>';
     for (const inst of INTAKE_Q.instruments) {
-      html += '<h4>' + esc(inst.full_name) + '</h4>';
+      const last = INTAKE_MODE === "checkin" && CHECKIN_Q ? CHECKIN_Q.last_scores[inst.instrument_id] : null;
+      html += '<h4>' + esc(inst.full_name) + '</h4>' +
+        (last ? '<div class="hint">Last time (' + esc(String(last.administered_at).slice(0, 10)) +
+          '): score ' + last.score + (last.positive ? ", worth watching" : "") + '</div>' : "");
       inst.items.forEach((item, idx) => {
         const chosen = (s.screeners[inst.instrument_id] || [])[idx];
         html += '<div class="qRow"><div class="q">' + esc(item.prompt) + '</div><div class="qOpts">' +
@@ -2608,7 +2757,33 @@ function renderIntakeStep() {
           '</div></div>';
       });
     }
-    sheet.innerHTML = html + intakeNav("back", "Next: privacy", "intakeStep3Next()");
+    sheet.innerHTML = html + intakeNav("back",
+      INTAKE_MODE === "checkin" ? "Next: cooking and cuisines" : "Next: privacy", "intakeStep3Next()");
+  } else if (INTAKE_MODE === "checkin") {
+    const q = CHECKIN_Q;
+    const conf = q.cooking_confidence.options.map(o =>
+      '<label><input type="radio" name="ciConf" value="' + o.value + '"' +
+      (s.cooking_confidence === o.value ? " checked" : "") + '> ' + esc(o.label) + '</label>').join("");
+    const mins = '<option value="">not sure</option>' + q.weeknight_minutes.options.map(m =>
+      '<option value="' + m + '"' + (s.weeknight_minutes === m ? " selected" : "") + '>' +
+      (m >= 90 ? "90 minutes or more" : m + " minutes") + '</option>').join("");
+    const cuisines = q.cuisines.options.map(c =>
+      '<button class="pill' + (s.cuisines.has(c) ? " on" : "") + '" data-cuisine="' + esc(c) + '">' +
+      esc(c) + '</button>').join(" ");
+    sheet.innerHTML = intakeHeader("Cooking and cuisines") +
+      '<div class="formRow"><label>How do you feel about cooking these days?</label>' +
+      '<div class="qOpts" style="flex-direction:column;align-items:flex-start">' + conf + '</div></div>' +
+      '<div class="formRow"><label for="ciMins">On a weeknight, how long do you usually have to cook?</label>' +
+      '<select id="ciMins">' + mins + '</select></div>' +
+      '<div class="formRow"><label>Cuisines you’d like to try more of (tap to toggle)</label>' +
+      '<div class="pillRow" id="ciCuisines">' + cuisines + '</div></div>' +
+      '<p class="hint">Everything stays on this computer.</p>' +
+      intakeNav("back", "Save check-in", "saveCheckin()");
+    sheet.querySelectorAll("#ciCuisines .pill").forEach(b => b.onclick = () => {
+      const c = b.dataset.cuisine;
+      s.cuisines.has(c) ? s.cuisines.delete(c) : s.cuisines.add(c);
+      b.classList.toggle("on");
+    });
   } else {
     sheet.innerHTML = intakeHeader("Your answers stay here") +
       '<div class="privacyNote">Everything you entered \\u2014 including the health ' +
@@ -2721,6 +2896,122 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
   $(id).addEventListener("change", () => doSearch()));
 
+/* -- periodic check-ins (intake-pattern.md Mode 2) -- */
+async function openCheckin() {
+  if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
+  CHECKIN_Q = await jget("/api/checkin/questions");
+  if (CHECKIN_Q.error || !CHECKIN_Q.profile) {
+    toast("Fill in your profile first; check-ins revise it.");
+    return openIntake();
+  }
+  INTAKE_MODE = "checkin";
+  const s = INTAKE_STATE = blankIntakeState();
+  const p = CHECKIN_Q.profile;
+  s.year_of_birth = p.year_of_birth;
+  s.sex_assigned_at_birth = p.sex_assigned_at_birth;
+  s.life_stage = p.life_stage;
+  s.height_cm = p.height_cm == null ? "" : p.height_cm;
+  s.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
+  s.allergens = new Set(p.allergens);
+  s.dietary_preferences = p.dietary_preferences.slice();
+  s.cooking_confidence = CHECKIN_Q.cooking_confidence.current;
+  s.weeknight_minutes = CHECKIN_Q.weeknight_minutes.current;
+  s.cuisines = new Set(CHECKIN_Q.cuisines.current);
+  INTAKE_STEP = 1;
+  renderIntakeStep();
+  $("intakeOverlay").classList.add("on");
+}
+async function saveCheckin() {
+  const s = INTAKE_STATE;
+  const conf = document.querySelector('input[name="ciConf"]:checked');
+  s.cooking_confidence = conf ? parseInt(conf.value) : null;
+  s.weeknight_minutes = $("ciMins").value ? parseInt($("ciMins").value) : null;
+  $("intakeNext").disabled = true;
+  const res = await jpost("/api/checkin", {
+    profile: {
+      year_of_birth: parseInt(s.year_of_birth),
+      sex_assigned_at_birth: s.sex_assigned_at_birth,
+      life_stage: s.life_stage,
+      height_cm: s.height_cm === "" ? null : parseInt(s.height_cm),
+      weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
+      allergens: [...s.allergens],
+      dietary_preferences: s.dietary_preferences,
+    },
+    screeners: s.screeners,
+    cooking_confidence: s.cooking_confidence,
+    weeknight_minutes: s.weeknight_minutes,
+    cuisines: [...s.cuisines],
+  }, true);
+  if (res.error) {
+    $("intakeNext").disabled = false;
+    $("intakeMsg").textContent = res.error;
+    return;
+  }
+  const changes = res.changes.length ?
+    "<ul>" + res.changes.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul>" :
+    '<p>Nothing changed. Your profile is still current.</p>';
+  const scr = res.screener_changes.map(c =>
+    "<li>" + esc(c.name) + ": " + (c.previous == null ? "" : c.previous + " → ") + c.now +
+    (c.positive ? " (worth mentioning to a doctor or dietitian)" : "") + "</li>").join("");
+  $("intakeSheet").innerHTML =
+    '<button class="closeX" onclick="closeIntake()" aria-label="Close">×</button>' +
+    "<h3>Check-in saved</h3>" + changes +
+    (scr ? "<h4>Screening questions</h4><ul>" + scr + "</ul>" : "") +
+    (res.constraints_added || res.constraints_retracted ?
+      '<p class="hint">Household avoid/prefer list: ' + res.constraints_added + " added, " +
+      res.constraints_retracted + " removed.</p>" : "") +
+    '<p class="hint">Next check-in around ' + esc(String(res.next_due_at).slice(0, 10)) + ".</p>" +
+    '<div class="stepNav"><button class="btn-go" onclick="closeIntake()">Done</button></div>';
+  $("checkinCard").hidden = true;
+  doSearch();
+  if (currentView() === "profile") loadProfile();
+}
+async function snoozeCheckin() {
+  const res = await jpost("/api/checkin/snooze", {});
+  if (res.error) return;
+  closeIntake();
+  $("checkinCard").hidden = true;
+  toast("OK. NutriMe will ask again in a week.");
+}
+async function loadCheckinCard() {
+  const st = await jget("/api/checkin/status", true);
+  $("checkinCard").hidden = !(st && st.due);
+  if (st && st.due && st.last_at) {
+    $("checkinCardText").textContent = "Time for your check-in, about 10 minutes. It’s been " +
+      Math.max(1, Math.round((Date.now() - Date.parse(st.last_at)) / 86400000)) +
+      " days; things change, and this keeps NutriMe’s picture of you current.";
+  }
+}
+async function loadCheckinSettings() {
+  const st = await jget("/api/checkin/status", true);
+  const box = $("checkinSettings");
+  if (st.error) { box.innerHTML = '<div class="errorBox">' + esc(st.error) + "</div>"; return; }
+  if (!st.has_profile) { box.innerHTML = '<p class="hint">Check-ins start once your profile is filled in.</p>'; return; }
+  const label = d => d % 7 === 0 ? "every " + (d / 7) + " weeks" : "every " + d + " days";
+  const sourceNote = st.interval_source === "life_stage" ?
+    " (more often during pregnancy and breastfeeding, when needs change quickly)" : "";
+  const opts = '<option value="">default</option>' + st.interval_choices.map(d =>
+    '<option value="' + d + '"' + (st.interval_source === "custom" && st.interval_days === d ? " selected" : "") +
+    ">" + label(d) + "</option>").join("");
+  const hist = st.history.length ? "<ul>" + st.history.map(h =>
+    "<li>" + esc(String(h.completed_at).slice(0, 10)) + ": " +
+    esc((h.changes || []).join("; ") || "no changes") + "</li>").join("") + "</ul>" :
+    '<p class="hint">No check-ins yet.</p>';
+  box.innerHTML =
+    '<p class="hint">' + (st.due ? "A check-in is due now." :
+      "Next check-in around " + esc(String(st.due_at).slice(0, 10)) + ".") +
+    " Currently " + label(st.interval_days) + sourceNote + ".</p>" +
+    '<div class="formRow"><label class="opt">How often <select id="ciInterval">' + opts + "</select></label>" +
+    '<button class="btn-go" id="ciNow">Check in now</button></div>' + hist;
+  $("ciInterval").onchange = async () => {
+    const res = await jpost("/api/checkin/interval", {days: $("ciInterval").value || null});
+    if (!res.error) { toast("Saved."); loadCheckinSettings(); }
+  };
+  $("ciNow").onclick = openCheckin;
+}
+$("checkinStart").onclick = openCheckin;
+$("checkinSnooze").onclick = snoozeCheckin;
+
 /* -- app shell (#33): views, adaptive home, plans, grocery, profile -- */
 const VIEWS = ["home", "recipes", "plans", "grocery", "profile"];
 function currentView() {
@@ -2760,6 +3051,7 @@ async function latestPlan() {
 
 // C5 Q5.1: the home surface follows the time of day.
 async function loadHome() {
+  loadCheckinCard();
   const hour = new Date().getHours();
   const who = MEMBERS.length > 1 && memberName() && !isDefaultName() ? ", " + memberName() : "";
   let greet, sub, show;
@@ -2939,6 +3231,7 @@ async function loadProfile() {
   loadConsent();
   renderMemberAdmin();
   loadDoctor();
+  loadCheckinSettings();
 }
 async function loadDoctor() {
   const data = await jget("/api/doctor", true);

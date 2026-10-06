@@ -107,6 +107,25 @@ SOURCE_LABELS: dict[str, str] = {
 OPT_IN_SOURCES = frozenset({"historical"})
 
 
+# Sources tag cuisines by country or by adjective; one name per cuisine.
+CUISINE_ALIASES = {
+    "united states": "american", "usa": "american", "us": "american",
+    "france": "french", "india": "indian", "norway": "norwegian",
+    "netherlands": "dutch", "italy": "italian", "spain": "spanish",
+    "china": "chinese", "japan": "japanese", "mexico": "mexican",
+    "greece": "greek", "thailand": "thai", "vietnam": "vietnamese",
+    "turkey": "turkish", "poland": "polish", "canada": "canadian",
+    "australia": "australian", "jamaica": "jamaican", "algeria": "algerian",
+    "united kingdom": "british", "uk": "british", "england": "british",
+    "morocco": "moroccan", "korea": "korean", "ireland": "irish",
+}
+
+
+def canonical_cuisine(tag: str) -> str:
+    tag = tag.strip().lower()
+    return CUISINE_ALIASES.get(tag, tag)
+
+
 def source_collection(frontmatter: dict[str, Any]) -> str:
     method = (frontmatter.get("attribution") or {}).get("ingestion_method", "")
     return SOURCE_COLLECTIONS.get(method, "other")
@@ -304,6 +323,11 @@ def _score(record: RecipeRecord, filters: SearchFilters) -> _ScoreDetail:
             for term in filters.prefer_terms
             if _terms_match(term, title)
             or any(_terms_match(term, name) for name in names)
+            # cuisine interests from check-ins ("prefers thai")
+            or any(
+                _terms_match(term, canonical_cuisine(str(c)))
+                for c in (fm.get("cuisine_tradition_tags") or [])
+            )
         )
     )
     expiring_matches = tuple(

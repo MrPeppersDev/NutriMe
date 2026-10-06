@@ -149,6 +149,36 @@ def _cmd_intake(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_checkin(args: argparse.Namespace) -> int:
+    from nutrime.checkins import checkin_history, checkin_status, run_checkin_interactive
+    from nutrime.consent import ConsentError
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
+    if args.status:
+        st = checkin_status(app.substrate, app.tenant_id, member_id)
+        if not st.has_profile:
+            print("no profile yet — run `nutrime intake` first")
+            return 0
+        print(("due now" if st.due else f"next due {str(st.due_at)[:10]}")
+              + f" (every {st.interval_days} days, {st.interval_source})")
+        for h in checkin_history(app.substrate, app.tenant_id, member_id, limit=5):
+            print(f"  {h['completed_at'][:10]}  {'; '.join(h.get('changes') or ['no changes'])}")
+        return 0
+    try:
+        result = run_checkin_interactive(
+            app.substrate, app.tenant_id, member_id,
+            prompter=input, emitter=print, vault=RecipeVault(app.corpus_dir),
+        )
+    except (ValueError, ConsentError) as err:
+        print(str(err))
+        return 2
+    return 0 if result is not None else 1
+
+
 def _cmd_members_list(args: argparse.Namespace) -> int:
     from nutrime.intake.store import household_profiles
     from nutrime.members import list_members
@@ -1206,6 +1236,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     intake.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     intake.set_defaults(func=_cmd_intake)
+
+    checkin = subparsers.add_parser(
+        "checkin",
+        help="Periodic 5-15 minute check-in that revises your profile.",
+    )
+    checkin.add_argument("--status", action="store_true", help="Show when the next one is due.")
+    checkin.add_argument("--member", default=None, help="Household member (name or id).")
+    checkin.add_argument("--data-dir")
+    checkin.set_defaults(func=_cmd_checkin)
 
     backup = subparsers.add_parser(
         "backup",

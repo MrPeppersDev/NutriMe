@@ -82,5 +82,12 @@ base branch is merged and deleted.
 - Display: kitchen fractions (1½, ⅓, ¾) and plural units ("cups").
 - Regression gate `tests/test_grocery_corpus.py`: 50 hand-labelled real lines + whole-corpus invariants (every line parses, no descriptor-only foods, ≤10 empty foods all prose, stray numbers <0.5%).
 
+### Periodic check-ins (genesis promise; roadmap vision item 6)
+- `checkins.py` + migration 0007 (`checkin`, `checkin_schedule`, `intake_profile_history`). Per member; due 28 days after the last check-in (or the first profile), 14 during pregnancy/breastfeeding; member-adjustable (2/4/8/13 weeks); "not now" snoozes a week; never due before a first profile.
+- A check-in revises the profile (previous version kept in history), retakes the screeners with the change from last time shown, records cooking confidence + weeknight time, and replaces the cuisines-to-try (which now boost ranking via cuisine tags, with country/adjective aliases).
+- Derivation gained retraction: removed allergies/preferences retract their atoms, and household constraints nobody active supports any more (allergy removed, or the person archived) are retracted — closing the add-only constraint gap from #29.
+- Web: Home card when due, check-in mode of the intake overlay (+ cooking/cuisine step and a "what changed" summary), Profile → Check-ins (next due, cadence, history). CLI: `nutrime checkin [--status] [--member]`.
+- Verified in a headless phone browser end to end (weight change, allergy removal, cuisine pick → summary → avoid-list updated).
+
 ### Environment notes
 - Cloud container: no GPU/Ollama, recipe sites blocked by egress policy — local-model work (#7/#9, #31 scoring) and live crawls need the Windows host.

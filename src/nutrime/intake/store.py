@@ -94,6 +94,14 @@ def save_member_profile(
     """Upsert this member's profile; returns the member id written."""
     member_id = _resolve_member(conn, tenant_id, member_id)
     now = _now_iso()
+    previous = load_member_profile(conn, tenant_id, member_id)
+    if previous is not None and previous != profile:
+        # Append-only record of revisions (check-ins revise the baseline).
+        conn.execute(
+            "INSERT INTO intake_profile_history"
+            " (tenant_id, member_id, replaced_at, profile) VALUES (?, ?, ?, ?)",
+            (tenant_id, member_id, now, json.dumps(profile_to_dict(previous))),
+        )
     conn.execute(
         """
         INSERT INTO intake_profile_v2 (
@@ -128,6 +136,18 @@ def save_member_profile(
     )
     conn.commit()
     return member_id
+
+
+def profile_to_dict(profile: IntakeProfile) -> dict:
+    return {
+        "year_of_birth": profile.year_of_birth,
+        "sex_assigned_at_birth": profile.sex_assigned_at_birth,
+        "life_stage": profile.life_stage,
+        "height_cm": profile.height_cm,
+        "weight_kg": profile.weight_kg,
+        "dietary_preferences": list(profile.dietary_preferences),
+        "allergens": list(profile.allergens),
+    }
 
 
 def save_profile(

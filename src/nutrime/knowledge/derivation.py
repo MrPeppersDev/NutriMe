@@ -16,8 +16,15 @@ currently-valid allergy + preference atoms — the union of avoids/prefers
 (Tension #5 constraint-only sharing; no member's raw data is exposed).
 
 Idempotent: existing currently-valid rows with matching identity keys are
-skipped on re-run. Retraction / supersession semantics stay unused here; the
-initial derivation is add-only over stable user-declared inputs.
+skipped on re-run.
+
+Retraction (2026-10-06, periodic check-ins): a member's allergy or
+preference atom that is no longer in their current profile is retracted
+(``retracted_user_correction``), and a household constraint no active
+member supports any more — the allergy was removed, or the only person
+with it was archived — is retracted (``retracted_source_revision``). The
+rows stay in the table with ``valid_until`` set: the honest history of
+what the household once avoided is kept; only the live list changes.
 """
 
 from __future__ import annotations
@@ -37,10 +44,12 @@ from nutrime.intake.instruments import (
 from nutrime.knowledge.store import (
     KnowledgeRecord,
     Provenance,
+    RetractionReason,
     insert_atom,
     insert_synthesized_entry,
     list_atoms,
     list_synthesized_entries,
+    retract_entry,
 )
 from nutrime.phi import PhiCategory
 
@@ -59,6 +68,8 @@ class DerivationOutcome:
 
     atoms_added: dict[str, int] = field(default_factory=dict)
     constraints_added: int = 0
+    atoms_retracted: int = 0
+    constraints_retracted: int = 0
 
     def bump_atom(self, atom_type: str) -> None:
         self.atoms_added[atom_type] = self.atoms_added.get(atom_type, 0) + 1
@@ -130,6 +141,14 @@ def _sync_allergens(
     outcome: DerivationOutcome,
 ) -> None:
     existing = _member_atoms(conn, tenant_id, member_id, "clinical_disclosure")
+    wanted = {a.strip().lower() for a in allergens}
+    for atom in existing:
+        if atom.payload.get("disclosure_type") != "allergy":
+            continue
+        if str(atom.payload.get("disclosure_text", "")).strip().lower() not in wanted:
+            if retract_entry(conn, tenant_id, atom.id, RetractionReason.USER_CORRECTION):
+                outcome.atoms_retracted += 1
+    existing = _member_atoms(conn, tenant_id, member_id, "clinical_disclosure")
     for allergen in allergens:
         if _payload_matches(
             existing, disclosure_type="allergy", disclosure_text=allergen
@@ -160,6 +179,14 @@ def _sync_preferences(
     preferences: list[str],
     outcome: DerivationOutcome,
 ) -> None:
+    existing = _member_atoms(conn, tenant_id, member_id, "preference_statement")
+    wanted = {p.strip().lower() for p in preferences}
+    for atom in existing:
+        if atom.payload.get("preference_type") != "dietary_pattern_preference":
+            continue
+        if str(atom.payload.get("subject_text", "")).strip().lower() not in wanted:
+            if retract_entry(conn, tenant_id, atom.id, RetractionReason.USER_CORRECTION):
+                outcome.atoms_retracted += 1
     existing = _member_atoms(conn, tenant_id, member_id, "preference_statement")
     for preference in preferences:
         if _payload_matches(
@@ -237,23 +264,60 @@ def _sync_screener_results(
         outcome.bump_atom("screener_result")
 
 
+def _active_subjects(conn: sqlite3.Connection, tenant_id: str) -> set[str]:
+    from nutrime.members import list_members, subject_ids_for
+
+    out: set[str] = set()
+    for member in list_members(conn, tenant_id):
+        out.update(subject_ids_for(conn, tenant_id, member.id))
+    return out
+
+
 def _sync_abstracted_constraints(
     conn: sqlite3.Connection,
     tenant_id: str,
     outcome: DerivationOutcome,
 ) -> None:
-    """Emit synthesized_entry abstracted_constraint rows from user-declared atoms.
+    """Household abstracted_constraint rows = the union over ACTIVE members'
+    currently-valid allergy + preference atoms. Adds what's missing and
+    retracts what nothing supports any more.
 
     Life-stage / DRI-derived constraints are deferred out of the initial slice.
     """
+    active = _active_subjects(conn, tenant_id)
+    supporting: dict[str, KnowledgeRecord] = {}
+    for atom in list_atoms(conn, tenant_id, atom_type="clinical_disclosure"):
+        if atom.subject_id in active and atom.payload.get("disclosure_type") == "allergy":
+            supporting.setdefault(f"avoids {atom.payload.get('disclosure_text', '')}", atom)
+    for atom in list_atoms(conn, tenant_id, atom_type="preference_statement"):
+        if atom.subject_id in active and atom.payload.get(
+            "preference_type"
+        ) == "dietary_pattern_preference":
+            supporting.setdefault(f"prefers {atom.payload.get('subject_text', '')}", atom)
+
+    # Cuisine interests chosen at a check-in nudge ranking the same way.
+    for atom in list_atoms(conn, tenant_id, atom_type="cuisine_interest"):
+        if atom.subject_id in active:
+            supporting.setdefault(f"prefers {atom.payload.get('cuisine', '')}", atom)
+
     existing = list_synthesized_entries(
         conn, tenant_id, entry_type="abstracted_constraint"
     )
+    present: set[str] = set()
+    for entry in existing:
+        text = str(entry.payload.get("abstracted_text", ""))
+        if text not in supporting:
+            if retract_entry(
+                conn, tenant_id, entry.id, RetractionReason.SOURCE_REVISION,
+                table="synthesized_entry",
+            ):
+                outcome.constraints_retracted += 1
+        else:
+            present.add(text)
 
-    def constraint_exists(text: str) -> bool:
-        return any(r.payload.get("abstracted_text") == text for r in existing)
-
-    def emit(abstracted_text: str, source_atom: KnowledgeRecord) -> None:
+    for text, source_atom in supporting.items():
+        if text in present:
+            continue
         insert_synthesized_entry(
             conn,
             tenant_id,
@@ -262,7 +326,7 @@ def _sync_abstracted_constraints(
             payload={
                 "household_id": tenant_id,
                 "source_member_id": source_atom.subject_id,
-                "abstracted_text": abstracted_text,
+                "abstracted_text": text,
                 "sharing_level": "constraint_only_automatic",
                 "derived_from_atom_ids": [source_atom.id],
             },
@@ -270,20 +334,6 @@ def _sync_abstracted_constraints(
             phi_categories=(),
         )
         outcome.constraints_added += 1
-
-    for atom in list_atoms(conn, tenant_id, atom_type="clinical_disclosure"):
-        if atom.payload.get("disclosure_type") != "allergy":
-            continue
-        allergen = atom.payload.get("disclosure_text", "")
-        text = f"avoids {allergen}"
-        if not constraint_exists(text):
-            emit(text, atom)
-
-    for atom in list_atoms(conn, tenant_id, atom_type="preference_statement"):
-        preference = atom.payload.get("subject_text", "")
-        text = f"prefers {preference}"
-        if not constraint_exists(text):
-            emit(text, atom)
 
 
 def sync_from_intake(
