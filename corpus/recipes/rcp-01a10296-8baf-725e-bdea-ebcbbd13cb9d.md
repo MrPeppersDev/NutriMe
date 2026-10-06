@@ -38,6 +38,7 @@ ingredient_resolution_summary:
   unresolved: 19
 ingredient_resolution_status: 'unresolved_pending_review'
 vetting_status: 'vetted'
+vetting_version: 2
 ---
 
 >> title: Lemon, Lavender and Earl Grey Mini Cakes and Petit Fours

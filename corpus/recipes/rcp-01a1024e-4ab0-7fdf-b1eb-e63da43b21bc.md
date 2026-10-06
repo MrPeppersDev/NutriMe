@@ -39,6 +39,7 @@ ingredient_resolution_summary:
   unresolved: 26
 ingredient_resolution_status: 'unresolved_pending_review'
 vetting_status: 'vetted'
+vetting_version: 2
 ---
 
 >> title: Mocha Cake with Fudge Filling & Espresso Frosting

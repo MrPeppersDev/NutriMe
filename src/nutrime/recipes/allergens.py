@@ -39,11 +39,17 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "shellfish": (
         "shrimp", "prawn", "crab", "lobster", "oyster",
         "clam", "mussel", "scallop", "crayfish",
+        # Molluscan + further crustacean shellfish (2026-10-07 audit: four
+        # live squid recipes carried no shellfish tag — the tag is the only
+        # allergen defense, so a gap here defeats the avoid-list outright).
+        "squid", "calamari", "octopus", "cuttlefish",
+        "cockle", "whelk", "periwinkle", "snail", "abalone",
+        "crawfish", "langoustine", "krill",
     ),
     "sesame": ("sesame", "tahini"),
 }
 
-_EXCLUSIONS: set[str] = {"eggplant", "coconut"}
+_EXCLUSIONS: set[str] = {"eggplant", "coconut", "water chestnut"}
 
 # Canonical top-9 allergen names — the vocabulary used by
 # ``top_allergens_present`` frontmatter and by search's constraint mapping
