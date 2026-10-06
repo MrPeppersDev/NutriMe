@@ -31,6 +31,7 @@ from nutrime.llm.base import (
     LlmResponse,
     ProviderError,
 )
+from nutrime.llm.ollama import DEFAULT_MODEL, INSTALL_COMMAND
 from nutrime.rules import EgressRequest, RuleEngine
 
 # Local-mandatory (product-direction reset 2026-10-06): NO PHI category
@@ -132,9 +133,9 @@ class LlmClient:
                         f"query type {request.query_type!r} carries"
                         f" sensitive PHI ({sorted(sensitive)}) which"
                         " requires a local-private model, and none is"
-                        " registered. Install the local tier (brew install"
-                        " ollama; ollama pull qwen3:8b; ollama serve) —"
-                        " this data never falls back to cloud."
+                        " registered. Install the local tier"
+                        f" ({INSTALL_COMMAND}; ollama pull {DEFAULT_MODEL};"
+                        " ollama serve) — this data never falls back to cloud."
                     ) from None
                 provider = self.select_provider(required)
         else:

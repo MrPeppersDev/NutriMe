@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -42,9 +43,15 @@ DEFAULT_MODEL = "qwen3:8b"
 URL_ENV = "NUTRIME_OLLAMA_URL"
 MODEL_ENV = "NUTRIME_OLLAMA_MODEL"
 
+INSTALL_COMMAND = (
+    "winget install Ollama.Ollama"
+    if sys.platform == "win32"
+    else "brew install ollama"
+)
+
 INSTALL_HINT = (
     "Ollama isn't reachable — the local model daemon isn't running."
-    " One-time setup: `brew install ollama && ollama pull qwen3:8b`,"
+    f" One-time setup: `{INSTALL_COMMAND}` then `ollama pull {DEFAULT_MODEL}`,"
     " then `ollama serve` (or launch the Ollama app)."
 )
 
@@ -72,6 +79,12 @@ class OllamaProvider:
     base_url: str = ""
     model: str = ""
     timeout_s: float = 120.0
+    # Thinking-capable models (qwen3) reason in a separate `thinking` field
+    # that still spends `num_predict`: at the planner's 256-token budget they
+    # were cut off mid-thought with empty `content` on every crossing. Our
+    # calls are bounded selection/extraction tasks, so thinking stays off
+    # unless a caller constructs the provider with think=True.
+    think: bool = False
     capabilities: frozenset[str] = field(
         default_factory=lambda: frozenset(
             {CAP_LOCAL_PRIVATE, CAP_REASONING, CAP_STRUCTURED_OUTPUT}
@@ -99,6 +112,7 @@ class OllamaProvider:
                 "model": model,
                 "messages": messages,
                 "stream": False,
+                "think": self.think,
                 "options": {"num_predict": request.max_tokens},
             }
         )

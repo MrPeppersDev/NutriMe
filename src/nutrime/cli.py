@@ -487,7 +487,12 @@ def _build_llm_client(app, provider_choice: str, model: str | None):
     local-mandatory routing in LlmClient still refuses PHI→cloud).
     """
     from nutrime.llm.client import LlmClient
-    from nutrime.llm.ollama import OllamaProvider, is_available
+    from nutrime.llm.ollama import (
+        DEFAULT_MODEL,
+        INSTALL_COMMAND,
+        OllamaProvider,
+        is_available,
+    )
 
     if provider_choice == "cloud":
         from nutrime.llm.anthropic import AnthropicProvider
@@ -502,7 +507,8 @@ def _build_llm_client(app, provider_choice: str, model: str | None):
         if not is_available():
             print(
                 "The local model isn't running. One-time setup:\n"
-                "  brew install ollama && ollama pull qwen3:8b\n"
+                f"  {INSTALL_COMMAND}\n"
+                f"  ollama pull {DEFAULT_MODEL}\n"
                 "then start it with: ollama serve"
             )
             return None

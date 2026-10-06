@@ -326,6 +326,14 @@ class TestEnvelopes:
 
 
 class TestCli:
+    @pytest.fixture(autouse=True)
+    def _no_local_daemon(self, monkeypatch):
+        # These exercise the cloud adapter; a running Ollama daemon on the
+        # test machine would otherwise be stacked first and take the call.
+        import nutrime.llm.ollama as ollama_mod
+
+        monkeypatch.setattr(ollama_mod, "is_available", lambda *a, **k: False)
+
     def test_llm_ping_success(self, tmp_path, capsys, monkeypatch):
         from nutrime.cli import main
 

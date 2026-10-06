@@ -59,6 +59,9 @@ class TestOllamaProvider:
         result = provider.complete(_request())
         assert captured["url"].endswith("/api/chat")
         assert captured["body"]["stream"] is False
+        # Thinking off by default — qwen3 otherwise exhausts num_predict in
+        # the `thinking` field and returns empty content.
+        assert captured["body"]["think"] is False
         assert captured["body"]["messages"][0] == {
             "role": "system", "content": "be brief",
         }
@@ -75,7 +78,7 @@ class TestOllamaProvider:
         with pytest.raises(ProviderError) as err:
             OllamaProvider().complete(_request())
         assert err.value.outcome == "error_timeout"
-        assert "brew install ollama" in err.value.detail
+        assert ollama_mod.INSTALL_COMMAND in err.value.detail
         assert err.value.retry_attempts == 0
 
     def test_http_error_classified_provider(self, monkeypatch) -> None:
