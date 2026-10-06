@@ -23,6 +23,9 @@ CAP_REASONING = "reasoning"
 CAP_STRUCTURED_OUTPUT = "structured-output"
 CAP_LONG_CONTEXT = "long-context"
 CAP_CLOUD_PERMITTED = "cloud-permitted"
+# A3/A1-v2 two-tier posture: providers carrying this run on-device and
+# never egress. The client REQUIRES it for any PHI-tagged request.
+CAP_LOCAL_PRIVATE = "local-private"
 
 
 @dataclass(frozen=True)

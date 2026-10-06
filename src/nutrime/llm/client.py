@@ -25,12 +25,21 @@ from typing import Iterable
 from nutrime.audit import AuditLog, _now_iso
 from nutrime.knowledge.ids import uuid7
 from nutrime.llm.base import (
+    CAP_LOCAL_PRIVATE,
     LlmProvider,
     LlmRequest,
     LlmResponse,
     ProviderError,
 )
 from nutrime.rules import EgressRequest, RuleEngine
+
+# The PHI categories the 5.2 envelope declarations legalized for
+# single-slice cloud crossings (meal_plan_generation = {allergens,
+# demographics}). The clinical categories (conditions, medications,
+# labs, wearables, intake_screener) are local-tier-only. Shrinking this
+# set to empty is the switch that makes the whole system local-mandatory
+# once the local tier is standard hardware.
+CLOUD_TOLERATED_PHI = frozenset({"demographics", "allergens"})
 
 
 class LlmUnavailableError(RuntimeError):
@@ -81,7 +90,56 @@ class LlmClient:
                 f" ({sorted(request.phi_categories)}); decompose into"
                 " single-slice calls + local aggregation per S4-Q2"
             )
-        provider = self.select_provider(request.required_capabilities)
+        # A3/A1-v2 two-tier routing. Policy:
+        # - any PHI-tagged request PREFERS a local-private provider when
+        #   one is registered (all PHI stays home once the local tier is
+        #   installed);
+        # - categories outside CLOUD_TOLERATED_PHI hard-REQUIRE local —
+        #   no local provider means fail-closed with setup guidance,
+        #   never a cloud fallback;
+        # - demographics is the one category the 5.4 S4-Q2 decomposition
+        #   explicitly legalized for a cloud crossing (single-slice,
+        #   envelope-declared), so it alone may still cross to cloud on
+        #   hosts without the local tier. PHI-free requests keep the
+        #   existing cloud-primary selection untouched.
+        required = request.required_capabilities
+        if request.phi_categories:
+            sensitive = {
+                str(c) for c in request.phi_categories
+            } - CLOUD_TOLERATED_PHI
+            try:
+                provider = self.select_provider(
+                    required | {CAP_LOCAL_PRIVATE}
+                )
+            except LlmUnavailableError:
+                if sensitive:
+                    # The envelope verdict outranks routing: an illegal
+                    # category must surface as PreEgressViolation (the
+                    # 5.1/5.2 contract), not as a missing-provider error.
+                    self._rule_engine.evaluate_pre_egress(
+                        EgressRequest(
+                            destination="local:unavailable",
+                            query_type=request.query_type,
+                            payload="\n".join(
+                                part
+                                for part in [request.system or ""]
+                                + [m.content for m in request.messages]
+                                if part
+                            ),
+                            phi_categories=request.phi_categories,
+                        )
+                    )
+                    raise LlmUnavailableError(
+                        f"query type {request.query_type!r} carries"
+                        f" sensitive PHI ({sorted(sensitive)}) which"
+                        " requires a local-private model, and none is"
+                        " registered. Install the local tier (brew install"
+                        " ollama; ollama pull qwen3:8b; ollama serve) —"
+                        " this data never falls back to cloud."
+                    ) from None
+                provider = self.select_provider(required)
+        else:
+            provider = self.select_provider(required)
         request_id = new_request_id()
 
         # The egress payload the rule engine scans is the user-influenced
@@ -92,7 +150,11 @@ class LlmClient:
         ]
         self._rule_engine.evaluate_pre_egress(
             EgressRequest(
-                destination=f"cloud:{provider.name}",
+                destination=(
+                    f"local:{provider.name}"
+                    if CAP_LOCAL_PRIVATE in provider.capabilities
+                    else f"cloud:{provider.name}"
+                ),
                 query_type=request.query_type,
                 payload="\n".join(part for part in egress_payload_parts if part),
                 phi_categories=request.phi_categories,
