@@ -45,6 +45,16 @@ User direction, superseding several standing decisions:
 
 Issues: #29 (per-member), #30 (constitutional+attribution), #31 (vetting engine v2), #32 (crawler service), #33 (UI overhaul), #34 (tier-3 packaging).
 
+### Primary host change (2026-10-05) — Windows workstation
+
+The primary run host moves from the MBP M4 Pro 24 GB to a **Windows 11 Lenovo Legion** (Core Ultra 9 275HX, 32 GB DDR5, **RTX 5080 Laptop 16 GB VRAM**, 1 TB SSD). The Mac stays a supported dev/run platform. Consequences:
+
+- **Model fit is now VRAM-bound, not unified-memory-bound.** ~14B dense models at Q4/Q5 fit fully on GPU; MoE models like Qwen3-30B-A3B (~18 GB at Q4, ~3B active) run with partial CPU offload at usable speed; dense Qwen3-32B (~20 GB at Q4) does not fit and degrades badly under offload. #7 (L2) becomes "verify Ollama CUDA path + pick the model", not MLX; #9 (L4) calibrates against this card. The ≥64 GB production-tier sizing in A1-v2 / #19 assumed unified memory and needs re-reading in VRAM terms.
+- **Secrets:** `nutrime.credstore` replaces the macOS-only Keychain calls — Keychain on macOS (unchanged entries), Windows Credential Manager via advapi32 on Windows. Stdlib only.
+- **#34 packaging:** `launchd` is macOS-only; Windows needs Task Scheduler or a service wrapper. Both paths belong in the tier-3 install story.
+- **Host caveats:** a gaming laptop as home server must not sleep while serving, and games contend for VRAM/RAM with the local model.
+- **Corpus snapshot visibility:** the in-repo corpus (`34dbec1`) includes 725 personal-use web captures ("all rights reserved by source") — repo set **private** 2026-10-05 so the snapshot is not redistribution. Making the repo public again requires moving those out of history first.
+
 ## Vision-audit gaps (2026-10-04) — promised in the genesis dialogue, not yet built
 
 Audit of the April-2026 genesis conversation + product-framing.md against the shipped code. These are not parked decisions — they're load-bearing pieces of the original promise that fell through the cracks between planning docs and build steps. Ordered by how directly they betray the vision if absent:

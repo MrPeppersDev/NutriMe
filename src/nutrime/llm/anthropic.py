@@ -19,12 +19,11 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
 
+from nutrime import credstore
 from nutrime.llm.base import (
     CAP_CLOUD_PERMITTED,
     CAP_LONG_CONTEXT,
@@ -44,27 +43,15 @@ KEYCHAIN_SERVICE = "nutrime-anthropic"
 
 
 def keychain_api_key(service: str = KEYCHAIN_SERVICE) -> str | None:
-    """macOS Keychain lookup — the no-plaintext-on-disk storage path.
+    """OS credential-store lookup — the no-plaintext-on-disk storage path.
 
-    Store once with:
+    Store once with (macOS):
         security add-generic-password -U -s nutrime-anthropic -a "$USER" -w
-    Returns None off-macOS or when no entry exists.
+    or (Windows):
+        cmdkey /generic:nutrime-anthropic /user:%USERNAME% /pass
+    Returns None when unsupported or no entry exists.
     """
-    if sys.platform != "darwin":
-        return None
-    try:
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-w"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0:
-        return None
-    key = result.stdout.strip()
-    return key or None
+    return credstore.read_secret(service)
 
 _RETRYABLE_OUTCOMES = frozenset({"error_rate_limit", "error_provider", "error_timeout"})
 
@@ -109,9 +96,8 @@ class AnthropicProvider:
         if not key:
             raise MissingApiKeyError(
                 f"no Anthropic API key: pass api_key=, set ${API_KEY_ENV},"
-                f" or store one in the macOS Keychain (service"
-                f" {KEYCHAIN_SERVICE!r}: security add-generic-password -U"
-                f' -s {KEYCHAIN_SERVICE} -a "$USER" -w)'
+                f" or store one in the {credstore.backend_name()} (service"
+                f" {KEYCHAIN_SERVICE!r}: {credstore.store_hint(KEYCHAIN_SERVICE)})"
             )
         return key
 

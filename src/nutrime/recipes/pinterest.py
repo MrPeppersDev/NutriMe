@@ -14,9 +14,11 @@ therefore cheap and idempotent — already-ingested pins are skipped at the
 URL level, so "sync" means "catch up on whatever was pinned since".
 
 Token resolution mirrors the Anthropic adapter's no-plaintext-on-disk
-pattern: explicit param → ``$PINTEREST_ACCESS_TOKEN`` → macOS Keychain
+pattern: explicit param → ``$PINTEREST_ACCESS_TOKEN`` → OS credential store
+(:mod:`nutrime.credstore` — macOS Keychain / Windows Credential Manager)
 service ``nutrime-pinterest``. Getting a token requires a (free) Pinterest
-developer app with ``pins:read`` + ``boards:read`` scopes; store it once:
+developer app with ``pins:read`` + ``boards:read`` scopes; ``nutrime
+pinterest connect`` stores it, or by hand on macOS:
 
     security add-generic-password -U -s nutrime-pinterest -a "$USER" -w
 
@@ -31,14 +33,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator
 
+from nutrime import credstore
 from nutrime.recipes.jsonld import SeedOutcome as JsonLdOutcome
 from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
 from nutrime.recipes.web import Pacer, TextFetcher
@@ -66,34 +67,19 @@ class PinterestAuthError(Exception):
 
 
 def keychain_token(service: str = KEYCHAIN_SERVICE) -> str | None:
-    """macOS Keychain lookup; None off-macOS or when no entry exists."""
-    if sys.platform != "darwin":
-        return None
-    try:
-        result = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-w"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if result.returncode != 0:
-        return None
-    token = result.stdout.strip()
-    return token or None
+    """OS credential-store lookup; None when unsupported or no entry exists."""
+    return credstore.read_secret(service)
 
 
 def resolve_token(explicit: str | None = None) -> str:
     token = explicit or os.environ.get(TOKEN_ENV) or keychain_token()
     if not token:
         raise MissingTokenError(
-            f"no Pinterest access token: set ${TOKEN_ENV} or store one in"
-            f" the macOS Keychain (service {KEYCHAIN_SERVICE!r}:"
-            f' security add-generic-password -U -s {KEYCHAIN_SERVICE}'
-            f' -a "$USER" -w). Tokens come from a free Pinterest developer'
-            " app with pins:read + boards:read scopes"
-            " (developers.pinterest.com)."
+            f"no Pinterest access token: run `nutrime pinterest connect`,"
+            f" set ${TOKEN_ENV}, or store one in the {credstore.backend_name()}"
+            f" (service {KEYCHAIN_SERVICE!r}: {credstore.store_hint(KEYCHAIN_SERVICE)})."
+            " Tokens come from a free Pinterest developer app with"
+            " pins:read + boards:read scopes (developers.pinterest.com)."
         )
     return token
 
@@ -112,58 +98,24 @@ def has_token() -> bool:
 # `nutrime pinterest connect` runs the full authorization-code dance locally:
 # spin up a one-shot localhost HTTP listener as the redirect_uri, open the
 # Pinterest consent page in the default browser, catch the ?code= redirect,
-# exchange it at /v5/oauth/token, and store both tokens in the Keychain.
+# exchange it at /v5/oauth/token, and store both tokens in the OS credential
+# store (Keychain on macOS, Credential Manager on Windows).
 # The app's client id/secret are stored too (service nutrime-pinterest-app,
 # account = client id) so `pinterest refresh` can renew the 30-day access
 # token from the continuous refresh token without re-consent.
 
 
 def _keychain_store(service: str, account: str, secret: str) -> None:
-    if sys.platform != "darwin":
-        raise OSError("Keychain storage requires macOS")
-    result = subprocess.run(
-        [
-            "security", "add-generic-password", "-U",
-            "-s", service, "-a", account, "-w", secret,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if result.returncode != 0:
-        raise OSError(f"Keychain write failed: {result.stderr.strip()}")
+    credstore.write(service, account, secret)
 
 
 def _keychain_read(service: str) -> tuple[str, str] | None:
     """Return (account, secret) for a service, or None."""
-    if sys.platform != "darwin":
-        return None
-    try:
-        shown = subprocess.run(
-            ["security", "find-generic-password", "-s", service],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        secret = subprocess.run(
-            ["security", "find-generic-password", "-s", service, "-w"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if shown.returncode != 0 or secret.returncode != 0:
-        return None
-    account = ""
-    for line in shown.stdout.splitlines():
-        line = line.strip()
-        if line.startswith('"acct"'):
-            account = line.split("=", 1)[1].strip().strip('"')
-            # security(1) prints acct as <blob>="value"
-            if account.startswith("<blob>="):
-                account = account[len("<blob>=") :].strip('"')
-    return (account, secret.stdout.strip())
+    return credstore.read(service)
+
+
+def _os_user() -> str:
+    return os.environ.get("USER") or os.environ.get("USERNAME") or "nutrime"
 
 
 def store_tokens(
@@ -173,13 +125,9 @@ def store_tokens(
     client_id: str | None = None,
     client_secret: str | None = None,
 ) -> None:
-    _keychain_store(KEYCHAIN_SERVICE, os.environ.get("USER", "nutrime"), access_token)
+    _keychain_store(KEYCHAIN_SERVICE, _os_user(), access_token)
     if refresh_token:
-        _keychain_store(
-            KEYCHAIN_REFRESH_SERVICE,
-            os.environ.get("USER", "nutrime"),
-            refresh_token,
-        )
+        _keychain_store(KEYCHAIN_REFRESH_SERVICE, _os_user(), refresh_token)
     if client_id and client_secret:
         _keychain_store(KEYCHAIN_APP_SERVICE, client_id, client_secret)
 

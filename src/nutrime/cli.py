@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from nutrime import __version__
+from nutrime import __version__, credstore
 from nutrime.app import initialize
 from nutrime.intake.baseline import run_baseline_intake
 from nutrime.inventory.capture import capture_items
@@ -934,7 +934,7 @@ def _cmd_pinterest_refresh(args: argparse.Namespace) -> int:
     except (MissingTokenError, PinterestAuthError) as err:
         print(str(err))
         return 1
-    print("Access token refreshed and stored in the Keychain.")
+    print(f"Access token refreshed and stored in the {credstore.backend_name()}.")
     return 0
 
 
@@ -1481,7 +1481,7 @@ def build_parser() -> argparse.ArgumentParser:
     pin_connect = pinterest_sub.add_parser(
         "connect",
         help="One-time OAuth: opens the browser, stores tokens in the"
-        " Keychain.",
+        " OS credential store.",
     )
     pin_connect.add_argument(
         "--client-id", default=None, help="Pinterest app ID (prompted if omitted)."
