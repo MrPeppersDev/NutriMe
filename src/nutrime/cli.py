@@ -18,6 +18,7 @@ adds only the subparser it needs. Current surface:
 - ``nutrime plans list``         — show plans in the local vault (5.4)
 - ``nutrime plans show``         — render a plan with per-recipe attribution (5.4)
 - ``nutrime serve``              — localhost web UI prototype (product pull 2026-10-03)
+- ``nutrime members``            — household members: list / add / rename / archive (#29)
 """
 
 from __future__ import annotations
@@ -55,15 +56,101 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _member_or_none(app, args: argparse.Namespace) -> str | None:
+    """Resolve --member (name or id; default member when omitted).
+    Prints the reason and returns None on an unknown member."""
+    from nutrime.members import MemberError, resolve_member
+
+    try:
+        return resolve_member(
+            app.substrate, app.tenant_id, getattr(args, "member", None)
+        )
+    except MemberError as err:
+        print(str(err))
+        return None
+
+
 def _cmd_intake(args: argparse.Namespace) -> int:
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     run_baseline_intake(
         app.substrate,
         app.tenant_id,
         prompter=input,
         emitter=print,
+        member_id=member_id,
     )
+    return 0
+
+
+def _cmd_members_list(args: argparse.Namespace) -> int:
+    from nutrime.intake.store import household_profiles
+    from nutrime.members import list_members
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    profiled = household_profiles(app.substrate, app.tenant_id)
+    default = app.default_member_id
+    for m in list_members(
+        app.substrate, app.tenant_id, include_archived=args.all
+    ):
+        marks = []
+        if m.id == default:
+            marks.append("default")
+        if m.id in profiled:
+            marks.append("profile")
+        if not m.active:
+            marks.append("archived")
+        suffix = f"  ({', '.join(marks)})" if marks else ""
+        print(f"  {m.display_name:<20} {m.id}{suffix}")
+    return 0
+
+
+def _cmd_members_add(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, add_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member = add_member(app.substrate, app.tenant_id, args.name)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"added {member.display_name}  [{member.id}]")
+    print(f'  next: nutrime intake --member "{member.display_name}"')
+    return 0
+
+
+def _cmd_members_rename(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, rename_member, resolve_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member_id = resolve_member(app.substrate, app.tenant_id, args.member)
+        member = rename_member(app.substrate, app.tenant_id, member_id, args.name)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"renamed to {member.display_name}  [{member.id}]")
+    return 0
+
+
+def _cmd_members_archive(args: argparse.Namespace) -> int:
+    from nutrime.members import MemberError, archive_member, resolve_member
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    try:
+        member_id = resolve_member(app.substrate, app.tenant_id, args.member)
+        archive_member(app.substrate, app.tenant_id, member_id)
+    except MemberError as err:
+        print(str(err))
+        return 2
+    print(f"archived {args.member} — their history is kept; they leave the picker")
     return 0
 
 
@@ -721,10 +808,14 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
         return 1
     record = vault.read(args.recipe_id)
     title = str(record.frontmatter.get("title", "(untitled)"))
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     try:
         meal_event_id = record_meal_event(
             app.substrate,
             app.tenant_id,
+            member_id=member_id,
             recipe_id=args.recipe_id,
             recipe_title=title,
             plan_id=args.plan_id,
@@ -734,6 +825,7 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
             record_cooking_experience(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=meal_event_id,
                 ease_rating=args.ease,
                 enjoyment_rating=args.enjoyment,
@@ -745,6 +837,7 @@ def _cmd_meals_cooked(args: argparse.Namespace) -> int:
             record_time_feedback(
                 app.substrate,
                 app.tenant_id,
+                member_id=member_id,
                 meal_event_id=meal_event_id,
                 estimated_time_min=(
                     int(estimated) if estimated is not None else None
@@ -767,6 +860,9 @@ def _cmd_meals_feel(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = _member_or_none(app, args)
+    if member_id is None:
+        return 2
     meal_event_id = args.meal_event_id
     if meal_event_id is None:
         history = meal_history(app.substrate, app.tenant_id, limit=1)
@@ -779,6 +875,7 @@ def _cmd_meals_feel(args: argparse.Namespace) -> int:
         record_body_response(
             app.substrate,
             app.tenant_id,
+            member_id=member_id,
             meal_event_id=meal_event_id,
             freetext_response=args.response,
             energy_rating=args.energy,
@@ -798,7 +895,14 @@ def _cmd_meals_history(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    entries = meal_history(app.substrate, app.tenant_id, limit=args.limit)
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
+    entries = meal_history(
+        app.substrate, app.tenant_id, limit=args.limit, member_id=member_id
+    )
     if not entries:
         print("(no cooked meals yet)")
         return 0
@@ -829,12 +933,20 @@ def _cmd_consent_list(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    for record in list_current(app.substrate, app.tenant_id):
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
+    for record in list_current(app.substrate, app.tenant_id, member_id=member_id):
         state = "granted" if record.granted else "declined"
         retro = " (retroactive)" if record.retroactive else ""
+        scope = ""
+        if member_id:
+            scope = "  [own]" if record.subject_user == member_id else "  [household]"
         print(
             f"  {record.data_category:>24} / {record.purpose:<22}"
-            f" {state}{retro} — {record.granted_at}"
+            f" {state}{retro} — {record.granted_at}{scope}"
         )
     return 0
 
@@ -844,6 +956,11 @@ def _cmd_consent_set(args: argparse.Namespace) -> int:
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
+    member_id = None
+    if args.member:
+        member_id = _member_or_none(app, args)
+        if member_id is None:
+            return 2
     try:
         consent_id = record_decision(
             app.substrate,
@@ -852,6 +969,7 @@ def _cmd_consent_set(args: argparse.Namespace) -> int:
             purpose=args.purpose,
             granted=args.decision == "grant",
             note=args.note,
+            member_id=member_id,
         )
     except ValueError as err:
         print(str(err))
@@ -987,7 +1105,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-dir",
         help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
     )
+    intake.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     intake.set_defaults(func=_cmd_intake)
+
+    members = subparsers.add_parser(
+        "members",
+        help="Household members — one shared device, a profile per person (#29).",
+    )
+    members_sub = members.add_subparsers(dest="members_command", required=True)
+    mb_list = members_sub.add_parser("list", help="Show household members.")
+    mb_list.add_argument("--all", action="store_true", help="Include archived.")
+    mb_list.add_argument("--data-dir")
+    mb_list.set_defaults(func=_cmd_members_list)
+    mb_add = members_sub.add_parser("add", help="Add a household member.")
+    mb_add.add_argument("name")
+    mb_add.add_argument("--data-dir")
+    mb_add.set_defaults(func=_cmd_members_add)
+    mb_rename = members_sub.add_parser("rename", help="Rename a member.")
+    mb_rename.add_argument("member", help="Current name or id.")
+    mb_rename.add_argument("name", help="New name.")
+    mb_rename.add_argument("--data-dir")
+    mb_rename.set_defaults(func=_cmd_members_rename)
+    mb_archive = members_sub.add_parser(
+        "archive", help="Archive a member (history kept, never deleted)."
+    )
+    mb_archive.add_argument("member", help="Name or id.")
+    mb_archive.add_argument("--data-dir")
+    mb_archive.set_defaults(func=_cmd_members_archive)
 
     inventory = subparsers.add_parser(
         "inventory",
@@ -1398,6 +1542,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--actual-minutes", type=int, default=None, help="Actual cook time."
     )
     ml_cooked.add_argument("--data-dir")
+    ml_cooked.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     ml_cooked.set_defaults(func=_cmd_meals_cooked)
     ml_feel = meals_sub.add_parser(
         "feel",
@@ -1412,10 +1557,15 @@ def build_parser() -> argparse.ArgumentParser:
     ml_feel.add_argument("--fullness", type=int, default=None)
     ml_feel.add_argument("--mood", type=int, default=None)
     ml_feel.add_argument("--data-dir")
+    ml_feel.add_argument("--member", default=None, help="Household member (name or id). Default: the first member.")
     ml_feel.set_defaults(func=_cmd_meals_feel)
     ml_history = meals_sub.add_parser("history", help="Cooked-meal log.")
     ml_history.add_argument("--limit", type=int, default=20)
     ml_history.add_argument("--data-dir")
+    ml_history.add_argument(
+        "--member", default=None,
+        help="Show this member's own body responses (default: anyone's latest).",
+    )
     ml_history.set_defaults(func=_cmd_meals_history)
 
     consent = subparsers.add_parser(
@@ -1425,6 +1575,10 @@ def build_parser() -> argparse.ArgumentParser:
     consent_sub = consent.add_subparsers(dest="consent_command", required=True)
     cn_list = consent_sub.add_parser("list", help="Show current decisions.")
     cn_list.add_argument("--data-dir")
+    cn_list.add_argument(
+        "--member", default=None,
+        help="Show the decisions in force for this member (own over household).",
+    )
     cn_list.set_defaults(func=_cmd_consent_list)
     cn_set = consent_sub.add_parser("set", help="Record a decision.")
     cn_set.add_argument("category", help="Data category (see `consent list`).")
@@ -1438,6 +1592,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     cn_set.add_argument("--note", default=None)
     cn_set.add_argument("--data-dir")
+    cn_set.add_argument(
+        "--member", default=None,
+        help="Record this member's own decision (default: household-wide).",
+    )
     cn_set.set_defaults(func=_cmd_consent_set)
 
     grocery = subparsers.add_parser(

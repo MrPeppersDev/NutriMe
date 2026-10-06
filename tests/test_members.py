@@ -457,3 +457,50 @@ class TestMembersWeb:
             body = resp.read().decode()
         assert 'id="memberPicker"' in body
         assert "X-NutriMe-Member" in body
+
+
+# -- CLI -------------------------------------------------------------------------
+
+
+class TestMembersCli:
+    def _run(self, tmp_path: Path, capsys, *argv: str) -> tuple[int, str]:
+        from nutrime.cli import main
+
+        code = main([*argv, "--data-dir", str(tmp_path)])
+        return code, capsys.readouterr().out
+
+    def test_add_list_rename_archive(self, tmp_path: Path, capsys) -> None:
+        code, out = self._run(tmp_path, capsys, "members", "add", "Sam")
+        assert code == 0 and "added Sam" in out
+        code, out = self._run(tmp_path, capsys, "members", "list")
+        assert "Me" in out and "(default)" in out and "Sam" in out
+        code, out = self._run(tmp_path, capsys, "members", "rename", "sam", "Sami")
+        assert code == 0 and "Sami" in out
+        code, out = self._run(tmp_path, capsys, "members", "archive", "Sami")
+        assert code == 0
+        _, out = self._run(tmp_path, capsys, "members", "list")
+        assert "Sami" not in out
+        _, out = self._run(tmp_path, capsys, "members", "list", "--all")
+        assert "Sami" in out and "archived" in out
+
+    def test_consent_per_member(self, tmp_path: Path, capsys) -> None:
+        self._run(tmp_path, capsys, "members", "add", "Sam")
+        code, _ = self._run(
+            tmp_path, capsys, "consent", "set", "meal_feedback_semantic",
+            "decline", "--member", "Sam",
+        )
+        assert code == 0
+        _, out = self._run(tmp_path, capsys, "consent", "list", "--member", "Sam")
+        line = next(l for l in out.splitlines()
+                    if "meal_feedback_semantic" in l and "local_operation" in l)
+        assert "declined" in line and "[own]" in line
+        _, out = self._run(tmp_path, capsys, "consent", "list")
+        line = next(l for l in out.splitlines()
+                    if "meal_feedback_semantic" in l and "local_operation" in l)
+        assert "granted" in line
+
+    def test_unknown_member_exits_2(self, tmp_path: Path, capsys) -> None:
+        code, out = self._run(
+            tmp_path, capsys, "consent", "list", "--member", "Nobody"
+        )
+        assert code == 2 and "no active member named 'Nobody'" in out

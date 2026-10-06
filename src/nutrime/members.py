@@ -105,6 +105,22 @@ def get_member(
     return member
 
 
+def resolve_member(
+    conn: sqlite3.Connection, tenant_id: str, ref: str | None
+) -> str:
+    """Member id from an id or a display name (case-insensitive);
+    None/blank → the default member. Raises MemberError."""
+    ref = (ref or "").strip()
+    if not ref:
+        return default_member_id(conn, tenant_id)
+    if ref.startswith("mem-"):
+        return get_member(conn, tenant_id, ref).id
+    for member in list_members(conn, tenant_id):
+        if member.display_name.casefold() == ref.casefold():
+            return member.id
+    raise MemberError(f"no active member named {ref!r}")
+
+
 def rename_member(
     conn: sqlite3.Connection, tenant_id: str, member_id: str, display_name: str
 ) -> Member:
