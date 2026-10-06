@@ -406,3 +406,169 @@ class TestVisionGapWebFlows:
         top = data["results"][0]
         assert top["times_cooked"] == 1
         assert top["avg_enjoyment"] == 5.0
+
+
+def _intake_payload(**overrides) -> dict:
+    payload = {
+        "profile": {
+            "year_of_birth": 1985,
+            "sex_assigned_at_birth": "female",
+            "life_stage": "adult",
+            "height_cm": 170,
+            "weight_kg": 68.5,
+            "dietary_preferences": ["vegetarian"],
+            "allergens": ["peanuts", "shellfish"],
+        },
+        "screeners": {
+            "phq2": [0, 0],
+            "gad2": [2, 1],
+            "hunger_vital_sign": [0, 1],
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestIntakeApi:
+    def test_status_before_and_after_save(self, server) -> None:
+        before = _get(server, "/api/intake/status")
+        assert before["complete"] is False
+        assert before["profile"] is None
+
+        saved = _post(server, "/api/intake", _intake_payload())
+        assert saved["saved"] is True
+        assert saved["constraints_derived"] == 3  # 2 allergens + 1 preference
+
+        after = _get(server, "/api/intake/status")
+        assert after["complete"] is True
+        profile = after["profile"]
+        assert profile["year_of_birth"] == 1985
+        assert profile["life_stage"] == "adult"
+        assert profile["allergens"] == ["peanuts", "shellfish"]
+        assert profile["dietary_preferences"] == ["vegetarian"]
+
+    def test_questions_payload(self, server) -> None:
+        data = _get(server, "/api/intake/questions")
+        ids = [i["instrument_id"] for i in data["instruments"]]
+        assert ids == ["phq2", "gad2", "hunger_vital_sign"]
+        for inst in data["instruments"]:
+            assert len(inst["items"]) == 2
+            assert all(i["prompt"] for i in inst["items"])
+            assert all(
+                "label" in o and "value" in o for o in inst["options"]
+            )
+            assert inst["disclosure"]
+        fields = data["profile_fields"]
+        assert "adult" in fields["life_stages"]
+        assert "female" in fields["sex_options"]
+        # top-9 allergen vocabulary from recipes/allergens.py
+        assert len(fields["allergens"]) == 9
+        assert "shellfish" in fields["allergens"]
+        assert "gluten" in fields["allergens"]
+
+    def test_save_derives_constraints_in_knowledge_store(self, server) -> None:
+        saved = _post(server, "/api/intake", _intake_payload())
+        assert saved["saved"] is True
+
+        from nutrime.knowledge.store import list_synthesized_entries
+
+        import sqlite3
+
+        conn = sqlite3.connect(server.app.data_dir / "substrate.db")
+        try:
+            entries = list_synthesized_entries(
+                conn, server.app.tenant_id, entry_type="abstracted_constraint"
+            )
+            texts = {e.payload["abstracted_text"] for e in entries}
+            assert "avoids peanuts" in texts
+            assert "avoids shellfish" in texts
+            assert "prefers vegetarian" in texts
+        finally:
+            conn.close()
+
+        # re-save is an upsert + idempotent derivation: nothing new derives
+        again = _post(server, "/api/intake", _intake_payload())
+        assert again["constraints_derived"] == 0
+
+    def test_resave_overwrites_profile(self, server) -> None:
+        _post(server, "/api/intake", _intake_payload())
+        revised = _intake_payload()
+        revised["profile"]["life_stage"] = "pregnant"
+        revised["profile"]["allergens"] = ["peanuts"]
+        _post(server, "/api/intake", revised)
+        status = _get(server, "/api/intake/status")
+        assert status["profile"]["life_stage"] == "pregnant"
+        assert status["profile"]["allergens"] == ["peanuts"]
+
+    def test_invalid_screener_answers_400(self, server) -> None:
+        bad_value = _intake_payload(screeners={"phq2": [0, 9]})
+        err = _post(server, "/api/intake", bad_value)
+        assert "error" in err
+
+        wrong_count = _intake_payload(screeners={"gad2": [1]})
+        err = _post(server, "/api/intake", wrong_count)
+        assert "error" in err
+        assert "expected 2 answers" in err["error"]
+
+        unknown = _intake_payload(screeners={"phq9": [0, 0]})
+        err = _post(server, "/api/intake", unknown)
+        assert "unknown instrument" in err["error"]
+
+        # nothing was persisted on the failed attempts
+        assert _get(server, "/api/intake/status")["complete"] is False
+
+    def test_invalid_profile_400(self, server) -> None:
+        bad = _intake_payload()
+        bad["profile"]["life_stage"] = "wizard"
+        err = _post(server, "/api/intake", bad)
+        assert "error" in err
+        assert _get(server, "/api/intake/status")["complete"] is False
+
+    def test_consent_declined_400(self, server) -> None:
+        import sqlite3
+
+        from nutrime.consent import record_decision
+
+        # warm the app (lazy init happens on the serving thread), then
+        # decline intake_screener via a second connection while idle.
+        _get(server, "/api/intake/status")
+        conn = sqlite3.connect(server.app.data_dir / "substrate.db")
+        try:
+            record_decision(
+                conn,
+                server.app.tenant_id,
+                data_category="intake_screener",
+                purpose="local_operation",
+                granted=False,
+            )
+        finally:
+            conn.close()
+
+        err = _post(server, "/api/intake", _intake_payload())
+        assert "error" in err
+        assert "consent" in err["error"]
+        # fail-closed: the declined screener blocked the whole save
+        assert _get(server, "/api/intake/status")["complete"] is False
+
+    def test_skip_for_now(self, server) -> None:
+        assert _get(server, "/api/intake/status")["skipped"] is False
+        res = _post(server, "/api/intake/skip", {})
+        assert res["ok"] is True
+        status = _get(server, "/api/intake/status")
+        assert status["skipped"] is True
+        assert status["complete"] is False  # nothing persisted
+
+
+class TestIntakePageMarkup:
+    def test_page_contains_intake_hooks(self, server) -> None:
+        port = server.server_address[1]
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/") as resp:
+            body = resp.read().decode("utf-8")
+        assert 'id="welcomeCard"' in body
+        assert "stays on this device" in body
+        assert 'id="intakeOverlay"' in body
+        assert 'id="profileLink"' in body
+        assert "skip for now" in body
+        # Tonight-first: the tonight panel markup precedes the search box
+        assert body.index('id="tonightBox"') < body.index('id="searchBox"')
+        assert "No meal planned tonight" in body

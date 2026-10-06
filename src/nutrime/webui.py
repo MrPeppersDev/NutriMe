@@ -122,6 +122,9 @@ class NutriMeWebServer(HTTPServer):
         self.ingest_fetcher = None
         self.ingest_pacer: Pacer | None = None
         self.pinterest_api_fetcher = None
+        # "Skip for now" on the first-run intake card: session-scoped only
+        # (no persistence — the invitation simply returns next launch).
+        self.intake_skipped = False
 
     @property
     def app(self):
@@ -192,6 +195,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_sources()
             elif route == "/api/tonight":
                 self._api_tonight()
+            elif route == "/api/intake/status":
+                self._api_intake_status()
+            elif route == "/api/intake/questions":
+                self._api_intake_questions()
             elif route == "/api/grocery":
                 self._api_grocery(query)
             elif route.startswith("/api/recipes/"):
@@ -218,6 +225,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_meals_feel()
             elif parsed.path == "/api/meals/cooked/used-up":
                 self._api_meals_used_up()
+            elif parsed.path == "/api/intake":
+                self._api_intake_save()
+            elif parsed.path == "/api/intake/skip":
+                self._api_intake_skip()
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
@@ -705,6 +716,219 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._json({"recorded": atom_id})
 
+    # -- API: intake (baseline profile + screeners over the web) --------------
+    # Same store functions as the CLI wizard (`nutrime intake`): the web form
+    # never reimplements scoring — instruments validate + score; persistence
+    # is save_profile / save_screener_responses. PHI posture: handlers never
+    # echo answer values to stdout (log_message is silenced above) and the
+    # data never leaves the local sqlite substrate.
+
+    _INTAKE_LIFE_STAGES = (
+        "infant",
+        "child",
+        "adolescent",
+        "adult",
+        "pregnant",
+        "lactating",
+        "older_adult",
+    )
+    _INTAKE_SEX_OPTIONS = ("female", "male", "intersex", "prefer_not_to_say")
+
+    def _intake_profile_row(self) -> dict[str, Any] | None:
+        app = self.server.app
+        row = app.substrate.execute(
+            "SELECT year_of_birth, sex_assigned_at_birth, life_stage,"
+            " height_cm, weight_kg, dietary_preferences, allergens"
+            " FROM intake_profile WHERE tenant_id = ?",
+            (app.tenant_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "year_of_birth": row[0],
+            "sex_assigned_at_birth": row[1],
+            "life_stage": row[2],
+            "height_cm": row[3],
+            "weight_kg": row[4],
+            "dietary_preferences": json.loads(row[5]),
+            "allergens": json.loads(row[6]),
+        }
+
+    def _api_intake_status(self) -> None:
+        profile = self._intake_profile_row()
+        self._json(
+            {
+                "complete": profile is not None,
+                "skipped": self.server.intake_skipped,
+                "profile": profile,
+            }
+        )
+
+    def _api_intake_questions(self) -> None:
+        from nutrime.intake.baseline import MVP_INSTRUMENTS
+        from nutrime.recipes.allergens import TOP_ALLERGENS
+
+        self._json(
+            {
+                "instruments": [
+                    {
+                        "instrument_id": inst.instrument_id,
+                        "full_name": inst.full_name,
+                        "disclosure": inst.disclosure,
+                        "items": [
+                            {"item_id": item.item_id, "prompt": item.prompt}
+                            for item in inst.items
+                        ],
+                        "options": [
+                            {"label": o.label, "value": o.value}
+                            for o in inst.scale.options
+                        ],
+                    }
+                    for inst in MVP_INSTRUMENTS
+                ],
+                "profile_fields": {
+                    "life_stages": list(self._INTAKE_LIFE_STAGES),
+                    "sex_options": list(self._INTAKE_SEX_OPTIONS),
+                    "allergens": list(TOP_ALLERGENS),
+                },
+            }
+        )
+
+    def _api_intake_save(self) -> None:
+        from nutrime.consent import ConsentError, require_consent
+        from nutrime.intake.baseline import MVP_INSTRUMENTS
+        from nutrime.intake.store import (
+            IntakeProfile,
+            save_profile,
+            save_screener_responses,
+        )
+        from nutrime.knowledge.derivation import sync_from_intake
+
+        payload = self._read_json_body()
+        raw_profile = payload.get("profile")
+        if not isinstance(raw_profile, dict):
+            self._json({"error": "profile required"}, status=400)
+            return
+        raw_screeners = payload.get("screeners") or {}
+        if not isinstance(raw_screeners, dict):
+            self._json({"error": "screeners must be an object"}, status=400)
+            return
+        instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
+        unknown = sorted(set(raw_screeners) - set(instruments))
+        if unknown:
+            self._json(
+                {"error": f"unknown instrument(s): {', '.join(unknown)}"},
+                status=400,
+            )
+            return
+
+        def _str_list(key: str) -> tuple[str, ...]:
+            raw = raw_profile.get(key)
+            if not isinstance(raw, list):
+                return ()
+            return tuple(
+                str(v).strip() for v in raw if str(v).strip()
+            )
+
+        try:
+            height = raw_profile.get("height_cm")
+            weight = raw_profile.get("weight_kg")
+            profile = IntakeProfile(
+                year_of_birth=int(raw_profile.get("year_of_birth")),
+                sex_assigned_at_birth=str(
+                    raw_profile.get("sex_assigned_at_birth") or ""
+                ),
+                life_stage=str(raw_profile.get("life_stage") or ""),
+                height_cm=int(height) if height not in (None, "") else None,
+                weight_kg=float(weight) if weight not in (None, "") else None,
+                dietary_preferences=_str_list("dietary_preferences"),
+                allergens=_str_list("allergens"),
+            )
+        except (TypeError, ValueError) as err:
+            self._json({"error": str(err)}, status=400)
+            return
+
+        # Validate every screener batch fully before any write: answers are
+        # scale values ordered like the questions payload's items.
+        responses_by_instrument: dict[str, dict[str, int]] = {}
+        for instrument_id, answers in raw_screeners.items():
+            instrument = instruments[instrument_id]
+            if not isinstance(answers, list) or len(answers) != len(
+                instrument.items
+            ):
+                self._json(
+                    {
+                        "error": (
+                            f"{instrument_id}: expected"
+                            f" {len(instrument.items)} answers"
+                        )
+                    },
+                    status=400,
+                )
+                return
+            if any(
+                not isinstance(v, int) or isinstance(v, bool)
+                for v in answers
+            ):
+                self._json(
+                    {
+                        "error": (
+                            f"{instrument_id}: answers must be integer"
+                            " scale values"
+                        )
+                    },
+                    status=400,
+                )
+                return
+            responses = {
+                item.item_id: value
+                for item, value in zip(instrument.items, answers)
+            }
+            try:
+                instrument.score(responses)  # validates values; not persisted
+            except ValueError as err:
+                self._json({"error": str(err)}, status=400)
+                return
+            responses_by_instrument[instrument_id] = responses
+
+        app = self.server.app
+        try:
+            require_consent(app.substrate, app.tenant_id, "intake_profile")
+            if responses_by_instrument:
+                require_consent(
+                    app.substrate, app.tenant_id, "intake_screener"
+                )
+        except ConsentError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+
+        # save_profile upserts (ON CONFLICT(tenant_id) DO UPDATE), so a
+        # revision from the Profile link overwrites in place; screener
+        # responses append as a new administered_at batch (honest record).
+        save_profile(app.substrate, app.tenant_id, profile)
+        for instrument_id, responses in responses_by_instrument.items():
+            save_screener_responses(
+                app.substrate,
+                app.tenant_id,
+                instruments[instrument_id],
+                responses,
+            )
+        outcome = sync_from_intake(app.substrate, app.tenant_id)
+        self.server.intake_skipped = False
+        self._json(
+            {
+                "saved": True,
+                "constraints_derived": outcome.constraints_added,
+                "atoms_added": outcome.total_atoms_added,
+            }
+        )
+
+    def _api_intake_skip(self) -> None:
+        # Session-scoped choice only — nothing persisted; the welcome card
+        # simply stays away for this server process.
+        self.server.intake_skipped = True
+        self._json({"ok": True})
+
     def _api_grocery(self, query: dict[str, list[str]]) -> None:
         from nutrime.grocery.aggregate import display_amount
         from nutrime.grocery.build import build_grocery_list
@@ -1063,6 +1287,44 @@ PAGE = """<!doctype html>
   }
   .closeX:hover { background: var(--accent); color: #fff; }
 
+  /* -- intake wizard -- */
+  .welcome { border-left: 4px solid var(--accent); }
+  .formRow { margin: 14px 0; }
+  .formRow > label {
+    display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-soft); font-weight: 600; margin-bottom: 5px;
+  }
+  .formRow input[type=number], .formRow input[type=text], .formRow select {
+    font-family: inherit; font-size: 15px; padding: 10px 13px;
+    border: 1.5px solid var(--line); border-radius: 8px; background: #fff;
+    color: var(--ink); width: 100%; max-width: 300px;
+  }
+  .formRow input:focus, .formRow select:focus { outline: 2px solid var(--leaf); outline-offset: 1px; }
+  .qRow { padding: 12px 0; border-bottom: 1px dotted var(--line); }
+  .qRow .q { font-size: 14.5px; margin-bottom: 8px; }
+  .qOpts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .qOpts label {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 13px; background: var(--leaf-soft); color: var(--leaf);
+    border-radius: 999px; padding: 6px 12px; border: 1.5px solid transparent;
+  }
+  .qOpts label:hover { border-color: var(--leaf); }
+  .qOpts input { accent-color: var(--leaf); cursor: pointer; }
+  .stepNav { display: flex; gap: 12px; align-items: center; margin-top: 24px; flex-wrap: wrap; }
+  .stepTag { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); font-weight: 600; }
+  .intakeMsg { color: var(--accent); font-size: 13.5px; margin-top: 10px; min-height: 1.2em; }
+  .privacyNote {
+    background: var(--leaf-soft); border-left: 3px solid var(--leaf);
+    border-radius: 0 9px 9px 0; padding: 14px 16px; font-size: 14px;
+    color: var(--ink); margin-top: 14px;
+  }
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%);
+    background: var(--leaf); color: #fff; padding: 13px 24px; border-radius: 10px;
+    font-size: 14.5px; font-weight: 600; z-index: 30; display: none;
+    box-shadow: 0 16px 40px -12px rgba(43,38,32,.5); max-width: 90vw;
+  }
+
   footer {
     max-width: 1060px; margin: 0 auto; padding: 0 24px 40px;
     font-size: 12px; color: var(--ink-soft);
@@ -1076,19 +1338,32 @@ PAGE = """<!doctype html>
 </head>
 <body>
 <header>
-  <div class="wordmark">NutriMe</div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+    <div class="wordmark">NutriMe</div>
+    <button class="btn-quiet" id="profileLink" style="font-size:13.5px">Profile</button>
+  </div>
   <h1>What can we make with <em>what we already have?</em></h1>
   <p class="sub">Search the household recipe collection by what's in the kitchen —
   and, if you like, tilt the ranking toward foods that fit where you are in your cycle.</p>
 </header>
 
 <main>
-  <section class="ask" id="tonightBox" style="display:none;margin-bottom:0">
+  <section class="ask welcome" id="welcomeCard" style="display:none">
+    <label class="lbl">Welcome</label>
+    <p style="margin-bottom:12px">Set up your household profile &mdash; 5 minutes,
+    stays on this device. It teaches the planner what to avoid and what you love.</p>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn-go" id="welcomeStart">Set up my profile</button>
+      <button class="btn-quiet" id="welcomeSkip">skip for now</button>
+    </div>
+  </section>
+
+  <section class="ask" id="tonightBox" style="margin-bottom:0">
     <label class="lbl">Tonight</label>
     <div id="tonightBody"></div>
   </section>
 
-  <section class="ask">
+  <section class="ask" id="searchBox">
     <label class="lbl" for="have">I have…</label>
     <div class="haveRow">
       <input type="text" id="have" placeholder="chicken, spinach, lemon"
@@ -1163,6 +1438,12 @@ PAGE = """<!doctype html>
 <div class="overlay" id="overlay">
   <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
+
+<div class="overlay" id="intakeOverlay">
+  <div class="sheet" id="intakeSheet" role="dialog" aria-modal="true"></div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <footer id="disclosure"></footer>
 
@@ -1378,7 +1659,9 @@ async function openDetail(id) {
 }
 function closeDetail() { $("overlay").classList.remove("on"); }
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeDetail(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeDetail(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeDetail(); closeIntake(); }
+});
 
 /* -- import -- */
 $("importGo").onclick = async () => {
@@ -1432,6 +1715,18 @@ async function loadTonight() {
       esc(t.recipe_id) + '\\',\\'' + esc(t.plan_id) + '\\')">We cooked it</button>' +
       "</div>"
     );
+  } else {
+    // Tonight-first: the panel is always present; with no plan covering
+    // today it points at the search block below.
+    parts.push(
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap' +
+      (parts.length ? ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)' : '') + '">' +
+      '<span class="serif" style="font-size:19px;color:var(--ink-soft)">No meal planned tonight</span>' +
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="' +
+      "document.getElementById('searchBox').scrollIntoView({behavior:'smooth'});" +
+      "document.getElementById('have').focus({preventScroll:true})" +
+      '">Find something to cook</button></div>'
+    );
   }
   if (data.awaiting_feel) {
     const a = data.awaiting_feel;
@@ -1445,7 +1740,6 @@ async function loadTonight() {
       esc(a.meal_event_id) + '\\')">Save</button></div></div>'
     );
   }
-  if (!parts.length) { box.style.display = "none"; return; }
   body.innerHTML = parts.join("");
   box.style.display = "block";
 }
@@ -1513,6 +1807,230 @@ $("pinSync").onclick = async () => {
   if (data.written) doSearch();
 };
 
+/* -- intake wizard (baseline profile + screeners) -- */
+let INTAKE_Q = null;        // questions payload from /api/intake/questions
+let INTAKE_STEP = 1;
+let INTAKE_STATE = null;    // collected form state across steps
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.style.display = "none"; }, 6000);
+}
+
+function blankIntakeState() {
+  return {
+    year_of_birth: "", sex_assigned_at_birth: "", life_stage: "",
+    height_cm: "", weight_kg: "",
+    allergens: new Set(), dietary_preferences: [],
+    screeners: {},  // instrument_id -> [value per item]
+  };
+}
+
+async function openIntake() {
+  if (!INTAKE_Q) INTAKE_Q = await jget("/api/intake/questions");
+  INTAKE_STATE = blankIntakeState();
+  const status = await jget("/api/intake/status");
+  if (status.profile) {
+    const p = status.profile;
+    INTAKE_STATE.year_of_birth = p.year_of_birth;
+    INTAKE_STATE.sex_assigned_at_birth = p.sex_assigned_at_birth;
+    INTAKE_STATE.life_stage = p.life_stage;
+    INTAKE_STATE.height_cm = p.height_cm == null ? "" : p.height_cm;
+    INTAKE_STATE.weight_kg = p.weight_kg == null ? "" : p.weight_kg;
+    INTAKE_STATE.allergens = new Set(p.allergens);
+    INTAKE_STATE.dietary_preferences = p.dietary_preferences.slice();
+  }
+  INTAKE_STEP = 1;
+  renderIntakeStep();
+  $("intakeOverlay").classList.add("on");
+}
+function closeIntake() { $("intakeOverlay").classList.remove("on"); }
+$("intakeOverlay").addEventListener("click", e => {
+  if (e.target === $("intakeOverlay")) closeIntake();
+});
+
+function intakeHeader(title) {
+  return '<button class="closeX" onclick="closeIntake()" aria-label="Close">\\u00d7</button>' +
+    '<div class="stepTag">Household profile \\u00b7 step ' + INTAKE_STEP + ' of 4</div>' +
+    '<h3>' + esc(title) + '</h3>';
+}
+function intakeNav(backLabel, nextLabel, nextFn) {
+  return '<div class="stepNav">' +
+    (backLabel ? '<button class="btn-quiet" onclick="intakeBack()">' + esc(backLabel) + '</button>' : '') +
+    '<button class="btn-go" id="intakeNext" onclick="' + nextFn + '">' + esc(nextLabel) + '</button>' +
+    '<button class="btn-quiet" onclick="skipIntake()">skip for now</button>' +
+    '</div><div class="intakeMsg" id="intakeMsg"></div>';
+}
+function intakeBack() { INTAKE_STEP -= 1; renderIntakeStep(); }
+
+function renderIntakeStep() {
+  const s = INTAKE_STATE, sheet = $("intakeSheet");
+  if (INTAKE_STEP === 1) {
+    const sexOpts = INTAKE_Q.profile_fields.sex_options.map(o =>
+      '<option value="' + esc(o) + '"' + (s.sex_assigned_at_birth === o ? ' selected' : '') + '>' +
+      esc(o.replace(/_/g, " ")) + '</option>').join("");
+    const stageOpts = INTAKE_Q.profile_fields.life_stages.map(o =>
+      '<option value="' + esc(o) + '"' + (s.life_stage === o ? ' selected' : '') + '>' +
+      esc(o.replace(/_/g, " ")) + '</option>').join("");
+    sheet.innerHTML = intakeHeader("About you") +
+      '<div class="formRow"><label for="inYob">Year of birth</label>' +
+      '<input type="number" id="inYob" min="1900" max="2100" value="' + esc(s.year_of_birth) + '"></div>' +
+      '<div class="formRow"><label for="inSex">Sex assigned at birth (used for nutrient-band lookup)</label>' +
+      '<select id="inSex"><option value="">choose\\u2026</option>' + sexOpts + '</select></div>' +
+      '<div class="formRow"><label for="inStage">Current life stage</label>' +
+      '<select id="inStage"><option value="">choose\\u2026</option>' + stageOpts + '</select></div>' +
+      '<div class="formRow"><label for="inHeight">Height in cm (optional)</label>' +
+      '<input type="number" id="inHeight" min="30" max="275" value="' + esc(s.height_cm) + '"></div>' +
+      '<div class="formRow"><label for="inWeight">Weight in kg (optional)</label>' +
+      '<input type="number" id="inWeight" min="1" max="500" step="0.1" value="' + esc(s.weight_kg) + '"></div>' +
+      intakeNav(null, "Next: food to avoid", "intakeStep1Next()");
+  } else if (INTAKE_STEP === 2) {
+    const chips = INTAKE_Q.profile_fields.allergens.map(a => {
+      const on = s.allergens.has(a);
+      return '<button class="pill' + (on ? ' on' : '') + '" data-allergen="' + esc(a) +
+        '" onclick="toggleAllergen(this)">' + esc(a.replace(/_/g, " ")) + '</button>';
+    }).join(" ");
+    const extras = s.dietary_preferences.map((p, i) =>
+      '<span class="chip">' + esc(p) +
+      '<button onclick="removePref(' + i + ')" title="Remove">\\u00d7</button></span>').join(" ");
+    sheet.innerHTML = intakeHeader("Allergens + preferences") +
+      '<div class="formRow"><label>Food allergens to avoid (tap to toggle)</label>' +
+      '<div class="pillRow" id="allergenPills">' + chips + '</div></div>' +
+      '<div class="formRow"><label>Other allergens or dietary preferences ' +
+      '(vegetarian, halal, no cilantro\\u2026)</label>' +
+      '<div class="chips" id="prefChips">' + extras +
+      '<span class="chipAdd"><input id="prefInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
+      intakeNav("back", "Next: three quick check-ins", "intakeStep2Next()");
+    $("prefInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.value.trim()) {
+        INTAKE_STATE.dietary_preferences.push(e.target.value.trim());
+        renderIntakeStep();
+        $("prefInput").focus();
+      }
+    });
+  } else if (INTAKE_STEP === 3) {
+    let html = intakeHeader("Three quick check-ins") +
+      '<p class="hint" style="margin-top:6px">These are screening questions, not a diagnosis ' +
+      '\\u2014 they help the planner notice when food support matters most. Optional: leave any blank.</p>';
+    for (const inst of INTAKE_Q.instruments) {
+      html += '<h4>' + esc(inst.full_name) + '</h4>';
+      inst.items.forEach((item, idx) => {
+        const chosen = (s.screeners[inst.instrument_id] || [])[idx];
+        html += '<div class="qRow"><div class="q">' + esc(item.prompt) + '</div><div class="qOpts">' +
+          inst.options.map(o =>
+            '<label><input type="radio" name="' + esc(inst.instrument_id) + '-' + idx +
+            '" value="' + o.value + '"' + (chosen === o.value ? ' checked' : '') + '> ' +
+            esc(o.label.replace(/_/g, " ")) + '</label>').join("") +
+          '</div></div>';
+      });
+    }
+    sheet.innerHTML = html + intakeNav("back", "Next: privacy", "intakeStep3Next()");
+  } else {
+    sheet.innerHTML = intakeHeader("Your answers stay here") +
+      '<div class="privacyNote">Everything you entered \\u2014 including the health ' +
+      'check-ins \\u2014 is saved in the local database on this machine and never sent ' +
+      'anywhere. NutriMe stays on this device: no cloud account, no sync, no analytics. ' +
+      'You can revise or re-run this anytime from the Profile link.</div>' +
+      intakeNav("back", "Save my profile", "saveIntake()");
+  }
+  $("intakeOverlay").scrollTop = 0;
+}
+
+function toggleAllergen(btn) {
+  const a = btn.dataset.allergen;
+  if (INTAKE_STATE.allergens.has(a)) INTAKE_STATE.allergens.delete(a);
+  else INTAKE_STATE.allergens.add(a);
+  btn.classList.toggle("on");
+}
+function removePref(i) {
+  INTAKE_STATE.dietary_preferences.splice(i, 1);
+  renderIntakeStep();
+}
+
+function intakeStep1Next() {
+  const s = INTAKE_STATE;
+  s.year_of_birth = $("inYob").value.trim();
+  s.sex_assigned_at_birth = $("inSex").value;
+  s.life_stage = $("inStage").value;
+  s.height_cm = $("inHeight").value.trim();
+  s.weight_kg = $("inWeight").value.trim();
+  const yob = parseInt(s.year_of_birth);
+  if (!yob || yob < 1900 || yob > 2100) {
+    $("intakeMsg").textContent = "Please enter a year of birth between 1900 and 2100."; return;
+  }
+  if (!s.sex_assigned_at_birth || !s.life_stage) {
+    $("intakeMsg").textContent = "Please choose both dropdowns \\u2014 they pick the right nutrient bands."; return;
+  }
+  INTAKE_STEP = 2; renderIntakeStep();
+}
+function intakeStep2Next() { INTAKE_STEP = 3; renderIntakeStep(); }
+function intakeStep3Next() {
+  // Collect radios; an instrument counts only when every item is answered.
+  const s = INTAKE_STATE;
+  s.screeners = {};
+  let partial = null;
+  for (const inst of INTAKE_Q.instruments) {
+    const answers = [];
+    inst.items.forEach((_item, idx) => {
+      const picked = document.querySelector(
+        'input[name="' + inst.instrument_id + '-' + idx + '"]:checked');
+      if (picked) answers.push(parseInt(picked.value));
+    });
+    if (answers.length === inst.items.length) s.screeners[inst.instrument_id] = answers;
+    else if (answers.length > 0) partial = inst.full_name;
+  }
+  if (partial) {
+    $("intakeMsg").textContent = "Please answer both questions of \\u201c" + partial +
+      "\\u201d, or clear it to skip that check-in."; return;
+  }
+  INTAKE_STEP = 4; renderIntakeStep();
+}
+
+async function saveIntake() {
+  const s = INTAKE_STATE;
+  $("intakeNext").disabled = true;
+  const res = await jpost("/api/intake", {
+    profile: {
+      year_of_birth: parseInt(s.year_of_birth),
+      sex_assigned_at_birth: s.sex_assigned_at_birth,
+      life_stage: s.life_stage,
+      height_cm: s.height_cm === "" ? null : parseInt(s.height_cm),
+      weight_kg: s.weight_kg === "" ? null : parseFloat(s.weight_kg),
+      allergens: [...s.allergens],
+      dietary_preferences: s.dietary_preferences,
+    },
+    screeners: s.screeners,
+  });
+  if (res.error) {
+    $("intakeNext").disabled = false;
+    $("intakeMsg").textContent = res.error;
+    return;
+  }
+  closeIntake();
+  $("welcomeCard").style.display = "none";
+  toast("Profile saved \\u2014 " + res.constraints_derived +
+    " household constraint" + (res.constraints_derived === 1 ? "" : "s") +
+    " derived. Search now respects them.");
+  doSearch();
+}
+
+async function skipIntake() {
+  await jpost("/api/intake/skip", {});
+  closeIntake();
+  $("welcomeCard").style.display = "none";
+}
+
+async function loadIntakeStatus() {
+  const status = await jget("/api/intake/status");
+  $("welcomeCard").style.display =
+    (status.complete || status.skipped) ? "none" : "block";
+}
+$("welcomeStart").onclick = openIntake;
+$("welcomeSkip").onclick = skipIntake;
+$("profileLink").onclick = openIntake;
+
 $("go").onclick = () => doSearch();
 $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
 ["useInventory", "applyConstraints", "maxTime", "broaden"].forEach(id =>
@@ -1523,6 +2041,7 @@ loadSources();
 loadInventory();
 loadPinterestStatus();
 loadTonight();
+loadIntakeStatus();
 doSearch();
 </script>
 </body>
