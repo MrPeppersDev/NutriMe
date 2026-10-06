@@ -46,15 +46,15 @@ DEFAULT_SCRIPT: list[str] = [
     # dietary + allergens
     "vegetarian",        # preferences
     "peanut, shellfish", # allergens
-    # PHQ-2 (2 items) — both zero → negative
-    "not_at_all",
-    "not_at_all",
-    # GAD-2 (2 items) — 2 + 1 = 3 → positive
-    "more_than_half_the_days",
-    "several_days",
     # HVS (2 items) — never / sometimes → positive
     "never_true",
     "sometimes_true",
+    # Sleep check (2 items) — fairly_bad + fairly_bad = 4 → positive
+    "fairly_bad",
+    "fairly_bad",
+    # Energy check (2 items) — some_days + rarely = 1 → negative
+    "some_days",
+    "rarely_or_never",
 ]
 
 
@@ -73,11 +73,11 @@ def test_baseline_end_to_end_persists_and_scores(initialized_app) -> None:
     assert outcome.profile.allergens == ("peanut", "shellfish")
 
     by_id = {r.instrument_id: r for r in outcome.results}
-    assert by_id["phq2"].score == 0
-    assert not by_id["phq2"].positive
-    assert by_id["gad2"].score == 3
-    assert by_id["gad2"].positive
     assert by_id["hunger_vital_sign"].score == 1
+    assert by_id["sleep_check"].score == 4
+    assert by_id["sleep_check"].positive
+    assert by_id["energy_check"].score == 1
+    assert not by_id["energy_check"].positive
     assert by_id["hunger_vital_sign"].positive
 
     (profile_count,) = initialized_app.substrate.execute(
@@ -90,8 +90,14 @@ def test_baseline_end_to_end_persists_and_scores(initialized_app) -> None:
     ).fetchone()
     assert response_count == 6
 
-    # Honest-disclosure surfaces at least once per instrument.
-    disclosure_hits = sum("not a diagnosis" in line for line in emitted)
+    # Honest-disclosure surfaces at least once per instrument — every
+    # disclosure says what the tool is NOT (diagnosis/assessment/instrument).
+    disclosure_hits = sum(
+        ("not a diagnosis" in line)
+        or ("not a clinical" in line)
+        or ("not a medical" in line)
+        for line in emitted
+    )
     assert disclosure_hits >= 3
 
 
@@ -131,9 +137,9 @@ def test_baseline_reprompts_on_invalid_year(initialized_app) -> None:
         "adult",
         "", "",         # skip height + weight
         "", "",         # no preferences / allergens
-        "not_at_all", "not_at_all",
-        "not_at_all", "not_at_all",
         "never_true", "never_true",
+        "very_good", "very_good",
+        "rarely_or_never", "rarely_or_never",
     ]
     emitted: list[str] = []
     outcome = run_baseline_intake(

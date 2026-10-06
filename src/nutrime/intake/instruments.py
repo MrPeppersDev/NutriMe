@@ -233,3 +233,96 @@ HUNGER_VITAL_SIGN = Instrument(
         " not, on its own, mean a household is food insecure."
     ),
 )
+
+
+# -- Physical-health screeners (direction reset 2026-10-06) ------------------
+# The product assesses physical/nutritional needs; mental-health screeners
+# (PHQ-2/GAD-2) remain defined above for optional use but leave the default
+# flow. Sleep is the S4-Q1-named first add-back (appetite regulation; C5
+# sleep-conditional logic). The sleep pair below follows the PSQI's
+# component-1/3 self-report shape but is deliberately NOT branded PSQI —
+# honest structured questions beat instrument theater when the full
+# validated instrument isn't administered.
+
+_SLEEP_SCALE = ResponseScale(
+    name="sleep_quality_last_month",
+    options=(
+        ResponseOption("very_good", 0),
+        ResponseOption("fairly_good", 1),
+        ResponseOption("fairly_bad", 2),
+        ResponseOption("very_bad", 3),
+    ),
+)
+
+SLEEP_CHECK = Instrument(
+    instrument_id="sleep_check",
+    instrument_version="nutrime_v1_psqi_informed",
+    full_name="Sleep check (quality + sufficiency)",
+    items=(
+        InstrumentItem(
+            item_id="overall_quality",
+            prompt=(
+                "During the past month, how would you rate your sleep"
+                " quality overall?"
+            ),
+        ),
+        InstrumentItem(
+            item_id="daytime_tiredness",
+            prompt=(
+                "During the past month, how often has sleepiness or"
+                " tiredness made it hard to get through the day?"
+            ),
+        ),
+    ),
+    scale=_SLEEP_SCALE,
+    positive_threshold=4,
+    scorer=_sum_items,
+    disclosure=(
+        "Two plain questions informed by sleep research — not a clinical"
+        " sleep assessment. Poor sleep affects appetite and energy; a"
+        " flagged result just means meal plans will favor steadier-energy"
+        " choices, and persistent sleep trouble is worth raising with a"
+        " clinician."
+    ),
+)
+
+_ENERGY_SCALE = ResponseScale(
+    name="frequency_last_2_weeks",
+    options=(
+        ResponseOption("rarely_or_never", 0),
+        ResponseOption("some_days", 1),
+        ResponseOption("most_days", 2),
+        ResponseOption("every_day", 3),
+    ),
+)
+
+ENERGY_CHECK = Instrument(
+    instrument_id="energy_check",
+    instrument_version="nutrime_v1",
+    full_name="Energy + digestion check",
+    items=(
+        InstrumentItem(
+            item_id="low_energy",
+            prompt=(
+                "Over the last 2 weeks, how often have you felt low on"
+                " energy around meals or in the afternoon?"
+            ),
+        ),
+        InstrumentItem(
+            item_id="digestive_discomfort",
+            prompt=(
+                "Over the last 2 weeks, how often have meals left you with"
+                " digestive discomfort (bloating, heaviness, reflux)?"
+            ),
+        ),
+    ),
+    scale=_ENERGY_SCALE,
+    positive_threshold=4,
+    scorer=_sum_items,
+    disclosure=(
+        "Plain structured questions, not a medical instrument. Frequent"
+        " post-meal discomfort can have many causes — these answers only"
+        " tune food suggestions, and a pattern worth investigating belongs"
+        " with a clinician."
+    ),
+)

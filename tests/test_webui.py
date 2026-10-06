@@ -420,9 +420,9 @@ def _intake_payload(**overrides) -> dict:
             "allergens": ["peanuts", "shellfish"],
         },
         "screeners": {
-            "phq2": [0, 0],
-            "gad2": [2, 1],
             "hunger_vital_sign": [0, 1],
+            "sleep_check": [1, 1],
+            "energy_check": [2, 1],
         },
     }
     payload.update(overrides)
@@ -450,7 +450,7 @@ class TestIntakeApi:
     def test_questions_payload(self, server) -> None:
         data = _get(server, "/api/intake/questions")
         ids = [i["instrument_id"] for i in data["instruments"]]
-        assert ids == ["phq2", "gad2", "hunger_vital_sign"]
+        assert ids == ["hunger_vital_sign", "sleep_check", "energy_check"]
         for inst in data["instruments"]:
             assert len(inst["items"]) == 2
             assert all(i["prompt"] for i in inst["items"])
@@ -501,11 +501,11 @@ class TestIntakeApi:
         assert status["profile"]["allergens"] == ["peanuts"]
 
     def test_invalid_screener_answers_400(self, server) -> None:
-        bad_value = _intake_payload(screeners={"phq2": [0, 9]})
+        bad_value = _intake_payload(screeners={"sleep_check": [0, 9]})
         err = _post(server, "/api/intake", bad_value)
         assert "error" in err
 
-        wrong_count = _intake_payload(screeners={"gad2": [1]})
+        wrong_count = _intake_payload(screeners={"energy_check": [1]})
         err = _post(server, "/api/intake", wrong_count)
         assert "error" in err
         assert "expected 2 answers" in err["error"]

@@ -33,13 +33,12 @@ from nutrime.llm.base import (
 )
 from nutrime.rules import EgressRequest, RuleEngine
 
-# The PHI categories the 5.2 envelope declarations legalized for
-# single-slice cloud crossings (meal_plan_generation = {allergens,
-# demographics}). The clinical categories (conditions, medications,
-# labs, wearables, intake_screener) are local-tier-only. Shrinking this
-# set to empty is the switch that makes the whole system local-mandatory
-# once the local tier is standard hardware.
-CLOUD_TOLERATED_PHI = frozenset({"demographics", "allergens"})
+# Local-mandatory (product-direction reset 2026-10-06): NO PHI category
+# may cross to cloud, ever — the switch the 5.2 envelope design
+# anticipated is flipped. Any PHI-tagged request requires a
+# local-private provider, fail-closed. Cloud providers remain usable
+# only for fully PHI-free work, and only when explicitly registered.
+CLOUD_TOLERATED_PHI: frozenset[str] = frozenset()
 
 
 class LlmUnavailableError(RuntimeError):

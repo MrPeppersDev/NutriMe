@@ -352,15 +352,14 @@ def _cmd_recipes_search(args: argparse.Namespace) -> int:
 
 
 def _cmd_llm_ping(args: argparse.Namespace) -> int:
-    from nutrime.llm.anthropic import AnthropicProvider
     from nutrime.llm.base import ChatMessage, LlmRequest, MissingApiKeyError, ProviderError
-    from nutrime.llm.client import LlmClient
     from nutrime.llm.phi import LLM_PING
 
     data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
     app = initialize(data_dir=data_dir)
-    provider = AnthropicProvider(model=args.model)
-    client = LlmClient((provider,), app.rule_engine, app.audit)
+    client = _build_llm_client(app, args.provider, args.model)
+    if client is None:
+        return 2
     request = LlmRequest(
         query_type=LLM_PING,
         messages=(
@@ -480,11 +479,40 @@ def _plan_base_filters(app, args) -> tuple[object, list[str]]:
     return filters, applied
 
 
+def _build_llm_client(app, provider_choice: str, model: str | None):
+    """Local-first provider stack (direction reset 2026-10-06).
+
+    Default: Ollama only — the product runs with local models, no key.
+    ``--provider cloud`` opts into Anthropic for PHI-free work (the
+    local-mandatory routing in LlmClient still refuses PHI→cloud).
+    """
+    from nutrime.llm.client import LlmClient
+    from nutrime.llm.ollama import OllamaProvider, is_available
+
+    if provider_choice == "cloud":
+        from nutrime.llm.anthropic import AnthropicProvider
+
+        cloud = (
+            AnthropicProvider(model=model) if model else AnthropicProvider()
+        )
+        providers = (
+            (OllamaProvider(), cloud) if is_available() else (cloud,)
+        )
+    else:
+        if not is_available():
+            print(
+                "The local model isn't running. One-time setup:\n"
+                "  brew install ollama && ollama pull qwen3:8b\n"
+                "then start it with: ollama serve"
+            )
+            return None
+        providers = (OllamaProvider(model=model or ""),)
+    return LlmClient(providers, app.rule_engine, app.audit)
+
+
 def _cmd_plans_generate(args: argparse.Namespace) -> int:
     from nutrime.audit import _now_iso
-    from nutrime.llm.anthropic import AnthropicProvider
     from nutrime.llm.base import MissingApiKeyError
-    from nutrime.llm.client import LlmClient
     from nutrime.plans.assemble import (
         MEAL_SLOTS,
         PlanSpec,
@@ -535,8 +563,9 @@ def _cmd_plans_generate(args: argparse.Namespace) -> int:
             print(f"  {slot}: {len(pool)} candidate(s) — {preview}")
         return 0
 
-    provider = AnthropicProvider(model=args.model)
-    client = LlmClient((provider,), app.rule_engine, app.audit)
+    client = _build_llm_client(app, args.provider, args.model)
+    if client is None:
+        return 2
 
     def _progress(outcome) -> None:
         label = f"  day {outcome.day} {outcome.slot}"
@@ -1226,9 +1255,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     llm_ping.add_argument(
+        "--provider",
+        choices=("local", "cloud"),
+        default="local",
+        help="local (Ollama, default) or cloud opt-in (PHI-free only).",
+    )
+    llm_ping.add_argument(
         "--model",
-        default="claude-opus-4-8",
-        help="Anthropic model id (default: claude-opus-4-8).",
+        default=None,
+        help="Model override (default: qwen3:8b local / claude-opus-4-8 cloud).",
     )
     llm_ping.add_argument(
         "--data-dir",
@@ -1302,9 +1337,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show the candidate pools and crossing count without calling out.",
     )
     pl_gen.add_argument(
+        "--provider",
+        choices=("local", "cloud"),
+        default="local",
+        help="local (Ollama, default) or cloud opt-in (PHI-free only).",
+    )
+    pl_gen.add_argument(
         "--model",
-        default="claude-opus-4-8",
-        help="Anthropic model id (default: claude-opus-4-8).",
+        default=None,
+        help="Model override (default: qwen3:8b local / claude-opus-4-8 cloud).",
     )
     pl_gen.add_argument(
         "--data-dir",

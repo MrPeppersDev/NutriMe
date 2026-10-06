@@ -152,7 +152,7 @@ class TestAnthropicProvider:
 class FakeProvider:
     name = "fake"
     model = "fake-model"
-    capabilities = frozenset({"reasoning", "cloud-permitted"})
+    capabilities = frozenset({"reasoning", "local-private"})
 
     def __init__(self, result: ProviderResult | None = None, error=None):
         self._result = result
@@ -335,7 +335,7 @@ class TestCli:
             "_post",
             lambda self, payload: (200, _success_body("pong")),
         )
-        code = main(["llm", "ping", "--data-dir", str(tmp_path / "data")])
+        code = main(["llm", "ping", "--provider", "cloud", "--data-dir", str(tmp_path / "data")])
         out = capsys.readouterr().out
         assert code == 0
         assert "pong" in out
@@ -347,7 +347,7 @@ class TestCli:
 
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setattr(anthropic_mod, "keychain_api_key", lambda: None)
-        code = main(["llm", "ping", "--data-dir", str(tmp_path / "data")])
+        code = main(["llm", "ping", "--provider", "cloud", "--data-dir", str(tmp_path / "data")])
         assert code == 2
         assert "config error" in capsys.readouterr().out
 
@@ -362,7 +362,7 @@ class TestCli:
             lambda self, payload: (400, '{"error": "bad request"}'),
         )
         data_dir = tmp_path / "data"
-        code = main(["llm", "ping", "--data-dir", str(data_dir)])
+        code = main(["llm", "ping", "--provider", "cloud", "--data-dir", str(data_dir)])
         assert code == 1
         assert "error_validation" in capsys.readouterr().out
         app = initialize(data_dir=data_dir)

@@ -187,19 +187,18 @@ class TestTwoTierRouting:
                 )
             )
 
-    def test_tolerated_phi_crosses_cloud_when_no_local(self, client_parts) -> None:
-        # demographics was legalized by the 5.2 envelope — on hosts
-        # without the local tier it may still cross (the pre-Ollama
-        # status quo), preferring local the moment one is registered.
+    def test_all_phi_refuses_cloud_local_mandatory(self, client_parts) -> None:
+        # Direction reset 2026-10-06: CLOUD_TOLERATED_PHI is empty —
+        # even demographics never crosses to a cloud-only stack.
         engine, audit = client_parts
         client = LlmClient([_StubCloud()], engine, audit)
-        response = client.complete(
-            _request(
-                query_type="phi_q",
-                phi_categories=frozenset({"demographics"}),
+        with pytest.raises(LlmUnavailableError, match="never falls back"):
+            client.complete(
+                _request(
+                    query_type="phi_q",
+                    phi_categories=frozenset({"demographics"}),
+                )
             )
-        )
-        assert response.provider == "anthropic"
 
     def test_phi_free_still_prefers_cloud(self, client_parts) -> None:
         engine, audit = client_parts

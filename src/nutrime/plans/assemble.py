@@ -25,7 +25,6 @@ from dataclasses import dataclass, field, replace
 from typing import Callable, Sequence
 
 from nutrime.llm.base import (
-    CAP_CLOUD_PERMITTED,
     CAP_REASONING,
     ChatMessage,
     LlmRequest,
@@ -307,8 +306,11 @@ def assemble_plan(
                 max_tokens=max_tokens,
                 # Exactly one slice. Allergens stay local (see module docstring).
                 phi_categories=frozenset({PhiCategory.DEMOGRAPHICS}),
+                # Local-mandatory (2026-10-06): the planner demands
+                # reasoning only; locality is decided by the client's
+                # PHI routing, never by the caller asking for cloud.
                 required_capabilities=frozenset(
-                    {CAP_REASONING, CAP_CLOUD_PERMITTED}
+                    {CAP_REASONING}
                 ),
                 caller_context=f"plan/day{day}/{slot}",
             )

@@ -31,6 +31,20 @@ First direct feature request from the primary non-dev household user (Pinterest-
 
 **API connector BACKBURNERED 2026-10-03 (user decision):** Pinterest app review rejected a bare GitHub repo URL as the app website (needs business account + landing page + privacy policy). Everything post-approval is already built; resume checklist on [#24](https://github.com/MrPeppersDev/NutriMe/issues/24). **Working path meanwhile — gallery-dl board backfill LANDED (`dbc1ae9`):** `recipes/pinboard.py` + `--source board --board-url` splits a public board into link-pins (→ jsonld ingest) and image-only pins (→ `pinterest_image_pins.jsonl` queue, idempotent). User's real board ("Bite me", 1,561 pins) backfilled live same day; 70 image pins queued. Vision-extraction design for the queue posted on #24 (empty `recipe_image_extraction` envelope, vision capability tag, 5.4-style schema guard, honesty fields); blocked by the dormant Anthropic key 403.
 
+## Product-direction reset (2026-10-06) — real-users spec
+
+User direction, superseding several standing decisions:
+
+1. **Local-only LLM mandate** — "run with local only models, without me, no Anthropic key at all." Reverses the A3-v2 cloud-primary MVP posture: Ollama becomes the default provider everywhere; cloud becomes explicit opt-in (`--provider cloud`); `CLOUD_TOLERATED_PHI` → **empty** (the documented local-mandatory switch, now flipped). L2/L4 flags (#7/#9) graduate from watch to active.
+2. **Deployment model = everyone self-hosts** (tiers A + C; no cloud hosting ever). Tier-3 work = packaging for a friend's machine, not operating a server for them.
+3. **Per-member identity within a household** — per-member profiles/feedback/consent; shared corpus/inventory/plans; members on one shared device for now (picker, not auth).
+4. **Intake reshape** — PHQ-2/GAD-2 mental-health screeners judged off-product ("physical health needs app") — removed from the default flow; reverses the S4-Q1 screener-trio decision. Physical-needs intake (allergens, conditions, life-stage, demographics) is the spine.
+5. **Constitutional layer + attribution gate need real work** — beyond the 2-rule starter set; #23 formal verification pass.
+6. **Corpus quality mandate** — historical books mostly discarded (purged from live corpus; adapter kept); a real vetting engine (nutrition-aware, content-aware — beyond V0's title/junk pass).
+7. **Corpus expansion service** — crawler for public recipe sources with open-source attribution + link-back; possibly Pinterest global top-pinned food; **source differentiation is product-visible** (user pins vs. global pins vs. other sources — the facet already exists for this).
+
+Issues: #29 (per-member), #30 (constitutional+attribution), #31 (vetting engine v2), #32 (crawler service), #33 (UI overhaul), #34 (tier-3 packaging).
+
 ## Vision-audit gaps (2026-10-04) — promised in the genesis dialogue, not yet built
 
 Audit of the April-2026 genesis conversation + product-framing.md against the shipped code. These are not parked decisions — they're load-bearing pieces of the original promise that fell through the cracks between planning docs and build steps. Ordered by how directly they betray the vision if absent:

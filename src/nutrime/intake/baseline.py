@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from typing import Callable, Iterable
 
 from nutrime.intake.instruments import (
+    ENERGY_CHECK,
+    SLEEP_CHECK,
     GAD2,
     HUNGER_VITAL_SIGN,
     PHQ2,
@@ -24,7 +26,14 @@ from nutrime.intake.store import IntakeProfile, save_profile, save_screener_resp
 Prompter = Callable[[str], str]
 Emitter = Callable[[str], None]
 
-MVP_INSTRUMENTS: tuple[Instrument, ...] = (PHQ2, GAD2, HUNGER_VITAL_SIGN)
+# Direction reset 2026-10-06: physical-health spine. The mental-health
+# pair (PHQ-2/GAD-2) stays importable for opt-in use but leaves the
+# default flow — this product assesses physical/nutritional needs.
+MVP_INSTRUMENTS: tuple[Instrument, ...] = (
+    HUNGER_VITAL_SIGN,
+    SLEEP_CHECK,
+    ENERGY_CHECK,
+)
 
 
 @dataclass(frozen=True)

@@ -117,7 +117,9 @@ class SelectingProvider:
 
     name = "fake"
     model = "fake-model"
-    capabilities = frozenset({"reasoning", "cloud-permitted"})
+    # Local-mandatory world (2026-10-06): the planner's PHI crossing
+    # requires a local-private provider — fakes model the local tier.
+    capabilities = frozenset({"reasoning", "local-private"})
 
     def __init__(self, index: int = 0, errors_on: tuple[int, ...] = ()):
         self._index = index
