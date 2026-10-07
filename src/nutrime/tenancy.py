@@ -50,19 +50,25 @@ def bootstrap_tenant(
     *,
     owner_user_id: str | None = None,
 ) -> str:
-    rows = conn.execute("SELECT id FROM tenant").fetchall()
-    if len(rows) == 1:
-        return rows[0][0]
-    if len(rows) > 1:
-        raise RuntimeError(
-            f"bootstrap_tenant called with {len(rows)} existing tenants; "
-            "multi-tenant install uses explicit tenant creation, not bootstrap."
+    from nutrime.db import transaction
+
+    # BEGIN IMMEDIATE makes check-then-insert atomic across processes:
+    # app launch racing `nutrime doctor` used to create a second tenant,
+    # which bricked every later startup (2026-10-06 audit, reproduced).
+    with transaction(conn):
+        rows = conn.execute("SELECT id FROM tenant").fetchall()
+        if len(rows) == 1:
+            return rows[0][0]
+        if len(rows) > 1:
+            raise RuntimeError(
+                f"bootstrap_tenant called with {len(rows)} existing tenants; "
+                "multi-tenant install uses explicit tenant creation,"
+                " not bootstrap."
+            )
+        tenant_id = str(uuid.uuid4())
+        conn.execute(
+            "INSERT INTO tenant (id, name, created_at, status, owner_user_id)"
+            " VALUES (?, ?, ?, 'active', ?)",
+            (tenant_id, name, _now_iso(), owner_user_id),
         )
-    tenant_id = str(uuid.uuid4())
-    conn.execute(
-        "INSERT INTO tenant (id, name, created_at, status, owner_user_id)"
-        " VALUES (?, ?, ?, 'active', ?)",
-        (tenant_id, name, _now_iso(), owner_user_id),
-    )
-    conn.commit()
     return tenant_id

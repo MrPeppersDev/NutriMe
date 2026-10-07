@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from nutrime.fsio import atomic_write_text
 from nutrime.recipes.frontmatter import (
     render_markdown_document,
     split_markdown_document,
@@ -65,7 +66,7 @@ class RecipeVault:
         self.ensure()
         document = render_markdown_document(frontmatter, body)
         path = self.path_for(recipe_id)
-        path.write_text(document, encoding="utf-8")
+        atomic_write_text(path, document)
         return path
 
     def read(self, recipe_id: str) -> RecipeRecord:

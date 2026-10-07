@@ -1751,19 +1751,28 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": str(err)}, status=400)
             return
 
+        from nutrime.db import transaction
+
         # save_member_profile upserts per (tenant, member), so a revision
         # from the Profile link overwrites in place; screener responses
         # append as a new administered_at batch (honest record).
-        save_member_profile(app.substrate, app.tenant_id, member_id, profile)
-        for instrument_id, responses in responses_by_instrument.items():
-            save_screener_responses(
-                app.substrate,
-                app.tenant_id,
-                instruments[instrument_id],
-                responses,
-                member_id=member_id,
+        # One transaction for profile + screeners + derivation: a crash
+        # after the profile write used to leave the allergy visible in
+        # the profile but silently absent from search and planning
+        # (2026-10-06 audit fail-open window).
+        with transaction(app.substrate):
+            save_member_profile(
+                app.substrate, app.tenant_id, member_id, profile
             )
-        outcome = sync_from_intake(app.substrate, app.tenant_id)
+            for instrument_id, responses in responses_by_instrument.items():
+                save_screener_responses(
+                    app.substrate,
+                    app.tenant_id,
+                    instruments[instrument_id],
+                    responses,
+                    member_id=member_id,
+                )
+            outcome = sync_from_intake(app.substrate, app.tenant_id)
         self.server.intake_skipped.discard(member_id)
         self._json(
             {

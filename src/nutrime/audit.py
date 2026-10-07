@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Iterable, Mapping
 
 from nutrime import __version__
+from nutrime.db import maybe_commit
 from nutrime.knowledge.ids import uuid7
 
 if TYPE_CHECKING:
@@ -169,7 +170,7 @@ class AuditLog:
                 self._component_version,
             ),
         )
-        self._conn.commit()
+        maybe_commit(self._conn)
         return event_id
 
     def record_llm_request(
@@ -249,7 +250,7 @@ class AuditLog:
                 self._component_version,
             ),
         )
-        self._conn.commit()
+        maybe_commit(self._conn)
         return record_id
 
     def events(

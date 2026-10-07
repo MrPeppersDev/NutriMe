@@ -15,6 +15,7 @@ start switched off.
 """
 
 from __future__ import annotations
+from nutrime.db import maybe_commit
 
 import json
 import sqlite3
@@ -74,7 +75,7 @@ def set_notification(conn, tenant_id: str, member_id: str, category: str, on: bo
         " ON CONFLICT(tenant_id, member_id, key) DO UPDATE SET value = excluded.value",
         (tenant_id, member_id, f"notify.{category}", "on" if on else "off"),
     )
-    conn.commit()
+    maybe_commit(conn)
 
 
 # -- notifications ----------------------------------------------------------------

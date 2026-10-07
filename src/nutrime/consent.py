@@ -35,6 +35,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from nutrime.db import maybe_commit
 from nutrime.knowledge.ids import uuid7
 from nutrime.tenancy import _now_iso
 
@@ -125,7 +126,7 @@ def record_decision(
             " WHERE id = ?",
             (now, new_id, current[0]),
         )
-    conn.commit()
+    maybe_commit(conn)
     return new_id
 
 

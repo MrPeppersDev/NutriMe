@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Iterable
 
+from nutrime.db import maybe_commit
 from nutrime.tenancy import _now_iso
 
 
@@ -109,7 +110,7 @@ def add_item(
             now,
         ),
     )
-    conn.commit()
+    maybe_commit(conn)
     return int(cursor.lastrowid)
 
 
@@ -196,7 +197,7 @@ def set_staple_out(
             "DELETE FROM staple_out WHERE tenant_id = ? AND name = ?",
             (tenant_id, name),
         )
-    conn.commit()
+    maybe_commit(conn)
 
 
 def remove_items_by_name(
@@ -213,7 +214,7 @@ def remove_items_by_name(
                 (tenant_id, item.id),
             )
             removed.append(item.name)
-    conn.commit()
+    maybe_commit(conn)
     return removed
 
 
@@ -224,7 +225,7 @@ def remove_item(
         "DELETE FROM inventory_item WHERE tenant_id = ? AND id = ?",
         (tenant_id, item_id),
     )
-    conn.commit()
+    maybe_commit(conn)
     return cursor.rowcount > 0
 
 
@@ -268,7 +269,7 @@ def update_item(
         " WHERE tenant_id = ? AND id = ?",
         values,
     )
-    conn.commit()
+    maybe_commit(conn)
     return cursor.rowcount > 0
 
 

@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
+from nutrime.fsio import atomic_write_text
 from nutrime.knowledge.ids import uuid7
 from nutrime.recipes.frontmatter import emit_yaml, split_markdown_document
 
@@ -216,7 +217,7 @@ class PlanVault:
         yaml_text = emit_yaml(frontmatter)
         document = f"---\n{yaml_text}---\n\n{body.rstrip()}\n"
         path = self.path_for(plan_id)
-        path.write_text(document, encoding="utf-8")
+        atomic_write_text(path, document)
         return path
 
     def read(self, plan_id: str) -> PlanRecord:

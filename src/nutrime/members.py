@@ -18,6 +18,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
+from nutrime.db import maybe_commit
 from nutrime.knowledge.ids import uuid7
 from nutrime.tenancy import _now_iso
 
@@ -71,7 +72,7 @@ def add_member(
         " VALUES (?, ?, ?, 'active', ?)",
         (member.id, tenant_id, member.display_name, member.created_at),
     )
-    conn.commit()
+    maybe_commit(conn)
     return member
 
 
@@ -137,7 +138,7 @@ def rename_member(
         "UPDATE member SET display_name = ? WHERE tenant_id = ? AND id = ?",
         (name, tenant_id, member.id),
     )
-    conn.commit()
+    maybe_commit(conn)
     return Member(member.id, name, member.status, member.created_at)
 
 
@@ -152,7 +153,7 @@ def archive_member(
         " WHERE tenant_id = ? AND id = ?",
         (_now_iso(), tenant_id, member_id),
     )
-    conn.commit()
+    maybe_commit(conn)
 
 
 def default_member_id(conn: sqlite3.Connection, tenant_id: str) -> str:
@@ -172,6 +173,18 @@ def bootstrap_default_member(conn: sqlite3.Connection, tenant_id: str) -> str:
     screener responses move under that member — exactly once, because the
     copy only runs when the member is created.
     """
+    from nutrime.db import transaction
+
+    # Atomic check-then-create (same race as tenant bootstrap): two
+    # processes initializing together must not create two members or
+    # run the legacy-profile copy twice.
+    with transaction(conn):
+        return _bootstrap_default_member_locked(conn, tenant_id)
+
+
+def _bootstrap_default_member_locked(
+    conn: sqlite3.Connection, tenant_id: str
+) -> str:
     existing = founding_member_id(conn, tenant_id)
     if existing is not None:
         return existing
@@ -195,7 +208,7 @@ def bootstrap_default_member(conn: sqlite3.Connection, tenant_id: str) -> str:
         " WHERE tenant_id = ? AND member_id IS NULL",
         (member.id, tenant_id),
     )
-    conn.commit()
+    maybe_commit(conn)
     return member.id
 
 

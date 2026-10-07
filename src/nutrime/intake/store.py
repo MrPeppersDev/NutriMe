@@ -22,6 +22,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Mapping
 
+from nutrime.db import maybe_commit
 from nutrime.intake.instruments import Instrument
 from nutrime.tenancy import _now_iso
 
@@ -145,7 +146,7 @@ def save_member_profile(
             now,
         ),
     )
-    conn.commit()
+    maybe_commit(conn)
     return member_id
 
 
@@ -259,5 +260,5 @@ def save_screener_responses(
         """,
         rows,
     )
-    conn.commit()
+    maybe_commit(conn)
     return administered_at

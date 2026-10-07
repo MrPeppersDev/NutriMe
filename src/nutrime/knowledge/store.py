@@ -20,6 +20,7 @@ from enum import StrEnum
 from typing import Iterable, Mapping
 
 from nutrime import __version__
+from nutrime.db import maybe_commit
 from nutrime.knowledge.ids import new_atom_id, new_synthesized_entry_id
 from nutrime.phi import PhiCategory
 from nutrime.tenancy import _now_iso
@@ -118,7 +119,7 @@ def _insert(
             consent_record_id,
         ),
     )
-    conn.commit()
+    maybe_commit(conn)
 
 
 def insert_atom(
@@ -295,5 +296,5 @@ def retract_entry(
         " WHERE tenant_id = ? AND id = ? AND valid_until IS NULL",
         (now, reason.value, tenant_id, entry_id),
     )
-    conn.commit()
+    maybe_commit(conn)
     return cursor.rowcount > 0

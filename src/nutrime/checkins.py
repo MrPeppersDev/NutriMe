@@ -33,6 +33,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from nutrime.db import maybe_commit
 from nutrime.intake.store import IntakeProfile, load_member_profile, save_member_profile
 
 DEFAULT_INTERVAL_DAYS = 28
@@ -151,7 +152,7 @@ def set_interval(
         " DO UPDATE SET interval_days = excluded.interval_days",
         (tenant_id, member_id, days),
     )
-    conn.commit()
+    maybe_commit(conn)
 
 
 def snooze(
@@ -165,7 +166,7 @@ def snooze(
         " DO UPDATE SET snoozed_until = excluded.snoozed_until",
         (tenant_id, member_id, until),
     )
-    conn.commit()
+    maybe_commit(conn)
     return until
 
 
@@ -305,7 +306,34 @@ def complete_checkin(
     cuisines_to_try: list[str] | None = None,
     now: datetime | None = None,
 ) -> CheckinResult:
-    """Apply a check-in. Validates everything before writing anything."""
+    """Apply a check-in. Validates everything before writing anything;
+    all writes land in one transaction so a crash can't leave the revised
+    profile saved with constraints underived (fail-open window,
+    2026-10-06 audit)."""
+    from nutrime.db import transaction
+
+    with transaction(conn):
+        return _complete_checkin(
+            conn, tenant_id, member_id,
+            profile=profile, screeners=screeners,
+            cooking_confidence=cooking_confidence,
+            weeknight_minutes=weeknight_minutes,
+            cuisines_to_try=cuisines_to_try, now=now,
+        )
+
+
+def _complete_checkin(
+    conn: sqlite3.Connection,
+    tenant_id: str,
+    member_id: str,
+    *,
+    profile: IntakeProfile,
+    screeners: dict[str, dict[str, int]] | None = None,
+    cooking_confidence: int | None = None,
+    weeknight_minutes: int | None = None,
+    cuisines_to_try: list[str] | None = None,
+    now: datetime | None = None,
+) -> CheckinResult:
     from nutrime.consent import require_consent
     from nutrime.intake.baseline import MVP_INSTRUMENTS
     from nutrime.intake.store import save_screener_responses
@@ -417,7 +445,7 @@ def complete_checkin(
         " WHERE tenant_id = ? AND member_id = ?",
         (tenant_id, member_id),
     )
-    conn.commit()
+    maybe_commit(conn)
     result.next_due_at = checkin_status(conn, tenant_id, member_id, now=completed).due_at
     return result
 
