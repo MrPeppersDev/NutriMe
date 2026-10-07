@@ -269,7 +269,7 @@ Sources: [KDOQI Clinical Practice Guideline for Nutrition in CKD 2020 update](ht
 | Short bowel syndrome | Refuse without specialist team; gate with | Anatomy, parenteral support | GI / nutrition support team |
 | Bile acid diarrhea | Proceed-with-disclaimer | SeHCAT or trial of sequestrant | GI |
 
-Sources: [ACG Clinical Guideline IBS 2021](https://doi.org/10.14309/ajg.0000000000001036); [BSG IBS Guidelines 2021](https://doi.org/10.1136/gutjnl-2021-324598); [Monash Low FODMAP literature](https://www.monashfodmap.com/about-fodmap-and-ibs/); [ACG Celiac Guideline 2023](https://doi.org/10.14309/ajg.0000000000002075); [ECCO/ESPEN IBD Nutrition Guidelines 2023](https://doi.org/10.1016/j.clnu.2022.12.004); [ACG/AGA EoE Guidelines](https://doi.org/10.1053/j.gastro.2022.05.045).
+Sources: [ACG Clinical Guideline IBS 2021](https://doi.org/10.14309/ajg.0000000000001036); [BSG IBS Guidelines 2021](https://doi.org/10.1136/gutjnl-2021-324598); [Monash Low FODMAP literature](https://www.monashfodmap.com/about-fodmap-and-ibs/); [ACG Celiac Guideline 2023](https://doi.org/10.14309/ajg.0000000000002075); [ECCO/ESPEN IBD Nutrition Guidelines 2023](https://doi.org/10.1016/j.clnu.2022.12.004); [AGA/JTF EoE Guidelines 2020](https://doi.org/10.1053/j.gastro.2020.02.038).
 
 #### 1.5 Hepatic
 
@@ -284,7 +284,7 @@ Sources: [ACG Clinical Guideline IBS 2021](https://doi.org/10.14309/ajg.00000000
 | Hemochromatosis | Gate — iron, vitamin C (cofactor), avoid raw shellfish (Vibrio risk in iron overload) | Phlebotomy schedule | Hepatology / hematology |
 | α1-antitrypsin liver disease | Gate | Hepatology coordination | Hepatology |
 
-Sources: [AASLD Cirrhosis Practice Guidance 2021](https://doi.org/10.1002/hep.32049); [EASL Clinical Practice Guidelines on Decompensated Cirrhosis 2022](https://doi.org/10.1016/j.jhep.2021.12.022).
+Sources: [AASLD Cirrhosis Practice Guidance 2021](https://doi.org/10.1002/hep.32049); [EASL Clinical Practice Guidelines on Decompensated Cirrhosis 2018](https://doi.org/10.1016/j.jhep.2018.03.024).
 
 #### 1.6 Autoimmune
 
@@ -302,7 +302,7 @@ Sources: [AASLD Cirrhosis Practice Guidance 2021](https://doi.org/10.1002/hep.32
 | Autoimmune hepatitis | See hepatic | — | Hepatology |
 | Type 1 / 2 autoimmune thyroid | See endocrine | — | Endocrinology |
 
-Sources: [ACR RA management 2021](https://doi.org/10.1002/art.41752); [EULAR lifestyle recommendations RA/spondyloarthritis 2023](https://doi.org/10.1136/ard-2022-223260).
+Sources: [ACR RA management 2021](https://doi.org/10.1002/art.41752); [EULAR lifestyle recommendations RA/spondyloarthritis 2023](https://doi.org/10.1136/annrheumdis-2021-222020).
 
 #### 1.7 Eating disorders — refuse posture in active phase
 
@@ -339,7 +339,7 @@ Sources: [WCRF/AICR Cancer Prevention Recommendations 2018 + updates](https://ww
 | Early post-op (0–6 mo, stage progression) | **Refuse** — surgical team / bariatric RDN |
 | Maintenance (6 mo+, stable) | Gate — protein floor, micronutrient supplementation, avoid carbonation/sliders, dumping management | RYGB vs VSG vs OAGB vs DS-specific rails |
 
-Sources: [ASMBS/AACE Nutritional Guidelines 2019](https://doi.org/10.1016/j.soard.2019.10.025); [BOMSS UK Nutritional Guidelines 2020](https://bomss.org/wp-content/uploads/2022/10/BOMSS-Nutritional-Guidance.pdf).
+Sources: [ASMBS/AACE Nutritional Guidelines 2019](https://doi.org/10.1016/j.soard.2019.10.025); [BOMSS UK Nutritional Guidelines 2020](https://doi.org/10.1111/obr.13087).
 
 #### 1.10 Allergies, intolerances, gout, osteoporosis
 
@@ -354,7 +354,7 @@ Sources: [ASMBS/AACE Nutritional Guidelines 2019](https://doi.org/10.1016/j.soar
 | Gout (hyperuricemia) | Proceed-with-disclaimer (purine, fructose, alcohol context) | ULT (allopurinol/febuxostat) status |
 | Osteoporosis / osteopenia | Proceed-with-disclaimer (Ca, vit D, protein, K, Mg rails) | Fracture history, bisphosphonates / denosumab / romosozumab; PPI long-term |
 
-Sources: [NIAID Food Allergy Guidelines 2010 + 2017 update](https://www.niaid.nih.gov/diseases-conditions/food-allergy-guidelines); [EAACI Food Allergy and Anaphylaxis Guidelines 2014/2022](https://doi.org/10.1111/all.15032); [ACR Gout Guideline 2020](https://doi.org/10.1002/art.41247); [Endocrine Society Osteoporosis Postmenopausal Women 2019/2020](https://doi.org/10.1210/clinem/dgaa048).
+Sources: [NIAID Food Allergy Guidelines 2010 + 2017 update](https://www.niaid.nih.gov/diseases-conditions/food-allergy-guidelines); [EAACI Food Allergy and Anaphylaxis Guidelines 2014](https://doi.org/10.1111/all.12429); [EAACI Anaphylaxis Guidelines 2021 update](https://doi.org/10.1111/all.15032); [ACR Gout Guideline 2020](https://doi.org/10.1002/art.41247); [Endocrine Society Osteoporosis Postmenopausal Women 2019/2020](https://doi.org/10.1210/clinem/dgaa048).
 
 #### 1.11 Other globally-prevalent (assume-add)
 
@@ -413,7 +413,7 @@ Parent-mediated intake; **assume-add posture** for additional pediatric conditio
 
 > ~~**needs second pass:** boundary between "feeding-team refer-out" and "proceed with cautious gate" for high-functioning ASD without ARFID; behavior assignment for pediatric obesity given AAP 2023 update controversy.~~ — **resolved 2026-04-29 by [synthesis.md Tension #9](../00-meta/synthesis.md#tension-9--pediatric-obesity-aap-2023--needs-second-pass-conditions).** Both resolve to proceed-with-disclaimer + audit-as-education + heavy refer-out per the bounded-role principle. Pediatric obesity specifically: plan family-appropriate meals respecting child's needs as eater; do NOT weight system recommendations toward weight outcomes (no calorie cuts, no portion shaming, no aesthetic framing per Rule 3 + product-framing).
 
-Sources: [AAP Clinical Practice Guideline Childhood Obesity 2023 (Hampl et al.)](https://doi.org/10.1542/peds.2022-060640); [NASPGHAN Pediatric IBD Position Paper](https://doi.org/10.1097/MPG.0000000000003222); [Pediatric Celiac ESPGHAN 2020](https://doi.org/10.1097/MPG.0000000000002497); [ISPAD Clinical Practice Consensus Guidelines 2022 (Pediatric T1D)](https://doi.org/10.1111/pedi.13428); [Satter Division of Responsibility](https://www.ellynsatterinstitute.org/how-to-feed/the-division-of-responsibility-in-feeding/); [WHO Growth Standards (under 2)](https://www.who.int/tools/child-growth-standards); [CDC Growth Charts (≥ 2)](https://www.cdc.gov/growthcharts/).
+Sources: [AAP Clinical Practice Guideline Childhood Obesity 2023 (Hampl et al.)](https://doi.org/10.1542/peds.2022-060640); NASPGHAN Pediatric IBD Position Paper **[verify — cited DOI resolves to an unrelated paper; see References]**; [Pediatric Celiac ESPGHAN 2020](https://doi.org/10.1097/MPG.0000000000002497); [ISPAD Clinical Practice Consensus Guidelines 2022: Nutritional management (Pediatric T1D)](https://doi.org/10.1111/pedi.13429); [Satter Division of Responsibility](https://www.ellynsatterinstitute.org/how-to-feed/the-division-of-responsibility-in-feeding/); [WHO Growth Standards (under 2)](https://www.who.int/tools/child-growth-standards); [CDC Growth Charts (≥ 2)](https://www.cdc.gov/growthcharts/).
 
 ### 3. Life-stage states (always-honored physiological tier per [sweep #9](../09-multi-user-household/scope.md))
 
@@ -455,7 +455,7 @@ Sources: [AAP Breastfeeding & Use of Human Milk 2022](https://doi.org/10.1542/pe
 - Sleep × growth interaction
 - ED screening floor (per [sweep #3](../03-clinical-nutrition-assessment/scope.md))
 
-Sources: [Bright Futures Nutrition Pocket Guide 4th ed.](https://brightfutures.aap.org/materials-and-tools/nutrition-pocket-guide/Pages/default.aspx); [SAHM Position Paper Adolescent Eating Disorders 2022](https://doi.org/10.1016/j.jadohealth.2022.05.012).
+Sources: [Bright Futures Nutrition Pocket Guide 4th ed.](https://brightfutures.aap.org/materials-and-tools/nutrition-pocket-guide/Pages/default.aspx); [SAHM Position Paper: Medical Management of Restrictive Eating Disorders 2022](https://doi.org/10.1016/j.jadohealth.2022.08.006).
 
 #### 3.4 Older adult
 
@@ -610,7 +610,7 @@ Clinical decision-support literature consistently finds that >90 % override rate
 - **Aggregate at meal level**, not ingredient level, to reduce burst alerts
 - **Provide an explicit, accessible "show me everything" view** for users who want depth
 
-Sources: [van der Sijs et al. 2006](https://doi.org/10.1197/jamia.M1809); [Ancker et al. 2017 BMC Med Inform Decis Mak](https://doi.org/10.1186/s12911-017-0430-8); [Phansalkar et al. 2010 JAMIA](https://doi.org/10.1136/jamia.2009.000257); [Co et al. 2020 systematic review](https://doi.org/10.1093/jamia/ocaa098).
+Sources: [van der Sijs et al. 2006](https://doi.org/10.1197/jamia.M1809); [Ancker et al. 2017 BMC Med Inform Decis Mak](https://doi.org/10.1186/s12911-017-0430-8); Phansalkar et al. JAMIA **[verify — cited DOI does not exist; see References]**; [Co et al. 2020 national evaluation](https://doi.org/10.1093/jamia/ocaa098).
 
 ### 7. Pregnancy + lactation safety — comparative global
 
@@ -735,15 +735,15 @@ See § 6.4 above. Core findings:
 - **Monash University** (n.d.). *About FODMAPs and IBS*. https://www.monashfodmap.com/about-fodmap-and-ibs/. Accessed 2026-04-29.
 - **Rubio-Tapia et al.** (2023). *American College of Gastroenterology Guidelines: Diagnosis and Management of Celiac Disease*. AJG. https://doi.org/10.14309/ajg.0000000000002075. Accessed 2026-04-29.
 - **Bischoff et al.** (2023). *ESPEN guideline on Clinical Nutrition in Inflammatory Bowel Disease*. Clinical Nutrition. https://doi.org/10.1016/j.clnu.2022.12.004. Accessed 2026-04-29.
-- **Dellon et al.** (2022). *AGA/JTF Clinical Practice Guideline on the Management of Eosinophilic Esophagitis*. Gastroenterology. https://doi.org/10.1053/j.gastro.2022.05.045. Accessed 2026-04-29.
+- **Hirano et al.** (2020). *AGA Institute and the Joint Task Force on Allergy-Immunology Practice Parameters Clinical Guidelines for the Management of Eosinophilic Esophagitis*. Gastroenterology, 158(6), 1776–1786. https://doi.org/10.1053/j.gastro.2020.02.038. DOI verified 2026-10-06.
 
 ### Hepatic
-- **Tapper & Parikh** (2021). *Diagnosis and management of cirrhosis and its complications: AASLD Practice Guidance*. Hepatology. https://doi.org/10.1002/hep.32049. Accessed 2026-04-29.
-- **EASL** (2022). *Clinical Practice Guidelines on the Management of Patients with Decompensated Cirrhosis*. Journal of Hepatology. https://doi.org/10.1016/j.jhep.2021.12.022. Accessed 2026-04-29.
+- **Lai et al.** (2021). *Malnutrition, Frailty, and Sarcopenia in Patients With Cirrhosis: 2021 Practice Guidance by the American Association for the Study of Liver Diseases*. Hepatology, 74(3), 1611–1644. https://doi.org/10.1002/hep.32049. DOI verified 2026-10-06.
+- **EASL (Angeli et al.)** (2018). *EASL Clinical Practice Guidelines for the management of patients with decompensated cirrhosis*. Journal of Hepatology, 69(2), 406–460. https://doi.org/10.1016/j.jhep.2018.03.024. DOI verified 2026-10-06.
 
 ### Autoimmune
 - **Fraenkel et al.** (2021). *2021 ACR Guideline for the Treatment of Rheumatoid Arthritis*. Arthritis Care & Research. https://doi.org/10.1002/art.41752. Accessed 2026-04-29.
-- **Gwinnutt et al.** (2023). *2021 EULAR recommendations regarding lifestyle behaviours and work participation*. ARD. https://doi.org/10.1136/ard-2022-223260. Accessed 2026-04-29.
+- **Gwinnutt et al.** (2023). *2021 EULAR recommendations regarding lifestyle behaviours and work participation*. Annals of the Rheumatic Diseases, 82(1), 48–56. https://doi.org/10.1136/annrheumdis-2021-222020. DOI verified 2026-10-06.
 
 ### Eating disorders
 - **APA** (2023). *Practice Guideline for the Treatment of Patients with Eating Disorders, 4th ed.* APA Publishing. https://doi.org/10.1176/appi.books.9780890424865. Accessed 2026-04-29.
@@ -761,7 +761,8 @@ See § 6.4 above. Core findings:
 
 ### Allergies / gout / osteoporosis
 - **NIAID** (2010, 2017 update on peanut). *Guidelines for the Diagnosis and Management of Food Allergy in the United States*. https://www.niaid.nih.gov/diseases-conditions/food-allergy-guidelines. Accessed 2026-04-29.
-- **Muraro et al.** (2022). *EAACI Guidelines: Anaphylaxis (2021 update) + Food allergy and anaphylaxis*. Allergy. https://doi.org/10.1111/all.15032. Accessed 2026-04-29.
+- **Muraro et al.** (2014). *EAACI Food Allergy and Anaphylaxis Guidelines: diagnosis and management of food allergy*. Allergy, 69(8), 1008–1025. https://doi.org/10.1111/all.12429. DOI verified 2026-10-06.
+- **Muraro et al.** (2022). *EAACI guidelines: Anaphylaxis (2021 update)*. Allergy. https://doi.org/10.1111/all.15032. DOI verified 2026-10-06.
 - **FitzGerald et al.** (2020). *2020 ACR Guideline for the Management of Gout*. Arthritis Care & Research. https://doi.org/10.1002/art.41247. Accessed 2026-04-29.
 - **Eastell et al.** (2019, updated 2020). *Pharmacological Management of Osteoporosis in Postmenopausal Women: An Endocrine Society Clinical Practice Guideline*. JCEM. https://doi.org/10.1210/clinem/dgaa048. Accessed 2026-04-29.
 - **Du Toit et al.** (2015). *Randomized Trial of Peanut Consumption in Infants at Risk for Peanut Allergy (LEAP)*. NEJM. https://doi.org/10.1056/NEJMoa1414850. Accessed 2026-04-29.
@@ -769,9 +770,9 @@ See § 6.4 above. Core findings:
 
 ### Pediatric
 - **Hampl et al.** (2023). *AAP Clinical Practice Guideline for the Evaluation and Treatment of Children and Adolescents with Obesity*. Pediatrics. https://doi.org/10.1542/peds.2022-060640. Accessed 2026-04-29.
-- **NASPGHAN/ESPGHAN** (2022). *Position paper on management of pediatric IBD*. JPGN. https://doi.org/10.1097/MPG.0000000000003222. Accessed 2026-04-29.
+- **NASPGHAN/ESPGHAN** (2022). *Position paper on management of pediatric IBD*. JPGN. **[verify — the cited DOI (10.1097/MPG.0000000000003222) is an unrelated mouse PEG-3350 study, and no paper with this title was found. Candidates: van Rheenen et al. 2021, ECCO-ESPGHAN guideline on the medical management of paediatric Crohn's disease, https://doi.org/10.1093/ecco-jcc/jjaa161; Miele et al. 2018, ESPGHAN Porto IBD Group position paper on nutrition in pediatric IBD, https://doi.org/10.1097/MPG.0000000000001896.]**
 - **Husby et al.** (2020). *ESPGHAN Guidelines for the Diagnosis of Coeliac Disease 2020*. JPGN. https://doi.org/10.1097/MPG.0000000000002497. Accessed 2026-04-29.
-- **ISPAD** (2022). *ISPAD Clinical Practice Consensus Guidelines 2022*. Pediatric Diabetes. https://doi.org/10.1111/pedi.13428. Accessed 2026-04-29.
+- **ISPAD (Annan et al.)** (2022). *ISPAD Clinical Practice Consensus Guidelines 2022: Nutritional management in children and adolescents with diabetes*. Pediatric Diabetes, 23(8), 1297–1321. https://doi.org/10.1111/pedi.13429. DOI verified 2026-10-06. (The previously cited DOI, pedi.13428, is the psychological-care chapter.)
 - **Satter, E.** (n.d.). *The Division of Responsibility in Feeding*. Ellyn Satter Institute. https://www.ellynsatterinstitute.org/how-to-feed/the-division-of-responsibility-in-feeding/. Accessed 2026-04-29.
 - **WHO** (2006). *Child Growth Standards*. https://www.who.int/tools/child-growth-standards. Accessed 2026-04-29.
 - **CDC** (2022 extended). *CDC Growth Charts*. https://www.cdc.gov/growthcharts/. Accessed 2026-04-29.
@@ -784,8 +785,8 @@ See § 6.4 above. Core findings:
 - **AAP** (2022). *Breastfeeding and the Use of Human Milk*. Pediatrics. https://doi.org/10.1542/peds.2022-057988. Accessed 2026-04-29.
 - **NIH** (n.d., continually updated). *LactMed Database*. https://www.ncbi.nlm.nih.gov/books/NBK501922/. Accessed 2026-04-29.
 - **WHO** (n.d.). *Infant and Young Child Feeding*. https://www.who.int/news-room/fact-sheets/detail/infant-and-young-child-feeding. Accessed 2026-04-29.
-- **AAP Bright Futures** (2021, 4th ed.). *Nutrition Pocket Guide*. https://brightfutures.aap.org/materials-and-tools/nutrition-pocket-guide/Pages/default.aspx. Accessed 2026-04-29.
-- **SAHM** (2022). *Eating Disorders in Adolescents: Position Paper*. J Adolesc Health. https://doi.org/10.1016/j.jadohealth.2022.05.012. Accessed 2026-04-29.
+- **AAP Bright Futures** (2021, 4th ed.). *Nutrition Pocket Guide*. https://brightfutures.aap.org/materials-and-tools/nutrition-pocket-guide/Pages/default.aspx. Accessed 2026-04-29. **[verify — no 4th edition of *Bright Futures: Nutrition* exists. The intended source is either the *Bright Futures: Nutrition* 3rd ed. Pocket Guide (AAP, 2011) or the *Bright Futures Guidelines* 4th ed. (Hagan, Shaw & Duncan, AAP, 2017). The URL now redirects to a generic AAP landing page.]**
+- **SAHM** (2022). *Medical Management of Restrictive Eating Disorders in Adolescents and Young Adults*. Journal of Adolescent Health, 71(5), 648–654. https://doi.org/10.1016/j.jadohealth.2022.08.006. DOI verified 2026-10-06.
 - **Volkert et al.** (2022). *ESPEN practical guideline: Clinical nutrition and hydration in geriatrics*. Clinical Nutrition. https://doi.org/10.1016/j.clnu.2022.01.024. Accessed 2026-04-29.
 - **Bauer et al.** (2013). *Evidence-based recommendations for optimal dietary protein intake in older people: PROT-AGE position*. JAMDA. https://doi.org/10.1016/j.jamda.2013.05.021. Accessed 2026-04-29.
 - **IDDSI** (2019, framework v2.0). *International Dysphagia Diet Standardisation Initiative*. https://iddsi.org/framework/. Accessed 2026-04-29.
@@ -818,8 +819,8 @@ See § 6.4 above. Core findings:
 - **NHS** (n.d.). *Food, drink and your medicines*. https://www.nhs.uk/conditions/medicines-information/. Accessed 2026-04-29.
 - **van der Sijs et al.** (2006). *Overriding of drug safety alerts in computerized physician order entry*. JAMIA. https://doi.org/10.1197/jamia.M1809. Accessed 2026-04-29.
 - **Ancker et al.** (2017). *Effects of workload, work complexity, and repeated alerts on alert fatigue in a clinical decision support system*. BMC Med Inform Decis Mak. https://doi.org/10.1186/s12911-017-0430-8. Accessed 2026-04-29.
-- **Phansalkar et al.** (2010). *High-priority drug-drug interactions for use in electronic health records*. JAMIA. https://doi.org/10.1136/jamia.2009.000257. Accessed 2026-04-29.
-- **Co et al.** (2020). *Effect of clinical decision support on appropriateness of advanced imaging use among physicians-in-training*. JAMIA. https://doi.org/10.1093/jamia/ocaa098. Accessed 2026-04-29.
+- **Phansalkar et al.** (2010). *High-priority drug-drug interactions for use in electronic health records*. JAMIA. **[verify — the cited DOI (10.1136/jamia.2009.000257) does not exist. This title is the 2012 paper, JAMIA 19(5), 735–743, https://doi.org/10.1136/amiajnl-2011-000612. The §6.4 claim (alert tiering and human-factors design) better matches Phansalkar et al. 2010, *A review of human factors principles for the design and implementation of medication safety alerts in clinical information systems*, JAMIA 17(5), 493–501, https://doi.org/10.1136/jamia.2010.005264. Pick one.]**
+- **Co et al.** (2020). *The tradeoffs between safety and alert fatigue: Data from a national evaluation of hospital medication-related clinical decision support*. JAMIA, 27(8), 1252–1258. https://doi.org/10.1093/jamia/ocaa098. DOI verified 2026-10-06. (An observational national evaluation, not a systematic review.)
 
 ### Pregnancy + lactation comparative
 - **FDA** (2022). *Advice About Eating Fish*. https://www.fda.gov/food/consumers/advice-about-eating-fish. Accessed 2026-04-29.

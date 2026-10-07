@@ -366,7 +366,7 @@ NutriMe relevance: age-band guidance in Bright Futures gives NutriMe the develop
 - **KEDS** (Kids' Eating Disorders Survey, Childress et al., 1993): 14-item self-report for children ages 8–13. Body-image and weight-control behaviors. Validated in US elementary/middle-school samples.
 - **ChEAT** (Children's Eating Attitudes Test, Maloney et al., 1988): 26-item adaptation of EAT-26 for children (age 8+). Cross-culturally translated.
 - **SCOFF — adolescent application:** original SCOFF validated primarily in adults; subsequent studies have used SCOFF in adolescents (typically age 13+) with reasonable performance, though the optimal screener for adolescent populations remains debated. Some clinical practice prefers EDE-Q-A (adolescent version of EDE-Q) or the YESS (Youth Eating Disorder Screening tool, recent literature).
-- **PARDI-AR-Q** (Pica, ARFID, and Rumination Disorder Interview — ARFID Questionnaire, Bryant-Waugh et al., 2019): screens for ARFID symptoms across the three core profiles (sensory sensitivity, lack of interest in food, fear of aversive consequences). Validated in pediatric and adult ARFID populations.
+- **PARDI-AR-Q** (Pica, ARFID, and Rumination Disorder Interview — ARFID Questionnaire, Bryant-Waugh et al., 2022): screens for ARFID symptoms across the three core profiles (sensory sensitivity, lack of interest in food, fear of aversive consequences). Validated in pediatric and adult ARFID populations.
 - **NIAS** (Nine Item ARFID Screen, Zickgraf & Ellis, 2018): brief self-report or parent-report ARFID screener. Validated in children and adults; useful for identifying picky-eating presentations that warrant clinical evaluation vs. typical developmental selectivity.
 
 NutriMe relevance: pediatric ED screening positives have **very high stakes** and trigger immediate consult-professional language with named pediatric-ED resources. ARFID specifically is critical to distinguish from "typical picky eating" — ARFID is associated with growth/nutritional/psychosocial impairment and warrants pediatric eating-disorder specialist referral, not adjustment of NutriMe meal plans alone.
@@ -668,7 +668,7 @@ The recurring challenge: every clinical-grade instrument that has been "consumer
 
 > Randall Simpson, J.A., Keller, H.H., Rysdale, L.A., Beyers, J.E. (2008). Nutrition Screening Tool for Every Preschooler (NutriSTEP): validation and test-retest reliability of a parent-administered questionnaire assessing nutrition risk of preschoolers. *European Journal of Clinical Nutrition*, 62(6), 770–780. https://doi.org/10.1038/sj.ejcn.1602780. **[Tier 3 — NutriSTEP preschool.]**
 
-> Murphy, J., Hatfield, J., Arsenault, J., Rysdale, L., Ouellette, V., Beyers, J., Bourgon, B., Vesey, K., Keller, H., Randall Simpson, J. (2014). NutriSTEP: nutrition screening for school-age children. *Canadian Journal of Dietetic Practice and Research*. **[Tier 3 — school-age extension.]**
+> Murphy, J., Hatfield, J., Arsenault, J., Rysdale, L., Ouellette, V., Beyers, J., Bourgon, B., Vesey, K., Keller, H., Randall Simpson, J. (2014). NutriSTEP: nutrition screening for school-age children. *Canadian Journal of Dietetic Practice and Research*. **[Tier 3 — school-age extension.]** **[verify — no such paper was found (no volume, pages or DOI; not in Crossref), and no school-age NutriSTEP appears to exist. The validated versions are preschool (3–5 y) and Toddler NutriSTEP (18–35 mo): Randall Simpson et al. 2015, Appl Physiol Nutr Metab 40(9):877–886, https://doi.org/10.1139/apnm-2015-0048. The "5–17 y" claim at §4 needs a source or should be dropped.]**
 
 > **CDC** (current). *Growth Charts*. Centers for Disease Control and Prevention. https://www.cdc.gov/growthcharts/. Accessed 2026-04-28. **[Tier 1.]**
 
@@ -682,7 +682,9 @@ The recurring challenge: every clinical-grade instrument that has been "consumer
 
 > Maloney, M.J., McGuire, J.B., Daniels, S.R. (1988). Reliability testing of a children's version of the Eating Attitude Test. *Journal of the American Academy of Child & Adolescent Psychiatry*, 27(5), 541–543. https://doi.org/10.1097/00004583-198809000-00004. **[Tier 3 — ChEAT.]**
 
-> Bryant-Waugh, R., Micali, N., Cooke, L., Lawson, E.A., Eddy, K.T., Thomas, J.J. (2019). Development of the Pica, ARFID, and Rumination Disorder Interview, a multi-informant, semi-structured interview of feeding disorders across the lifespan: a pilot study for ages 10–22. *International Journal of Eating Disorders*, 52(4), 378–387. https://doi.org/10.1002/eat.22958. **[Tier 3 — PARDI / PARDI-AR-Q development.]**
+> Bryant-Waugh, R., Micali, N., Cooke, L., Lawson, E.A., Eddy, K.T., Thomas, J.J. (2019). Development of the Pica, ARFID, and Rumination Disorder Interview, a multi-informant, semi-structured interview of feeding disorders across the lifespan: a pilot study for ages 10–22. *International Journal of Eating Disorders*, 52(4), 378–387. https://doi.org/10.1002/eat.22958. **[Tier 3 — PARDI interview development.]**
+
+> Bryant-Waugh, R., Stern, C.M., Dreier, M.J., et al. (2022). Preliminary validation of the pica, ARFID and rumination disorder interview ARFID questionnaire (PARDI-AR-Q). *Journal of Eating Disorders*, 10(1), 179. https://doi.org/10.1186/s40337-022-00706-7 (DOI verified 2026-10-06.) **[Tier 3 — PARDI-AR-Q validation; the questionnaire cited at §4 comes from this paper, not the 2019 interview pilot.]**
 
 > Zickgraf, H.F., Ellis, J.M. (2018). Initial validation of the Nine Item Avoidant/Restrictive Food Intake disorder screen (NIAS): a measure of three restrictive eating patterns. *Appetite*, 123, 32–42. https://doi.org/10.1016/j.appet.2017.11.111. **[Tier 3 — NIAS.]**
 
