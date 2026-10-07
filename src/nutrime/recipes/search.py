@@ -23,6 +23,13 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterable
 
+# One matcher for every surface (search, grocery netting, avoid-lists);
+# the underscore aliases are the names tests and old callers import.
+from nutrime.foods.matching import (
+    exclusion_match as _exclusion_match,
+    normalize_term,
+    terms_match as _terms_match,
+)
 from nutrime.recipes.allergens import ALLERGEN_SYNONYMS, TOP_ALLERGENS
 from nutrime.recipes.store import RecipeRecord, RecipeVault
 
@@ -185,170 +192,6 @@ class SearchResult:
     missing_ingredients: tuple[str, ...] = ()
 
 
-def normalize_term(term: str) -> str:
-    """Punctuation→space, lowercase, strip a plural trailing 's' per word.
-
-    Punctuation folding matters for token matching: "cilantro, minced"
-    must yield the token "cilantro", not "cilantro," — exclusion safety
-    depends on it.
-    """
-    text = re.sub(r"[^\w\s]", " ", term.lower())
-
-    def singular(w: str) -> str:
-        if len(w) <= 3 or w.endswith("ss"):
-            return w
-        # tomatoes→tomato, potatoes→potato; berries handled as -ies→y
-        if w.endswith("oes"):
-            return w[:-2]
-        if w.endswith("ies"):
-            return w[:-3] + "y"
-        if w.endswith("s"):
-            return w[:-1]
-        return w
-
-    return " ".join(singular(w) for w in text.strip().split())
-
-
-# -- pantry↔ingredient matching (match-quality pass, 2026-10-06) ---------------
-#
-# The old matcher was bidirectional substring containment over the whole
-# normalized string. Recall was perfect; precision was not: "apple"
-# matched pineAPPLE, "egg" matched EGGplant, "rice" matched rice VINEGAR,
-# "milk" matched coconut milk. Three fixes, all deterministic:
-#
-# 1. token-boundary matching — terms match on whole normalized words,
-#    never inside a word (kills pineapple/eggplant/cornstarch);
-# 2. head-noun compounds — in food names like "rice vinegar" the LAST
-#    noun is the food ("vinegar"); a pantry item only satisfies the
-#    compound if it covers the head, so rice ≠ rice vinegar but
-#    "rice vinegar" in the pantry matches "rice vinegar" (and plain
-#    "vinegar" matches it too, deliberately — same food family);
-# 3. synonyms — US/UK + common aliases normalize to one canonical form
-#    before comparison (scallion=green onion, garbanzo=chickpea...).
-
-# Compound heads where the modifier is NOT the food: having the modifier
-# in the pantry must not satisfy the compound. "chicken stock" is stock,
-# not chicken; "onion powder" is a spice, not an onion.
-_COMPOUND_HEADS = frozenset({
-    "vinegar", "oil", "powder", "paste", "sauce", "flour", "syrup",
-    "extract", "stock", "broth", "butter", "milk", "cream", "wine",
-    "juice", "zest", "seasoning", "starch", "breadcrumb", "crumb",
-    "snap", "chip", "seed",
-})
-
-# Compounds that are a DIFFERENT food from both their words: neither
-# "milk" nor "coconut" should match "coconut milk"; "cream" is not
-# "cream of tartar". Only the exact phrase (or a longer phrase
-# containing it) matches these.
-_DISTINCT_FOODS = frozenset({
-    "coconut milk", "almond milk", "oat milk", "soy milk", "rice milk",
-    "coconut cream", "cream of tartar", "peanut butter", "almond butter",
-    "cashew butter", "apple butter", "cocoa butter",
-    "buttermilk", "sweetened condensed milk", "evaporated milk",
-    "egg noodle", "egg roll wrapper",
-})
-
-# Aliases → canonical (applied word-wise and phrase-wise after
-# normalize_term). Deliberately conservative: only true same-food names.
-_SYNONYMS = {
-    "scallion": "green onion",
-    "spring onion": "green onion",
-    "coriander leaf": "cilantro",
-    "coriander leave": "cilantro",  # post-normalize_term shape of "leaves"
-    "fresh coriander": "cilantro",
-    "garbanzo": "chickpea",
-    "garbanzo bean": "chickpea",
-    "courgette": "zucchini",
-    "aubergine": "eggplant",
-    "capsicum": "bell pepper",
-    "rocket": "arugula",
-    "beetroot": "beet",
-    "prawn": "shrimp",
-    "mange tout": "snow pea",
-    "caster sugar": "sugar",
-    "confectioner sugar": "powdered sugar",
-    "icing sugar": "powdered sugar",
-    "corn starch": "cornstarch",
-    "cornflour": "cornstarch",
-    "bicarbonate of soda": "baking soda",
-    "porridge oat": "oat",
-    "rolled oat": "oat",
-    "mince": "ground beef",
-    "minced beef": "ground beef",
-    "ground mince": "ground beef",
-}
-
-
-def _canonical(term: str) -> str:
-    norm = normalize_term(term)
-    return _SYNONYMS.get(norm, norm)
-
-
-def _token_phrase_in(needle: str, hay: str) -> bool:
-    """True when needle's full word sequence appears on word boundaries
-    in hay — "apple" in "apple pie" but NOT in "pineapple"."""
-    n_words = needle.split()
-    h_words = hay.split()
-    if not n_words or len(n_words) > len(h_words):
-        return False
-    for start in range(len(h_words) - len(n_words) + 1):
-        if h_words[start : start + len(n_words)] == n_words:
-            return True
-    return False
-
-
-def _head(term: str) -> str:
-    words = term.split()
-    return words[-1] if words else ""
-
-
-def _terms_match(a: str, b: str) -> bool:
-    """Does pantry/filter term ``a`` match food name ``b`` (either way)?
-
-    Token-boundary + head-noun aware; both sides canonicalized first.
-    """
-    na, nb = _canonical(a), _canonical(b)
-    if not na or not nb:
-        return False
-    if na == nb:
-        return True
-    shorter, longer = (na, nb) if len(na.split()) <= len(nb.split()) else (nb, na)
-    if not _token_phrase_in(shorter, longer):
-        return False
-    # Distinct-food compounds: only the exact phrase satisfies them —
-    # "milk" must not match "coconut milk", nor "cream" match "cream of
-    # tartar", whatever the head-noun arithmetic says.
-    for compound in _DISTINCT_FOODS:
-        if _token_phrase_in(compound, longer) and not _token_phrase_in(
-            compound, shorter
-        ):
-            return False
-    # Word-boundary hit. Guard the compound-head trap: if the longer
-    # term ends in a compound head that the shorter term doesn't cover,
-    # the modifier alone must not match ("rice" vs "rice vinegar").
-    # The head itself always satisfies it ("vinegar" vs "rice vinegar").
-    long_head = _head(longer)
-    if long_head in _COMPOUND_HEADS and _head(shorter) != long_head:
-        return False
-    return True
-
-
-def _exclusion_match(avoided: str, name: str) -> bool:
-    """Recall-biased matcher for avoid-lists — the safety direction.
-
-    The compound-head guard is deliberately ABSENT: "peanut butter"
-    contains peanut, "onion powder" contains onion — a recipe using
-    them must be excluded for an avoider of the base food. Token
-    boundaries still apply ("egg" does not exclude eggplant: different
-    plant, no egg in it).
-    """
-    na, nb = _canonical(avoided), _canonical(name)
-    if not na or not nb:
-        return False
-    if na == nb:
-        return True
-    shorter, longer = (na, nb) if len(na.split()) <= len(nb.split()) else (nb, na)
-    return _token_phrase_in(shorter, longer)
 
 
 def ingredient_names(body: str) -> tuple[str, ...]:
