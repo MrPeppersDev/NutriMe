@@ -57,6 +57,10 @@ class IntakeProfile:
     # Non-allergen foods this member won't eat (hard exclusions, like
     # allergens) — distinct from dietary_preferences (soft boosts).
     avoid_foods: tuple[str, ...] = field(default_factory=tuple)
+    # Disclosed medications (sweep #10 §6) — free text; drug–nutrient
+    # rails are computed from nutrime.medications at use time, never
+    # stored. PhiCategory.MEDICATIONS: names never cross into prompts.
+    medications: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not 1900 <= self.year_of_birth <= 2100:
@@ -115,9 +119,9 @@ def save_member_profile(
             tenant_id, member_id, year_of_birth, sex_assigned_at_birth,
             height_cm, weight_kg, life_stage,
             dietary_preferences, allergens, conditions, avoid_foods,
-            created_at, updated_at
+            medications, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tenant_id, member_id) DO UPDATE SET
             year_of_birth         = excluded.year_of_birth,
             sex_assigned_at_birth = excluded.sex_assigned_at_birth,
@@ -128,6 +132,7 @@ def save_member_profile(
             allergens             = excluded.allergens,
             conditions            = excluded.conditions,
             avoid_foods           = excluded.avoid_foods,
+            medications           = excluded.medications,
             updated_at            = excluded.updated_at
         """,
         (
@@ -142,6 +147,7 @@ def save_member_profile(
             json.dumps(list(profile.allergens)),
             json.dumps(list(profile.conditions)),
             json.dumps(list(profile.avoid_foods)),
+            json.dumps(list(profile.medications)),
             now,
             now,
         ),
@@ -161,6 +167,7 @@ def profile_to_dict(profile: IntakeProfile) -> dict:
         "allergens": list(profile.allergens),
         "conditions": list(profile.conditions),
         "avoid_foods": list(profile.avoid_foods),
+        "medications": list(profile.medications),
     }
 
 
@@ -174,7 +181,7 @@ def save_profile(
 _PROFILE_COLS = (
     "member_id, year_of_birth, sex_assigned_at_birth, life_stage,"
     " height_cm, weight_kg, dietary_preferences, allergens, conditions,"
-    " avoid_foods"
+    " avoid_foods, medications"
 )
 
 
@@ -189,6 +196,7 @@ def _row_to_profile(row: tuple) -> IntakeProfile:
         allergens=tuple(json.loads(row[7])),
         conditions=tuple(json.loads(row[8])),
         avoid_foods=tuple(json.loads(row[9])),
+        medications=tuple(json.loads(row[10])),
     )
 
 

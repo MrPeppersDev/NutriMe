@@ -66,6 +66,23 @@ def plan_base_filters(
             applied.append(
                 "life-stage rails (" + ", ".join(rails.stages) + ")"
             )
+        # Drug–nutrient rails (#46 / sweep #10 §6): exclusion-kind
+        # interactions (grapefruit+statin, tyramine+MAOI, alcohol
+        # hard-stops…) stack the same way.
+        from nutrime.medications import household_medication_rails
+
+        med_rails = household_medication_rails(app.substrate, app.tenant_id)
+        if med_rails.avoid_terms:
+            filters = replace(
+                filters,
+                exclude_ingredients=(
+                    filters.exclude_ingredients | med_rails.avoid_terms
+                ),
+            )
+            applied.append(
+                f"medication rails ({len(med_rails.medications)} "
+                "medication(s))"
+            )
     if use_inventory:
         from nutrime.inventory.store import staples_out
 
@@ -138,9 +155,16 @@ def generate_and_store(
         )
         raise PlanRefusedError(gates.refusal_message())
     from nutrime.life_stages import household_life_stage_rails
+    from nutrime.medications import household_medication_rails
 
     stage_rails = household_life_stage_rails(app.substrate, app.tenant_id)
-    all_notes = tuple(gates.plan_notes) + stage_rails.plan_notes
+    # Medication plan notes are mechanism-level ("an eater needs
+    # consistent vitamin K"), never drug names — MEDICATIONS is not in
+    # the planner's PHI envelope and must not ride household_note.
+    med_rails = household_medication_rails(app.substrate, app.tenant_id)
+    all_notes = (
+        tuple(gates.plan_notes) + stage_rails.plan_notes + med_rails.plan_notes
+    )
     if all_notes:
         base = spec.household_note.strip() or f"{spec.servings} servings"
         spec = replace(

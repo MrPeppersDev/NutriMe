@@ -757,12 +757,14 @@ class _Handler(BaseHTTPRequestHandler):
         from nutrime.knowledge.store import list_synthesized_entries
 
         from nutrime.conditions import household_gates
+        from nutrime.medications import household_medication_rails
 
         app = self.server.app
         entries = list_synthesized_entries(
             app.substrate, app.tenant_id, entry_type="abstracted_constraint"
         )
         gates = household_gates(app.substrate, app.tenant_id)
+        med_rails = household_medication_rails(app.substrate, app.tenant_id)
         self._json({
             "constraints": sorted(
                 {str(e.payload.get("abstracted_text", "")) for e in entries} - {""}
@@ -778,6 +780,19 @@ class _Handler(BaseHTTPRequestHandler):
                 }
                 for c in gates.conditions
             ],
+            # Sweep #10 §6: disclosed medications + their drug–nutrient
+            # rails. Surfaced ONCE here (alert-fatigue §6.4) — plans and
+            # search enforce the exclusions silently.
+            "medications": [
+                {
+                    "name": m.canonical,
+                    "kind": m.kind,
+                    "note": m.note,
+                    "avoided_foods": sorted(m.avoid_terms),
+                }
+                for m in med_rails.medications
+            ],
+            "medications_unrecognized": sorted(med_rails.unrecognized),
             "plans_refused": gates.refused,
         })
 
@@ -901,6 +916,9 @@ class _Handler(BaseHTTPRequestHandler):
                 ),
                 avoid_foods=tuple(
                     str(v).strip() for v in raw.get("avoid_foods") or [] if str(v).strip()
+                ),
+                medications=tuple(
+                    str(v).strip() for v in raw.get("medications") or [] if str(v).strip()
                 ),
             )
             instruments = {i.instrument_id: i for i in MVP_INSTRUMENTS}
@@ -1089,6 +1107,20 @@ class _Handler(BaseHTTPRequestHandler):
                     filters,
                     exclude_ingredients=(
                         filters.exclude_ingredients | rails.avoid_terms
+                    ),
+                )
+            # Drug–nutrient rails (#46): exclusion-kind interactions
+            # stack on this surface too.
+            from nutrime.medications import household_medication_rails
+
+            med_rails = household_medication_rails(
+                app.substrate, app.tenant_id
+            )
+            if med_rails.avoid_terms:
+                filters = _dc_replace(
+                    filters,
+                    exclude_ingredients=(
+                        filters.exclude_ingredients | med_rails.avoid_terms
                     ),
                 )
 
@@ -1761,6 +1793,7 @@ class _Handler(BaseHTTPRequestHandler):
             "allergens": list(profile.allergens),
             "conditions": list(profile.conditions),
             "avoid_foods": list(profile.avoid_foods),
+            "medications": list(profile.medications),
         }
 
     def _api_intake_status(self) -> None:
@@ -1780,6 +1813,7 @@ class _Handler(BaseHTTPRequestHandler):
     def _api_intake_questions(self) -> None:
         from nutrime.conditions import COMMON_CONDITIONS
         from nutrime.intake.baseline import MVP_INSTRUMENTS
+        from nutrime.medications import COMMON_MEDICATIONS
         from nutrime.recipes.allergens import TOP_ALLERGENS
 
         self._json(
@@ -1805,6 +1839,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "sex_options": list(self._INTAKE_SEX_OPTIONS),
                     "allergens": list(TOP_ALLERGENS),
                     "conditions": list(COMMON_CONDITIONS),
+                    "medications": list(COMMON_MEDICATIONS),
                 },
             }
         )
@@ -1860,6 +1895,7 @@ class _Handler(BaseHTTPRequestHandler):
                 allergens=_str_list("allergens"),
                 conditions=_str_list("conditions"),
                 avoid_foods=_str_list("avoid_foods"),
+                medications=_str_list("medications"),
             )
         except (TypeError, ValueError) as err:
             self._json({"error": str(err)}, status=400)
@@ -3435,6 +3471,7 @@ function blankIntakeState() {
     year_of_birth: "", sex_assigned_at_birth: "", life_stage: "",
     height_cm: "", weight_kg: "",
     allergens: new Set(), dietary_preferences: [], avoid_foods: [], conditions: new Set(),
+    medications: new Set(),
     screeners: {},  // instrument_id -> [value per item]
     cooking_confidence: null, weeknight_minutes: null, cuisines: new Set(),
   };
@@ -3456,6 +3493,7 @@ async function openIntake() {
     INTAKE_STATE.dietary_preferences = p.dietary_preferences.slice();
     INTAKE_STATE.avoid_foods = (p.avoid_foods || []).slice();
     INTAKE_STATE.conditions = new Set(p.conditions || []);
+    INTAKE_STATE.medications = new Set(p.medications || []);
   }
   INTAKE_STEP = 1;
   renderIntakeStep();
@@ -3528,6 +3566,16 @@ function renderIntakeStep() {
       .map(c => '<span class="chip">' + esc(c) +
         '<button data-remove-condition="' + esc(c) +
         '" title="Remove">\\u00d7</button></span>').join(" ");
+    const medChips = (INTAKE_Q.profile_fields.medications || []).map(m => {
+      const on = s.medications.has(m);
+      return '<button class="pill' + (on ? ' on' : '') + '" data-medication="' + esc(m) +
+        '" onclick="toggleMedication(this)">' + esc(m) + '</button>';
+    }).join(" ");
+    const medExtras = [...s.medications]
+      .filter(m => !(INTAKE_Q.profile_fields.medications || []).includes(m))
+      .map(m => '<span class="chip">' + esc(m) +
+        '<button data-remove-medication="' + esc(m) +
+        '" title="Remove">\\u00d7</button></span>').join(" ");
     sheet.innerHTML = intakeHeader("What to avoid, what you enjoy") +
       '<h4 style="margin:4px 0 2px">Never serve \\u2014 hard rules</h4>' +
       '<p class="hint" style="margin:0 0 8px">Recipes with any of these never appear. ' +
@@ -3552,6 +3600,15 @@ function renderIntakeStep() {
       '<div class="pillRow" id="conditionPills">' + condChips + '</div>' +
       '<div class="chips" id="condChips">' + condExtras +
       '<span class="chipAdd"><input id="condInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
+      '<div class="formRow"><label>Medications food should respect ' +
+      '(optional \\u2014 tap or type)</label>' +
+      '<p class="hint" style="margin:2px 0 8px">Some medicines interact with food ' +
+      '\\u2014 grapefruit with statins, aged cheese with MAOIs. NutriMe keeps those ' +
+      'foods out of plans quietly. Names stay on this computer and never reach ' +
+      'any AI model.</p>' +
+      '<div class="pillRow" id="medicationPills">' + medChips + '</div>' +
+      '<div class="chips" id="medChips">' + medExtras +
+      '<span class="chipAdd"><input id="medInput" placeholder="add one\\u2026, press Enter"></span></div></div>' +
       intakeNav("back", "Next: three quick check-ins", "intakeStep2Next()");
     $("prefInput").addEventListener("keydown", e => {
       if (e.key === "Enter" && e.target.value.trim()) {
@@ -3574,6 +3631,15 @@ function renderIntakeStep() {
         INTAKE_STATE.conditions.add(e.target.value.trim());
         renderIntakeStep();
         $("condInput").focus();
+      }
+    });
+    sheet.querySelectorAll("[data-remove-medication]").forEach(b =>
+      b.onclick = () => removeMedication(b.dataset.removeMedication));
+    $("medInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.target.value.trim()) {
+        INTAKE_STATE.medications.add(e.target.value.trim());
+        renderIntakeStep();
+        $("medInput").focus();
       }
     });
   } else if (INTAKE_STEP === 3) {
@@ -3657,6 +3723,16 @@ function removeCondition(c) {
   INTAKE_STATE.conditions.delete(c);
   renderIntakeStep();
 }
+function toggleMedication(btn) {
+  const m = btn.dataset.medication;
+  if (INTAKE_STATE.medications.has(m)) INTAKE_STATE.medications.delete(m);
+  else INTAKE_STATE.medications.add(m);
+  btn.classList.toggle("on");
+}
+function removeMedication(m) {
+  INTAKE_STATE.medications.delete(m);
+  renderIntakeStep();
+}
 
 function intakeStep1Next() {
   const s = INTAKE_STATE;
@@ -3711,6 +3787,7 @@ async function saveIntake() {
       dietary_preferences: s.dietary_preferences,
       avoid_foods: s.avoid_foods,
       conditions: [...s.conditions],
+      medications: [...s.medications],
     },
     screeners: s.screeners,
   });
@@ -3974,6 +4051,7 @@ async function saveCheckin() {
       dietary_preferences: s.dietary_preferences,
       avoid_foods: s.avoid_foods,
       conditions: [...s.conditions],
+      medications: [...s.medications],
     },
     screeners: s.screeners,
     cooking_confidence: s.cooking_confidence,
@@ -4326,6 +4404,21 @@ async function loadProfile() {
       esc(behaviorLabel[c.behavior] || c.behavior) + '</span><br>' +
       '<span class="hint">' + esc(c.note || ("Typically managed by " +
         c.specialties.join(" or ") + ".")) + '</span></span></div>').join("") + "</div>";
+  }
+  const meds = derived.medications || [];
+  if (meds.length) {
+    const kindLabel = {exclusion: "foods excluded", consistency: "consistency rail",
+                       awareness: "good to know"};
+    derivedHtml += '<div style="margin-top:10px">' + meds.map(m =>
+      '<div class="consentRow"><span><b>' + esc(m.name) + '</b> ' +
+      '<span class="tag' + (m.kind === "exclusion" ? " warn" : "") + '">' +
+      esc(kindLabel[m.kind] || m.kind) + '</span><br>' +
+      '<span class="hint">' + esc(m.note) + '</span></span></div>').join("") + "</div>";
+  }
+  if ((derived.medications_unrecognized || []).length) {
+    derivedHtml += '<div class="hint" style="margin-top:6px">No food rails on file for: ' +
+      derived.medications_unrecognized.map(esc).join(", ") +
+      '. Most medicines don\\u2019t interact with food \\u2014 the pharmacy label knows best.</div>';
   }
   $("derivedBody").innerHTML = derivedHtml;
   loadConsent();

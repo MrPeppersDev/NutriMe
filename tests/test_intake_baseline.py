@@ -49,6 +49,7 @@ DEFAULT_SCRIPT: list[str] = [
     # conditions + avoid-foods (parity with the web intake)
     "type 2 diabetes",   # conditions
     "cilantro",          # avoid foods
+    "warfarin",          # medications (#46 drug–nutrient rails)
     # HVS (2 items) — never / sometimes → positive
     "never_true",
     "sometimes_true",
@@ -108,6 +109,7 @@ def test_baseline_end_to_end_persists_and_scores(initialized_app) -> None:
     # scripted condition must now reach the condition-gating registry.
     assert outcome.profile.conditions == ("type 2 diabetes",)
     assert outcome.profile.avoid_foods == ("cilantro",)
+    assert outcome.profile.medications == ("warfarin",)
     from nutrime.conditions import household_gates
     from nutrime.knowledge.derivation import sync_from_intake
 
@@ -132,6 +134,7 @@ def test_baseline_accepts_numeric_choice(initialized_app) -> None:
         "",          # no allergens
         "",          # no conditions
         "",          # no avoid foods
+        "",          # no medications
         "1", "1",    # PHQ-2 not_at_all x2
         "1", "1",    # GAD-2 not_at_all x2
         "1", "1",    # HVS never_true x2
@@ -158,7 +161,7 @@ def test_baseline_reprompts_on_invalid_year(initialized_app) -> None:
         "adult",
         "", "",         # skip height + weight
         "", "",         # no preferences / allergens
-        "", "",         # no conditions / avoid foods
+        "", "", "",     # no conditions / avoid foods / medications
         "never_true", "never_true",
         "very_good", "very_good",
         "rarely_or_never", "rarely_or_never",

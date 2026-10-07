@@ -215,6 +215,19 @@ def _collect_profile(prompter: Prompter, emitter: Emitter) -> IntakeProfile:
         emitter,
         "Foods to never serve, beyond allergens (e.g. cilantro, organ meat):",
     )
+    # Medications (#46 / sweep #10 §6): drug–nutrient rails. Same
+    # deterministic-registry pattern as conditions; names stay local.
+    from nutrime.medications import COMMON_MEDICATIONS
+
+    emitter(
+        "Examples with food rails: " + ", ".join(COMMON_MEDICATIONS[:5]) + ", ..."
+    )
+    medications = _ask_list(
+        prompter,
+        emitter,
+        "Medications meal planning should know about"
+        " (interacting foods are kept out of plans; names stay local):",
+    )
     return IntakeProfile(
         year_of_birth=year_of_birth,
         sex_assigned_at_birth=sex_assigned_at_birth,
@@ -225,6 +238,7 @@ def _collect_profile(prompter: Prompter, emitter: Emitter) -> IntakeProfile:
         allergens=allergens,
         conditions=conditions,
         avoid_foods=avoid_foods,
+        medications=medications,
     )
 
 

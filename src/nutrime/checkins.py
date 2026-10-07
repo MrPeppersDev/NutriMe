@@ -286,7 +286,8 @@ def _profile_changes(old: IntakeProfile | None, new: IntakeProfile) -> list[str]
         if a != b:
             out.append(f"{label}: {a if a is not None else '—'} → {b if b is not None else '—'}")
     for attr, noun in (("allergens", "allergy"), ("dietary_preferences", "preference"),
-                       ("conditions", "condition"), ("avoid_foods", "avoided food")):
+                       ("conditions", "condition"), ("avoid_foods", "avoided food"),
+                       ("medications", "medication")):
         before = {x.lower() for x in getattr(old, attr)}
         after = {x.lower() for x in getattr(new, attr)}
         out += [f"added {noun}: {x}" for x in sorted(after - before)]
@@ -511,6 +512,9 @@ def run_checkin_interactive(
                       ", ".join(profile.conditions))
     avoids = keep("Foods never to serve (beyond allergies), comma-separated"
                   " ('none' to clear)", ", ".join(profile.avoid_foods))
+    medications = keep("Medications meal planning should know about,"
+                       " comma-separated ('none' to clear)",
+                       ", ".join(profile.medications))
 
     def as_list(answer: str, current: tuple[str, ...]) -> tuple[str, ...]:
         if not answer:
@@ -527,6 +531,7 @@ def run_checkin_interactive(
         dietary_preferences=as_list(prefs, profile.dietary_preferences),
         conditions=as_list(conditions, profile.conditions),
         avoid_foods=as_list(avoids, profile.avoid_foods),
+        medications=as_list(medications, profile.medications),
     )
     screeners = {}
     if prompter("Retake the screening questions? [Y/n]: ").strip().lower() not in ("n", "no"):
