@@ -20,11 +20,14 @@ Privacy shape: everything here is local. Recipe search is PHI-free per the
 4.1 envelope; the phase selection is a request parameter mapped to local
 ranking boosts and is never persisted nor sent anywhere.
 
-Threading: the server is deliberately single-threaded (``HTTPServer``, not
-``ThreadingHTTPServer``) — one household, one process, and it keeps every
-sqlite access on the serving thread. The Application is initialized lazily
-on first request so construction and serving can happen on different
-threads (tests start the server in a background thread).
+Threading: ``ThreadingHTTPServer`` with one lazily-initialized Application
+*per worker thread* (2026-10-06 audit: the single-threaded server stalled
+every request — including "is there a meal tonight?" — for the full 70s to
+7min of a plan generation). sqlite3 connections stay on the thread that
+opened them (check_same_thread discipline preserved); WAL journal mode
+keeps readers unblocked while any thread writes; the cross-process races
+in bootstrap/migrations were fixed first (BEGIN IMMEDIATE) so concurrent
+per-thread initialize() is safe. Warm initialize() is single-digit ms.
 
 Attribution-at-render (#23): every surface that shows a recipe — result
 cards and the detail view — carries the source/license line adjacent to
@@ -35,9 +38,10 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import threading
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -106,14 +110,25 @@ def recipe_detail(record) -> dict[str, Any]:
     }
 
 
-class NutriMeWebServer(HTTPServer):
-    """Carries lazily-initialized app state for the handler."""
+class NutriMeWebServer(ThreadingHTTPServer):
+    """Threaded server carrying one lazily-initialized app per worker.
+
+    Each worker thread gets its own Application (own sqlite connections —
+    check_same_thread discipline), created on that thread's first request
+    and reused for the thread's lifetime via ``threading.local``. WAL mode
+    (set in db.connect) keeps readers unblocked during long writes, and
+    the BEGIN IMMEDIATE bootstrap/migration paths make the concurrent
+    first-request initialize() race-free.
+    """
+
+    daemon_threads = True  # workers must not block process exit
 
     def __init__(self, address: tuple[str, int], data_dir: Path | None = None):
         super().__init__(address, _Handler)
         self.data_dir = data_dir
-        self._app = None
-        self._app_lock = threading.Lock()
+        self._app_local = threading.local()
+        self._apps: list = []  # every per-thread app, for server_close
+        self._apps_lock = threading.Lock()
         # Injectable for tests: the ingest fetcher + pacer, and the
         # Pinterest JSON-API fetcher
         self.ingest_fetcher = None
@@ -129,13 +144,30 @@ class NutriMeWebServer(HTTPServer):
 
     @property
     def app(self):
-        if self._app is None:
-            with self._app_lock:
-                if self._app is None:
-                    from nutrime.app import initialize
+        """This thread's Application (sqlite connections are per-thread)."""
+        app = getattr(self._app_local, "app", None)
+        if app is None:
+            from nutrime.app import initialize
 
-                    self._app = initialize(data_dir=self.data_dir)
-        return self._app
+            app = initialize(data_dir=self.data_dir)
+            self._app_local.app = app
+            with self._apps_lock:
+                self._apps.append(app)
+        return app
+
+    def server_close(self) -> None:  # noqa: D102 (stdlib override)
+        super().server_close()
+        with self._apps_lock:
+            apps, self._apps = self._apps, []
+        for app in apps:
+            # close() raises cross-thread (check_same_thread); when it
+            # does, dropping the reference is the cleanup — sqlite3's
+            # C-level dealloc closes the handle without the thread check.
+            for conn in (app.substrate, app.operational):
+                try:
+                    conn.close()
+                except sqlite3.ProgrammingError:
+                    pass
 
     @property
     def vault(self) -> RecipeVault:

@@ -740,6 +740,71 @@ class TestAttributionGate:
         assert "safeUrl(d.source_url)" in body
 
 
+class TestConcurrentServing:
+    """2026-10-06 audit: the single-threaded server stalled every request
+    for the full duration of a plan generation (70s-7min measured)."""
+
+    def test_slow_request_does_not_block_fast_one(self, server) -> None:
+        import threading
+        import time
+
+        release = threading.Event()
+
+        def slow_fetcher(url: str) -> str:
+            release.wait(timeout=10)  # park the import worker thread
+            return "<html></html>"
+
+        server.ingest_fetcher = slow_fetcher
+        server.ingest_pacer = Pacer(delay_s=0, sleep=lambda _: None)
+
+        slow_result: dict = {}
+
+        def do_import() -> None:
+            slow_result.update(
+                _post(server, "/api/import",
+                      {"urls": "https://example.com/slow"})
+            )
+
+        importer = threading.Thread(target=do_import)
+        importer.start()
+        try:
+            time.sleep(0.2)  # let the import request reach the fetcher
+            t0 = time.monotonic()
+            data = _get(server, "/api/search")
+            elapsed = time.monotonic() - t0
+            assert data["corpus_count"] == 2
+            # Under the old single-threaded server this waited the full
+            # 10s park; threaded, it answers immediately.
+            assert elapsed < 2.0
+        finally:
+            release.set()
+            importer.join(timeout=15)
+        assert not importer.is_alive()
+
+    def test_parallel_writes_both_land(self, server) -> None:
+        import threading
+
+        results: list[dict] = [None, None]  # type: ignore[list-item]
+
+        def add(i: int, name: str) -> None:
+            results[i] = _post(
+                server, "/api/inventory", {"name": name, "location": "fridge"}
+            )
+
+        threads = [
+            threading.Thread(target=add, args=(0, "parallel-a")),
+            threading.Thread(target=add, args=(1, "parallel-b")),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=15)
+        assert results[0] and results[0].get("id"), results[0]
+        assert results[1] and results[1].get("id"), results[1]
+        names = {i["name"] for i in _get(server, "/api/inventory")["items"]}
+        assert {"parallel-a", "parallel-b"} <= names
+
+
 class TestBrowserBoundary:
     """2026-10-07 security audit: Host check (DNS rebinding), Origin check
     (CSRF), path containment (traversal), and generic 500s (no internal

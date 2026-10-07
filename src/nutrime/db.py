@@ -45,6 +45,13 @@ def connect(db_path: Path | str) -> Connection:
     conn = sqlite3.connect(db_path, factory=Connection)
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS};")
+    # WAL: readers don't block the writer (or each other) across the
+    # threaded server + CLI + doctor. Persistent per database file;
+    # NORMAL sync is the standard WAL pairing (durable at checkpoint,
+    # app-crash safe). Memory DBs don't support WAL — tests use them.
+    if str(db_path) not in ("", ":memory:"):
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
     conn.enable_load_extension(True)
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
