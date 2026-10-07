@@ -42,10 +42,10 @@ US, Canada, Western Europe (UK, France, Germany, Netherlands, Belgium, Nordics, 
 
 **Personal use primary + active open-source contribution to the field** — built for the user, their family, and possibly a few friends, **AND** designed from the start with publication-grade documentation, reproducibility-aware data collection, and code quality so that architectural / methodological work can contribute back to the field. Not commercial, not hosted SaaS, **not web-based**.
 
-**Architectural posture (decided in Stage 3 Block A):**
+**Architectural posture (decided in Stage 3 Block A; revised by [Block A v2, 2026-06-29](architecture.md#block-a-revision--2026-06-29)):**
 
-- **Native macOS app** as the primary shell (with localhost-served web as a fast-iteration alternative during build); no LAN exposure, no cloud sync, single-device pure-local
-- **Cloud LLMs (Anthropic Claude + Google Gemini)** as the primary inference substrate — but with **query-level PHI decomposition** so no single query carries a full health profile (per [phi-handling.md](phi-handling.md))
+- **Multi-tenant home server + iPhone-first client** per [A1-v2](architecture.md#a1-v2--deployment-model-multi-tenant-home-server): a Mac Mini-class always-on backend serving household members; the MVP host is the 24 GB MBP with the multi-tenant schema in place. ~~Native macOS app, single-device, no LAN exposure~~ — the original A1 framing predates the family-of-4 requirement and is preserved in architecture.md as the historical record.
+- **OSS local models as the primary inference substrate, cloud as a narrow fallback** per [A3-v2](architecture.md#a3-v2--llm-provider--privacy-posture-oss-local-primary--narrow-cloud-fallback), with **query-level PHI decomposition** so no single query carries a full health profile (per [phi-handling.md](phi-handling.md)). ~~Cloud LLMs (Claude + Gemini) as primary~~ — superseded by A3-v2.
 - **HIPAA discipline at the data-handling level** (audit logs, careful-by-default culture) — *not* at the formal compliance level (no breach notification readiness, no formal compliance overhead)
 - All of which shapes the value-prop fundamentals further:
 
