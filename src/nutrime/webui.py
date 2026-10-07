@@ -1197,12 +1197,26 @@ class _Handler(BaseHTTPRequestHandler):
     def _api_inventory_add(self) -> None:
         payload = self._read_json_body()
         name = str(payload.get("name") or "").strip()
-        location = str(payload.get("location") or "fridge").strip()
         if not name:
             self._json({"error": "name required"}, status=400)
             return
+        if payload.get("location"):
+            location = str(payload["location"]).strip()
+            best_by = None
+        else:
+            # No explicit location (e.g. the grocery list's "got it" →
+            # pantry add): classify via the lexicon so chicken lands in
+            # the fridge with a date, not wherever the default says.
+            from nutrime.inventory.intake import (
+                best_by_from_freshness,
+                classify as classify_food,
+            )
+
+            loc, shelf_days, _ = classify_food(name)
+            location = str(loc)  # Location is a StrEnum
+            best_by = best_by_from_freshness(shelf_days, 0)
         app = self.server.app
-        item = InventoryItem(name=name, location=location)
+        item = InventoryItem(name=name, location=location, best_by_date=best_by)
         try:
             item_id = add_item(app.substrate, app.tenant_id, item)
         except ConsentError:
@@ -2248,7 +2262,10 @@ PAGE = """<!doctype html>
   /* -- detail overlay -- */
   .overlay {
     position: fixed; inset: 0; background: rgba(43,38,32,.45); display: none;
-    align-items: flex-start; justify-content: center; padding: 4vh 16px; z-index: 10;
+    align-items: flex-start; justify-content: center; padding: 4vh 16px;
+    /* Above the mobile tab bar (z-index 20) — modals rendered under it
+       and the tabs stayed tappable through the scrim (audit P1 #7). */
+    z-index: 25;
     overflow-y: auto;
   }
   .overlay.on { display: flex; }
@@ -2403,6 +2420,10 @@ PAGE = """<!doctype html>
     .tabs .ico { display: block; font-size: 19px; line-height: 1; }
     .toast { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
     .whoRow label { display: none; }
+    /* iOS zooms the page on focusing any input under 16px (audit P1
+       #7) — bump every text-entry control to 16px on phones. */
+    input[type="text"], input[type="number"], input[type="search"],
+    textarea, select { font-size: 16px !important; }
   }
 </style>
 </head>
@@ -3147,12 +3168,22 @@ async function openDetail(id) {
     "<h4>Steps</h4><ol>" +
     d.steps.map(s => "<li>" + esc(s) + "</li>").join("") + "</ol>" +
     whyHtml(WHY[id]) +
+    // Learning loop (audit P1 #6): spontaneous meals count too — the
+    // feedback that drives ranking must not require a plan covering
+    // today.
+    '<div style="margin-top:16px"><button class="btn-go" style="padding:10px 18px;min-height:0"' +
+    ' data-cooked-detail="' + esc(id) + '">We cooked this</button></div>' +
     (safeUrl(d.source_url) ? '<div class="srcLink"><a href="' + esc(d.source_url) +
       '" target="_blank" rel="noopener">Open the original \\u2197</a></div>' : "") +
     '<div class="attr">' + esc(d.attribution) + "</div>";
+  $("sheet").querySelectorAll("[data-cooked-detail]").forEach(b =>
+    b.onclick = () => { closeDetail(); markCooked(b.dataset.cookedDetail, null); });
   $("overlay").classList.add("on");
 }
-function closeDetail() { $("overlay").classList.remove("on"); }
+function closeDetail() {
+  if (FORM_DISMISS) { FORM_DISMISS(); return; }  // resolve, don't strand
+  $("overlay").classList.remove("on");
+}
 $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeDetail(); });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") { closeDetail(); closeIntake(); }
@@ -3183,6 +3214,13 @@ $("importGo").onclick = async () => {
 async function loadTonight() {
   const data = await jget("/api/tonight");
   const box = $("tonightBox"), body = $("tonightBody");
+  if (data.error) {
+    // Don't lie (audit P1 #9): a failed call is not "No meal planned".
+    body.innerHTML = '<span class="hint">Couldn\\u2019t load tonight\\u2019s view \\u2014 ' +
+      esc(data.error) + "</span>";
+    box.style.display = "block";
+    return;
+  }
   const parts = [];
   if (data.use_soon && data.use_soon.length) {
     const chips = data.use_soon.map(u => {
@@ -3630,6 +3668,9 @@ async function skipIntake() {
 
 async function loadIntakeStatus() {
   const status = await jget("/api/intake/status");
+  // A failed status call must not render as "Not filled in yet"
+  // (audit P1 #9) — leave the card as it was; the toast already fired.
+  if (status.error) return;
   $("welcomeWho").textContent = "Set up " +
     (MEMBERS.length > 1 ? profileLabel() : "your profile");
   $("welcomeCard").style.display =
@@ -3647,6 +3688,10 @@ $("have").addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); 
 
 /* -- in-page forms (no browser pop-ups; they are clumsy on phones) -- */
 // fields: {id, label, type: "text"|"number"|"scale"|"checks", value, options, placeholder}
+// The active form sheet's dismisser, so Escape and backdrop clicks
+// resolve the promise instead of stranding the caller (audit P1 #8:
+// Escape during "Add person" wedged the member picker until reload).
+let FORM_DISMISS = null;
 function formSheet(spec) {
   return new Promise(resolve => {
     const body = spec.fields.map(f => {
@@ -3672,7 +3717,12 @@ function formSheet(spec) {
     $("sheet").querySelectorAll("[data-scale] button").forEach(b => b.onclick = () => {
       b.parentNode.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
     });
-    const done = val => { $("overlay").classList.remove("on"); resolve(val); };
+    const done = val => {
+      FORM_DISMISS = null;
+      $("overlay").classList.remove("on");
+      resolve(val);
+    };
+    FORM_DISMISS = () => done(spec.cancelValue === undefined ? null : spec.cancelValue);
     $("fsClose").onclick = () => done(null);
     $("fsCancel").onclick = () => done(spec.cancelValue === undefined ? null : spec.cancelValue);
     $("fsOk").onclick = () => {
@@ -4076,6 +4126,16 @@ $("qaReorient").onclick = openReorient;
 
 /* -- plans -- */
 async function loadPlans() {
+  // Audit P1 #9: a condition-refused household should see the refusal
+  // when they arrive at Plans, not when the button errors.
+  jget("/api/derived", true).then(d => {
+    if (!d.error && d.plans_refused) {
+      const who = (d.conditions || []).filter(c => c.behavior === "refuse");
+      $("planError").innerHTML = '<div class="errorBox">Plan generation is paused for this household: ' +
+        who.map(c => esc(c.name)).join(", ") +
+        '. Details under <b>What NutriMe knows</b>.</div>';
+    }
+  });
   const list = await jget("/api/plans");
   const box = $("planList");
   if (list.error) { box.innerHTML = '<div class="errorBox">' + esc(list.error) + "</div>"; return; }
@@ -4092,9 +4152,13 @@ async function showPlan(planId) {
   const plan = await jget("/api/plans/" + planId);
   if (plan.error) return;
   $("planDetailLabel").textContent = "Plan from " + String(plan.created_at || "").slice(0, 10);
-  $("planDetail").innerHTML = plan.entries.map(e => planRow(e, plan.today_day, true)).join("") ||
-    '<div class="hint">This plan has no meals.</div>';
+  $("planDetail").innerHTML = (plan.entries.map(e => planRow(e, plan.today_day, true)).join("") ||
+    '<div class="hint">This plan has no meals.</div>') +
+    // Audit P1 #10: the plan links to its own grocery list.
+    '<div style="margin-top:12px"><button class="btn-quiet" id="planGroc">' +
+    "Grocery list for this plan \\u2192</button></div>";
   wirePlanRows($("planDetail"));
+  $("planGroc").onclick = () => { GROCERY_PLAN = planId; showView("grocery"); };
   $("planDetailBox").hidden = false;
 }
 $("planGo").onclick = async () => {
@@ -4109,6 +4173,16 @@ $("planGo").onclick = async () => {
   $("planGo").disabled = false; $("planBusy").hidden = true;
   if (res.error) { $("planError").innerHTML = '<div class="errorBox">' + esc(res.error) + "</div>"; return; }
   toast("Planned " + res.filled + " of " + res.slots + " meals.");
+  // Audit P1 #9: "Planned 2 of 14" with no explanation lies by
+  // omission — the backend sends per-slot reasons; show them.
+  if (res.unfilled && res.unfilled.length) {
+    const counts = {};
+    res.unfilled.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+    $("planError").innerHTML = '<div class="errorBox">' +
+      (res.slots - res.filled) + " meal(s) couldn\\u2019t be planned:<br>" +
+      Object.entries(counts).map(([r, n]) =>
+        esc(r) + (n > 1 ? " (\\u00d7" + n + ")" : "")).join("<br>") + "</div>";
+  }
   loadPlans(); loadTonight();
 };
 
@@ -4120,8 +4194,12 @@ function groceryChecked(planId) {
 function saveGroceryChecked(planId, set) {
   try { localStorage.setItem("nutrime.groc." + planId, JSON.stringify([...set])); } catch (e) {}
 }
+let GROCERY_PLAN = null;  // set by a plan's "grocery list" link; null = latest
 async function loadGrocery() {
-  const data = await jget("/api/grocery", true);
+  const data = await jget(
+    "/api/grocery" + (GROCERY_PLAN ? "?plan_id=" + encodeURIComponent(GROCERY_PLAN) : ""),
+    true);
+  GROCERY_PLAN = null;  // one-shot: the tab itself stays latest-plan
   const box = $("groceryBody");
   if (data.error) {
     box.innerHTML = '<div class="empty">' + (data.error === "no plans yet" ?
@@ -4144,10 +4222,16 @@ async function loadGrocery() {
       data.have.length + ")</summary><ul class=\\"groc\\">" +
       data.have.map(l => "<li><div><span class=\\"food\\">" + esc(l.food) + "</span></div></li>").join("") +
       "</ul></details>" : "");
-  box.querySelectorAll("input[data-food]").forEach(cb => cb.onchange = () => {
+  box.querySelectorAll("input[data-food]").forEach(cb => cb.onchange = async () => {
     cb.checked ? checked.add(cb.dataset.food) : checked.delete(cb.dataset.food);
     cb.closest("li").classList.toggle("done", cb.checked);
     saveGroceryChecked(data.plan_id, checked);
+    // Close the loop (audit P1 #10): "got it" means it's in the house —
+    // add it to the kitchen list (lexicon decides fridge/pantry + date).
+    if (cb.checked) {
+      const r = await jpost("/api/inventory", {name: cb.dataset.food}, true);
+      if (!r.error) toast(cb.dataset.food + " added to the kitchen list.");
+    }
   });
 }
 
