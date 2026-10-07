@@ -146,7 +146,42 @@ class TestV2InventoryHelpers:
                                best_by_date="2026-09-30"))
         soon = expiring_names(app.substrate, app.tenant_id, today="2026-10-04")
         names = {i.name for i in soon}
-        assert names == {"spinach", "old yogurt"}  # past-due included
+        # #55: past-due is EXCLUDED from use-it-up (never a cooking
+        # candidate); it surfaces via expired_names instead.
+        assert names == {"spinach"}
+        from nutrime.inventory.store import expired_names
+
+        tossed = {i.name for i in expired_names(
+            app.substrate, app.tenant_id, today="2026-10-04")}
+        assert tossed == {"old yogurt"}
+        app.substrate.close(); app.operational.close()
+
+    def test_expired_perishable_never_a_planner_candidate(self, tmp_path) -> None:
+        # #55 end-to-end: raw chicken (2-day shelf life) entered with the
+        # "about a week" freshness chip is expired — the planner's
+        # use-it-up pool (expiring_names) must not contain it.
+        from datetime import date
+
+        from nutrime.app import initialize
+        from nutrime.inventory.intake import best_by_from_freshness
+        from nutrime.inventory.store import (
+            InventoryItem,
+            add_item,
+            expiring_names,
+        )
+
+        today = date(2026, 10, 6)
+        best_by = best_by_from_freshness(2, 7, today=today)
+        assert best_by < "2026-10-06"  # expired, not clamped to today
+
+        app = initialize(data_dir=tmp_path)
+        add_item(app.substrate, app.tenant_id,
+                 InventoryItem(name="raw chicken", location="fridge",
+                               best_by_date=best_by))
+        pool = expiring_names(
+            app.substrate, app.tenant_id, today=today.isoformat()
+        )
+        assert pool == []
         app.substrate.close(); app.operational.close()
 
     def test_remove_by_name_exact_case_insensitive(self, tmp_path) -> None:

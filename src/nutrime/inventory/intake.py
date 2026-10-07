@@ -283,9 +283,13 @@ def best_by_from_freshness(
     ``age_days`` is how long ago the item was bought/made (the UI's
     "fresh today / a few days / about a week" chips). None with a known
     shelf life assumes bought today; both None → no date (shelf-stable).
+
+    The date may land in the past: an item already older than its shelf
+    life is EXPIRED, and clamping it to today would present it as "use
+    today" — which promoted week-old raw chicken into meal plans (#55).
     """
     if shelf_days is None:
         return None
     base = today or date.today()
     remaining = shelf_days - (age_days or 0)
-    return (base + timedelta(days=max(remaining, 0))).isoformat()
+    return (base + timedelta(days=remaining)).isoformat()

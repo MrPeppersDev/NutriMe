@@ -1464,13 +1464,19 @@ class _Handler(BaseHTTPRequestHandler):
             (e for e in history if e.body_response is None), None
         )
         # V2: use-soon strip (expiring window, soonest first, cap 6).
+        # Expired items are a separate list (#55): "probably toss", never
+        # offered for cooking.
         from datetime import date
 
-        from nutrime.inventory.store import expiring_names
+        from nutrime.inventory.store import expired_names, expiring_names
 
         today = date.today().isoformat()
         use_soon = sorted(
             expiring_names(app.substrate, app.tenant_id, today=today),
+            key=lambda item: item.best_by_date or "",
+        )[:6]
+        expired = sorted(
+            expired_names(app.substrate, app.tenant_id, today=today),
             key=lambda item: item.best_by_date or "",
         )[:6]
         self._json(
@@ -1486,6 +1492,14 @@ class _Handler(BaseHTTPRequestHandler):
                         ).days,
                     }
                     for item in use_soon
+                ],
+                "expired": [
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "best_by_date": item.best_by_date,
+                    }
+                    for item in expired
                 ],
                 "awaiting_feel": (
                     {
@@ -3184,6 +3198,19 @@ async function loadTonight() {
       '">find recipes</button></div>'
     );
   }
+  if (data.expired && data.expired.length) {
+    // #55: past best-by — offered for discard, never for cooking.
+    const chips = data.expired.map(x =>
+      '<span class="tag warn">\\u26a0 ' + esc(x.name) + " \\u00b7 past " +
+      esc(x.best_by_date) +
+      ' <button class="btn-quiet" style="padding:2px 8px;min-height:0" data-toss-id="' +
+      esc(String(x.id)) + '">toss</button></span>').join(" ");
+    parts.push(
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap' +
+      (parts.length ? ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)' : '') + '">' +
+      '<span class="hint">Probably toss \\u2014 past safe date:</span> ' + chips + "</div>"
+    );
+  }
   if (data.tonight) {
     const t = data.tonight;
     parts.push(
@@ -3233,6 +3260,12 @@ async function loadTonight() {
     b.onclick = () => { $("have").value = b.dataset.findSoon; showView("recipes"); doSearch(); });
   body.querySelectorAll("[data-go-cook]").forEach(b =>
     b.onclick = () => { showView("recipes"); $("have").focus({preventScroll: true}); });
+  body.querySelectorAll("[data-toss-id]").forEach(b =>
+    b.onclick = async () => {
+      await jpost("/api/inventory/remove", {id: Number(b.dataset.tossId)});
+      toast("Tossed. Kitchen list updated.");
+      loadTonight();
+    });
   box.style.display = "block";
 }
 async function sendFeel(mealEventId) {

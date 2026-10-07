@@ -163,7 +163,10 @@ def expiring_names(
     """Items whose best_by_date falls within the window (V2 use-it-up).
 
     ``today`` is ISO YYYY-MM-DD; string comparison is safe for ISO dates.
-    Past-due items are included — "use or toss" still deserves surfacing.
+    Past-due items are EXCLUDED (#55): everything returned here is
+    promoted toward meal plans, and an expired perishable must never be
+    a use-it-up candidate. Expired items are ``expired_names`` —
+    surfaced as "probably toss", never cooked.
     """
     from datetime import date, timedelta
 
@@ -171,7 +174,19 @@ def expiring_names(
     return [
         item
         for item in list_items(conn, tenant_id)
-        if item.best_by_date is not None and item.best_by_date <= limit
+        if item.best_by_date is not None and today <= item.best_by_date <= limit
+    ]
+
+
+def expired_names(
+    conn: sqlite3.Connection, tenant_id: str, *, today: str
+) -> list[InventoryItem]:
+    """Items past their best-by date — "probably toss" (#55). These are
+    kept out of every cooking surface; the UI offers discard instead."""
+    return [
+        item
+        for item in list_items(conn, tenant_id)
+        if item.best_by_date is not None and item.best_by_date < today
     ]
 
 

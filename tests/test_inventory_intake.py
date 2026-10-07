@@ -105,9 +105,18 @@ class TestBestBy:
         got = best_by_from_freshness(7, 3, today=date(2026, 10, 6))
         assert got == "2026-10-10"
 
-    def test_older_than_shelf_clamps_to_today(self) -> None:
+    def test_older_than_shelf_goes_into_the_past(self) -> None:
+        # #55: an item already past its shelf life is EXPIRED. Clamping
+        # to today made week-old raw chicken read as "use today" and
+        # promoted it into meal plans.
         got = best_by_from_freshness(4, 14, today=date(2026, 10, 6))
-        assert got == "2026-10-06"  # "use or toss" surfaces immediately
+        assert got == "2026-09-26"
+
+    def test_raw_chicken_aged_a_week_is_expired(self) -> None:
+        # The issue's exact repro: shelf 2d, "about a week" chip (7d).
+        got = best_by_from_freshness(2, 7, today=date(2026, 10, 6))
+        assert got == "2026-10-01"
+        assert got < "2026-10-06"
 
     def test_no_answer_assumes_bought_today(self) -> None:
         got = best_by_from_freshness(5, None, today=date(2026, 10, 6))
