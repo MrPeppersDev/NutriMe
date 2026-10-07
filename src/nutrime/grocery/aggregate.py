@@ -170,11 +170,18 @@ def aggregate(
                 )
                 bucket.append(new_line)
 
-    on_hand_keys = {normalize_food(name) for name in inventory_names}
+    # Netting uses the shared pantry↔ingredient matcher, not exact key
+    # equality — "milk" in the fridge covers a recipe's "whole milk",
+    # "seedy bread" covers "bread" (2026-10-08; the old exact-key check
+    # told the household to buy foods they demonstrably had). Presence
+    # stays presence: a match marks the line "have", never deletes it.
+    from nutrime.foods.matching import terms_match
+
+    inv = [name for name in inventory_names if name and name.strip()]
     out: list[GroceryLine] = []
     for bucket in lines_by_food.values():
         for line in bucket:
-            if line.food_key in on_hand_keys:
+            if any(terms_match(name, line.food) for name in inv):
                 line.on_hand = True
             out.append(line)
     out.sort(key=lambda l: (l.on_hand, l.food_key))

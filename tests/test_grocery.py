@@ -180,6 +180,30 @@ class TestAggregate:
         assert by_food[normalize_food("beef")].on_hand is False
         assert len(lines) == 2  # nothing silently dropped
 
+    def test_netting_matches_through_modifiers(self) -> None:
+        # 2026-10-08: netting uses the shared matcher, not exact keys —
+        # the old behavior told the household to buy milk, bread and
+        # eggs they demonstrably had.
+        lines = aggregate(
+            [_need("r1", "Bake", "@whole milk{1%cup}", "@bread{2%slice}",
+                   "@eggs{3}", "@heavy cream{1%cup}")],
+            inventory_names=["milk", "seedy bread", "Eggs (dozen)"],
+        )
+        on_hand = {l.food: l.on_hand for l in lines}
+        assert on_hand["whole milk"] is True       # generic covers modified
+        assert on_hand["bread"] is True            # family: seedy bread IS bread
+        assert on_hand["eggs"] is True             # parenthetical ignored
+        assert on_hand["heavy cream"] is False     # still to-buy
+
+    def test_netting_keeps_distinct_food_guard(self) -> None:
+        # Pantry milk must NOT tick off coconut milk — different food.
+        lines = aggregate(
+            [_need("r1", "Curry", "@coconut milk{1%can}")],
+            inventory_names=["milk"],
+        )
+        (line,) = lines
+        assert line.on_hand is False
+
 
 class TestBuildAndRender:
     @pytest.fixture
