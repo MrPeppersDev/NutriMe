@@ -51,6 +51,21 @@ def plan_base_filters(
         )
         filters = filters_from_constraints(entries, base=filters)
         applied.append(f"{len(entries)} abstracted constraint(s)")
+        # Life-stage rails (#46 / sweep #10 §3): the always-honored
+        # physiological tier stacks on top of disclosed constraints.
+        from nutrime.life_stages import household_life_stage_rails
+
+        rails = household_life_stage_rails(app.substrate, app.tenant_id)
+        if rails.avoid_terms:
+            filters = replace(
+                filters,
+                exclude_ingredients=(
+                    filters.exclude_ingredients | rails.avoid_terms
+                ),
+            )
+            applied.append(
+                "life-stage rails (" + ", ".join(rails.stages) + ")"
+            )
     if use_inventory:
         from nutrime.inventory.store import staples_out
 
@@ -119,11 +134,15 @@ def generate_and_store(
             },
         )
         raise PlanRefusedError(gates.refusal_message())
-    if gates.plan_notes:
+    from nutrime.life_stages import household_life_stage_rails
+
+    stage_rails = household_life_stage_rails(app.substrate, app.tenant_id)
+    all_notes = tuple(gates.plan_notes) + stage_rails.plan_notes
+    if all_notes:
         base = spec.household_note.strip() or f"{spec.servings} servings"
         spec = replace(
             spec,
-            household_note=base + "; " + "; ".join(gates.plan_notes),
+            household_note=base + "; " + "; ".join(all_notes),
         )
         applied = applied + [
             f"condition rails ({len(gates.plan_notes)})"

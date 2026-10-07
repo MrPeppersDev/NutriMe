@@ -1069,6 +1069,20 @@ class _Handler(BaseHTTPRequestHandler):
                 app.substrate, app.tenant_id, entry_type="abstracted_constraint"
             )
             filters = filters_from_constraints(entries, filters)
+            # Life-stage rails (#46): pregnancy/lactation avoidance
+            # stacks with the household avoid-list on this surface too.
+            from dataclasses import replace as _dc_replace
+
+            from nutrime.life_stages import household_life_stage_rails
+
+            rails = household_life_stage_rails(app.substrate, app.tenant_id)
+            if rails.avoid_terms:
+                filters = _dc_replace(
+                    filters,
+                    exclude_ingredients=(
+                        filters.exclude_ingredients | rails.avoid_terms
+                    ),
+                )
 
         try:
             offset = max(0, int(first("offset") or 0))
