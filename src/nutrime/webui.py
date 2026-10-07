@@ -45,6 +45,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from nutrime.consent import ConsentError
 from nutrime.cycles import PHASES, STUB_DISCLOSURE
 from nutrime.inventory.store import InventoryItem, add_item, list_items, remove_item
 from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
@@ -1199,7 +1200,15 @@ class _Handler(BaseHTTPRequestHandler):
             return
         app = self.server.app
         item = InventoryItem(name=name, location=location)
-        item_id = add_item(app.substrate, app.tenant_id, item)
+        try:
+            item_id = add_item(app.substrate, app.tenant_id, item)
+        except ConsentError:
+            self._json(
+                {"error": "Kitchen inventory is switched off in Privacy —"
+                          " turn it back on to track items."},
+                status=403,
+            )
+            return
         self._restock_staple(name)
         self._json({"id": item_id, "name": name, "location": location})
 
@@ -1293,6 +1302,19 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": "items required"}, status=400)
             return
         app = self.server.app
+        from nutrime.consent import require_consent
+
+        try:
+            # One up-front check for the whole batch (add_item re-checks
+            # per row; this gives the friendly 403 before partial work).
+            require_consent(app.substrate, app.tenant_id, "inventory")
+        except ConsentError:
+            self._json(
+                {"error": "Kitchen inventory is switched off in Privacy —"
+                          " turn it back on to track items."},
+                status=403,
+            )
+            return
         added = []
         errors = []
         for raw in raw_items:

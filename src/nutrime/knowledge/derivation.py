@@ -145,6 +145,7 @@ def _sync_allergens(
     member_id: str,
     allergens: list[str],
     outcome: DerivationOutcome,
+    consent_record_id: str,
 ) -> None:
     existing = _member_atoms(conn, tenant_id, member_id, "clinical_disclosure")
     wanted = {a.strip().lower() for a in allergens}
@@ -174,6 +175,7 @@ def _sync_allergens(
             phi_categories=(PhiCategory.ALLERGENS,),
             source_identity=f"intake_profile:{member_id}",
             subject_id=member_id,
+            consent_record_id=consent_record_id,
         )
         outcome.bump_atom("clinical_disclosure")
 
@@ -184,6 +186,7 @@ def _sync_conditions(
     member_id: str,
     conditions: list[str],
     outcome: DerivationOutcome,
+    consent_record_id: str,
 ) -> None:
     """Condition disclosures (sweep #10) mirror the allergen pattern:
     one ``clinical_disclosure`` atom per disclosure, retracted when the
@@ -217,6 +220,7 @@ def _sync_conditions(
             phi_categories=(PhiCategory.CONDITIONS,),
             source_identity=f"intake_profile:{member_id}",
             subject_id=member_id,
+            consent_record_id=consent_record_id,
         )
         outcome.bump_atom("clinical_disclosure")
 
@@ -227,6 +231,7 @@ def _sync_avoid_foods(
     member_id: str,
     avoid_foods: list[str],
     outcome: DerivationOutcome,
+    consent_record_id: str,
 ) -> None:
     """Non-allergen hard avoids ("no cilantro") — preference_statement
     atoms with type food_avoidance. The constraint sync turns them into
@@ -260,6 +265,7 @@ def _sync_avoid_foods(
             phi_categories=(),
             source_identity=f"intake_profile:{member_id}",
             subject_id=member_id,
+            consent_record_id=consent_record_id,
         )
         outcome.bump_atom("preference_statement")
 
@@ -270,6 +276,7 @@ def _sync_preferences(
     member_id: str,
     preferences: list[str],
     outcome: DerivationOutcome,
+    consent_record_id: str,
 ) -> None:
     existing = _member_atoms(conn, tenant_id, member_id, "preference_statement")
     wanted = {p.strip().lower() for p in preferences}
@@ -301,6 +308,7 @@ def _sync_preferences(
             phi_categories=(),
             source_identity=f"intake_profile:{member_id}",
             subject_id=member_id,
+            consent_record_id=consent_record_id,
         )
         outcome.bump_atom("preference_statement")
 
@@ -310,6 +318,7 @@ def _sync_screener_results(
     tenant_id: str,
     member_id: str,
     outcome: DerivationOutcome,
+    consent_record_id: str,
 ) -> None:
     existing = _member_atoms(conn, tenant_id, member_id, "screener_result")
     batches = _load_screener_batches(conn, tenant_id, member_id)
@@ -352,6 +361,7 @@ def _sync_screener_results(
             ),
             valid_from=administered_at,
             subject_id=member_id,
+            consent_record_id=consent_record_id,
         )
         outcome.bump_atom("screener_result")
 
@@ -437,18 +447,69 @@ def sync_from_intake(
     conn: sqlite3.Connection, tenant_id: str
 ) -> DerivationOutcome:
     """Idempotent derivation pass over every active member. Adds only
-    what's missing."""
+    what's missing.
+
+    Consent (2026-10-06 audit): atoms now carry the consent record id
+    they were derived under, and the convenience derivations honor each
+    member's ``knowledge_derived`` decision. The split is deliberate:
+
+    - SAFETY derivations — allergies, conditions, avoid-foods — ride the
+      member's ``intake_profile`` grant (already required at intake
+      save). They feed the hard exclusion layer in search/planning, so
+      gating them behind a privacy toggle would let "decline" silently
+      serve an allergic member the allergen (the exact fail-open shape
+      this audit was about). Declining ``intake_profile`` stops the data
+      existing at all; that is the lever for safety data.
+    - CONVENIENCE derivations — screener results, dietary preferences —
+      honor ``knowledge_derived``: a declined member's answers stay in
+      the intake record but nothing is worked out from them.
+    """
+    from nutrime.consent import current_decision
     from nutrime.members import list_members
 
     outcome = DerivationOutcome()
     profiles = _load_profiles(conn, tenant_id)
     for member in list_members(conn, tenant_id):
-        if member.id in profiles:
+        profile_decision = current_decision(
+            conn, tenant_id, "intake_profile", "local_operation",
+            member_id=member.id,
+        )
+        derived_decision = current_decision(
+            conn, tenant_id, "knowledge_derived", "local_operation",
+            member_id=member.id,
+        )
+        profile_consent = (
+            profile_decision.id
+            if profile_decision is not None and profile_decision.granted
+            else None
+        )
+        derived_consent = (
+            derived_decision.id
+            if derived_decision is not None and derived_decision.granted
+            else None
+        )
+        if member.id in profiles and profile_consent is not None:
             allergens, preferences, conditions, avoids = profiles[member.id]
-            _sync_allergens(conn, tenant_id, member.id, allergens, outcome)
-            _sync_preferences(conn, tenant_id, member.id, preferences, outcome)
-            _sync_conditions(conn, tenant_id, member.id, conditions, outcome)
-            _sync_avoid_foods(conn, tenant_id, member.id, avoids, outcome)
-        _sync_screener_results(conn, tenant_id, member.id, outcome)
+            _sync_allergens(
+                conn, tenant_id, member.id, allergens, outcome,
+                profile_consent,
+            )
+            _sync_conditions(
+                conn, tenant_id, member.id, conditions, outcome,
+                profile_consent,
+            )
+            _sync_avoid_foods(
+                conn, tenant_id, member.id, avoids, outcome,
+                profile_consent,
+            )
+            if derived_consent is not None:
+                _sync_preferences(
+                    conn, tenant_id, member.id, preferences, outcome,
+                    derived_consent,
+                )
+        if derived_consent is not None:
+            _sync_screener_results(
+                conn, tenant_id, member.id, outcome, derived_consent
+            )
     _sync_abstracted_constraints(conn, tenant_id, outcome)
     return outcome

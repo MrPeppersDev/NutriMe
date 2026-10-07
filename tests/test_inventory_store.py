@@ -200,10 +200,23 @@ class TestPersistence:
                 ),
             )
 
-    def test_foreign_key_prevents_orphan(self, initialized_app) -> None:
-        with pytest.raises(sqlite3.IntegrityError):
+    def test_unknown_tenant_cannot_add(self, initialized_app) -> None:
+        # The consent gate fails closed before the FK constraint can:
+        # an unknown tenant has no consent rows at all.
+        from nutrime.consent import ConsentError
+
+        with pytest.raises(ConsentError):
             add_item(
                 initialized_app.substrate,
                 "not-a-tenant",
                 InventoryItem(name="rice", location="pantry"),
+            )
+
+    def test_foreign_key_prevents_orphan(self, initialized_app) -> None:
+        # The FK constraint itself, probed below the consent seam.
+        with pytest.raises(sqlite3.IntegrityError):
+            initialized_app.substrate.execute(
+                "INSERT INTO inventory_item"
+                " (tenant_id, name, location, added_at, updated_at)"
+                " VALUES ('not-a-tenant', 'rice', 'pantry', '', '')"
             )

@@ -231,7 +231,26 @@ def save_screener_responses(
     ``member_id=None`` attributes the batch to the default member.
     """
     member_id = _resolve_member(conn, tenant_id, member_id)
-    administered_at = administered_at or _now_iso()
+    if administered_at is None:
+        administered_at = _now_iso()
+        # administered_at is part of the batch's UNIQUE key at millisecond
+        # resolution — two same-instrument saves in the same ms (fast
+        # check-in right after intake; CI) collide. Bump by 1ms until
+        # free; stays valid ISO and keeps batch ordering honest.
+        from datetime import datetime, timedelta
+
+        while conn.execute(
+            "SELECT 1 FROM intake_screener_response WHERE tenant_id = ?"
+            " AND instrument_id = ? AND administered_at = ? LIMIT 1",
+            (tenant_id, instrument.instrument_id, administered_at),
+        ).fetchone():
+            bumped = datetime.fromisoformat(
+                administered_at.replace("Z", "+00:00")
+            ) + timedelta(milliseconds=1)
+            administered_at = (
+                bumped.isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
+            )
     for item in instrument.items:
         if item.item_id not in responses:
             raise ValueError(

@@ -89,6 +89,12 @@ class InventoryItem:
 def add_item(
     conn: sqlite3.Connection, tenant_id: str, item: InventoryItem
 ) -> int:
+    # Enforced at the store seam so every caller (web single add, bulk
+    # paste, CLI capture) honors the Privacy toggle — declining "Kitchen
+    # inventory" used to change nothing (2026-10-06 audit).
+    from nutrime.consent import require_consent
+
+    require_consent(conn, tenant_id, "inventory")
     now = _now_iso()
     cursor = conn.execute(
         """

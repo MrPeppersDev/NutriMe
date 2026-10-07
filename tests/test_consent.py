@@ -78,6 +78,103 @@ class TestDecisions:
             )
 
 
+class TestEnforcement:
+    """2026-10-06 audit: the Privacy toggles existed but inventory writes
+    and knowledge derivation never consulted them."""
+
+    def test_inventory_add_blocked_when_declined(self, app) -> None:
+        from nutrime.inventory.store import InventoryItem, add_item
+
+        record_decision(
+            app.substrate, app.tenant_id,
+            data_category="inventory", purpose="local_operation",
+            granted=False, note="test decline",
+        )
+        with pytest.raises(ConsentError):
+            add_item(
+                app.substrate, app.tenant_id,
+                InventoryItem(name="spinach", location="fridge"),
+            )
+        # Re-grant restores the path.
+        record_decision(
+            app.substrate, app.tenant_id,
+            data_category="inventory", purpose="local_operation",
+            granted=True, note="test re-grant",
+        )
+        item_id = add_item(
+            app.substrate, app.tenant_id,
+            InventoryItem(name="spinach", location="fridge"),
+        )
+        assert item_id > 0
+
+    def _save_profile(self, app, member_id: str) -> None:
+        from nutrime.intake.store import IntakeProfile, save_member_profile
+
+        save_member_profile(
+            app.substrate, app.tenant_id, member_id,
+            IntakeProfile(
+                year_of_birth=1990, sex_assigned_at_birth="female",
+                life_stage="adult",
+                dietary_preferences=("mediterranean",),
+                allergens=("peanuts",),
+            ),
+        )
+
+    def test_derivation_stamps_consent_and_splits_safety(self, app) -> None:
+        from nutrime.knowledge.derivation import sync_from_intake
+        from nutrime.knowledge.store import list_atoms
+
+        member_id = app.default_member_id
+        self._save_profile(app, member_id)
+
+        # Decline knowledge_derived for this member: convenience
+        # derivations stop; SAFETY derivation (the allergy) continues.
+        record_decision(
+            app.substrate, app.tenant_id,
+            data_category="knowledge_derived", purpose="local_operation",
+            granted=False, member_id=member_id, note="test decline",
+        )
+        sync_from_intake(app.substrate, app.tenant_id)
+
+        disclosures = [
+            a for a in list_atoms(
+                app.substrate, app.tenant_id, atom_type="clinical_disclosure"
+            )
+            if a.subject_id == member_id
+        ]
+        assert any(
+            a.payload.get("disclosure_text") == "peanuts" for a in disclosures
+        ), "allergy derivation must survive a knowledge_derived decline"
+        assert all(a.consent_record_id for a in disclosures), (
+            "safety atoms must be stamped with the intake_profile grant"
+        )
+        preferences = [
+            a for a in list_atoms(
+                app.substrate, app.tenant_id, atom_type="preference_statement"
+            )
+            if a.subject_id == member_id
+        ]
+        assert preferences == [], (
+            "preference derivation must honor the decline"
+        )
+
+        # Re-grant: preferences derive now, stamped with the new record.
+        grant_id = record_decision(
+            app.substrate, app.tenant_id,
+            data_category="knowledge_derived", purpose="local_operation",
+            granted=True, member_id=member_id, note="test re-grant",
+        )
+        sync_from_intake(app.substrate, app.tenant_id)
+        preferences = [
+            a for a in list_atoms(
+                app.substrate, app.tenant_id, atom_type="preference_statement"
+            )
+            if a.subject_id == member_id
+        ]
+        assert preferences, "re-grant must resume derivation"
+        assert all(a.consent_record_id == grant_id for a in preferences)
+
+
 class TestGate:
     def test_granted_returns_record_id(self, app) -> None:
         consent_id = require_consent(

@@ -71,6 +71,7 @@ class KnowledgeRecord:
     retraction_reason: str | None
     phi_categories: tuple[str, ...]
     payload: dict
+    consent_record_id: str | None = None
 
 
 def _insert(
@@ -207,6 +208,7 @@ def _row_to_record(row: sqlite3.Row | tuple) -> KnowledgeRecord:
         retraction_reason,
         phi_categories,
         payload,
+        consent_record_id,
     ) = row
     return KnowledgeRecord(
         id=row_id,
@@ -222,6 +224,7 @@ def _row_to_record(row: sqlite3.Row | tuple) -> KnowledgeRecord:
         retraction_reason=retraction_reason,
         phi_categories=tuple(json.loads(phi_categories)),
         payload=json.loads(payload),
+        consent_record_id=consent_record_id,
     )
 
 
@@ -229,7 +232,7 @@ _SELECT_COLS = (
     "id, tenant_id, type, subject_id, subject_type,"
     " provenance, source_identity,"
     " valid_from, valid_until, recorded_at,"
-    " retraction_reason, phi_categories, payload"
+    " retraction_reason, phi_categories, payload, consent_record_id"
 )
 
 
