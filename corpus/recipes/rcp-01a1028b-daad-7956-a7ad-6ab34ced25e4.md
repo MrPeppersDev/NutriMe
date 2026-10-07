@@ -40,7 +40,7 @@ ingredient_resolution_summary:
 ingredient_resolution_status: 'unresolved_pending_review'
 title_original: 'Miso Salmon Recipe'
 vetting_status: 'vetted'
-vetting_version: 3
+vetting_version: 4
 ---
 
 >> title: Miso Salmon Recipe
