@@ -46,7 +46,14 @@ class RecipeVault:
         self._root.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, recipe_id: str) -> Path:
-        return self._root / f"{recipe_id}.md"
+        # Containment (2026-10-07 security audit): ids come from URLs; a
+        # "../"-carrying or absolute id must never escape the vault root
+        # (verified traversal read an .md outside the corpus pre-fix).
+        path = (self._root / f"{recipe_id}.md").resolve()
+        root = self._root.resolve()
+        if not path.is_relative_to(root):
+            raise ValueError(f"recipe id escapes the vault: {recipe_id!r}")
+        return path
 
     def exists(self, recipe_id: str) -> bool:
         return self.path_for(recipe_id).exists()

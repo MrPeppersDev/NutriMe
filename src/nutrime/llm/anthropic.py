@@ -24,6 +24,7 @@ import urllib.error
 import urllib.request
 
 from nutrime import credstore
+from nutrime.recipes.web import safe_urlopen
 from nutrime.llm.base import (
     CAP_CLOUD_PERMITTED,
     CAP_LONG_CONTEXT,
@@ -119,7 +120,11 @@ class AnthropicProvider:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout_s) as resp:
+            # redirects=False: the API never redirects, and urllib would
+            # re-send x-api-key to any host a redirect named.
+            with safe_urlopen(
+                request, timeout=self._timeout_s, redirects=False
+            ) as resp:
                 return resp.status, resp.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             return exc.code, exc.read().decode("utf-8", errors="replace")

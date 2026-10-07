@@ -67,10 +67,60 @@ def check_url_safety(url: str) -> None:
             )
 
 
-def _urllib_fetch_text(url: str) -> str:
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-run the SSRF check on EVERY redirect hop.
+
+    2026-10-07 audit (verified by execution): the guard checked only
+    the initial URL, so a public URL 302-ing to 127.0.0.1 had its
+    internal response fetched. urllib follows redirects by default;
+    this handler closes that hole for every caller of the opener.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_url_safety(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects outright — for requests carrying credentials.
+
+    urllib re-sends the original Request's headers (Authorization
+    included) to the redirect target, so an authenticated call that
+    gets redirected hands the bearer token to whatever host answers
+    (2026-10-07 audit). The APIs we authenticate to never legitimately
+    redirect; failing loudly is strictly safer than following.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UnsafeUrlError(
+            f"refusing redirect of authenticated request to {newurl!r}"
+        )
+
+
+_SAFE_OPENER = urllib.request.build_opener(_SafeRedirectHandler())
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirectHandler())
+
+
+def safe_urlopen(url_or_request, *, timeout: float = 30, redirects: bool = True):
+    """urlopen with the SSRF guard applied to the initial URL and every
+    redirect hop. All outbound web fetches must come through here.
+
+    Pass ``redirects=False`` for requests that carry credentials — any
+    redirect then raises instead of forwarding the auth header.
+    """
+    url = (
+        url_or_request
+        if isinstance(url_or_request, str)
+        else url_or_request.full_url
+    )
     check_url_safety(url)
+    opener = _SAFE_OPENER if redirects else _NO_REDIRECT_OPENER
+    return opener.open(url_or_request, timeout=timeout)
+
+
+def _urllib_fetch_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with safe_urlopen(request, timeout=30) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         raw = response.read()
     return raw.decode(charset, errors="replace")

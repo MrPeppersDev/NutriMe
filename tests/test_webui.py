@@ -642,3 +642,100 @@ class TestAttributionGate:
     def test_detail_links_only_http_urls(self, server) -> None:
         body = self._page(server)
         assert "safeUrl(d.source_url)" in body
+
+
+class TestBrowserBoundary:
+    """2026-10-07 security audit: Host check (DNS rebinding), Origin check
+    (CSRF), path containment (traversal), and generic 500s (no internal
+    detail to the browser)."""
+
+    def _request(self, server, path: str, *, method: str = "GET",
+                 headers: dict | None = None, payload: dict | None = None):
+        port = server.server_address[1]
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}",
+            data=json.dumps(payload).encode("utf-8") if payload else None,
+            headers={"Content-Type": "application/json", **(headers or {})},
+            method=method,
+        )
+        try:
+            with urllib.request.urlopen(request) as resp:
+                return resp.status, json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as err:
+            return err.code, json.loads(err.read().decode("utf-8"))
+
+    def test_rebound_host_refused(self, server) -> None:
+        # DNS rebinding: attacker's domain resolves to 127.0.0.1 but the
+        # browser still sends the attacker's Host header.
+        status, body = self._request(
+            server, "/api/search", headers={"Host": "evil.example.com"}
+        )
+        assert status == 403
+        assert body == {"error": "bad host"}
+
+    def test_local_host_variants_accepted(self, server) -> None:
+        for host in ("127.0.0.1:9", "localhost", "[::1]:8765"):
+            status, _ = self._request(
+                server, "/api/search", headers={"Host": host}
+            )
+            assert status == 200, host
+
+    def test_cross_origin_post_refused(self, server) -> None:
+        status, body = self._request(
+            server, "/api/inventory",
+            method="POST",
+            headers={"Origin": "https://evil.example.com"},
+            payload={"name": "csrf-item"},
+        )
+        assert status == 403
+        assert "cross-origin" in body["error"]
+
+    def test_local_origin_post_accepted(self, server) -> None:
+        port = server.server_address[1]
+        status, _ = self._request(
+            server, "/api/search_log",
+            method="POST",
+            headers={"Origin": f"http://127.0.0.1:{port}"},
+            payload={"have": "x"},
+        )
+        assert status != 403
+
+    def test_cross_origin_get_still_allowed(self, server) -> None:
+        # GETs are side-effect-free; only state-changing verbs gate Origin.
+        status, _ = self._request(
+            server, "/api/search", headers={"Origin": "https://evil.example.com"}
+        )
+        assert status == 200
+
+    def test_traversal_recipe_id_is_404(self, server) -> None:
+        status, _ = self._request(
+            server, "/api/recipes/..%2F..%2F..%2Fetc%2Fpasswd"
+        )
+        assert status == 404
+
+    def test_security_headers_present(self, server) -> None:
+        port = server.server_address[1]
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/search") as resp:
+            assert resp.headers["X-Content-Type-Options"] == "nosniff"
+            assert resp.headers["X-Frame-Options"] == "DENY"
+
+    def test_500_is_generic_and_logged(self, server) -> None:
+        # A traversal plan id passes the "pln-" prefix check and trips the
+        # vault containment guard (ValueError) — a real unhandled exception,
+        # which must surface as a generic 500 with the detail in the log.
+        import http.client
+
+        # http.client sends the path verbatim (urllib would normalize the
+        # dot segments away before the request leaves the client).
+        port = server.server_address[1]
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        conn.request("GET", "/api/plans/pln-../../../../secrets")
+        resp = conn.getresponse()
+        status = resp.status
+        body = json.loads(resp.read().decode("utf-8"))
+        conn.close()
+        assert status == 500
+        assert "server-errors.log" in body["error"]
+        assert "escapes the vault" not in body["error"]
+        log = server.app.data_dir / "server-errors.log"
+        assert log.exists() and "escapes the vault" in log.read_text()

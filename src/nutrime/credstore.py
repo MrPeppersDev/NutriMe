@@ -99,17 +99,25 @@ def _mac_read(service: str) -> tuple[str, str] | None:
 
 
 def _mac_write(service: str, account: str, secret: str) -> None:
+    # The secret goes through security(1)'s stdin command mode (-i), never
+    # argv — argv is world-readable via `ps` (2026-10-07 audit).
+    command = "add-generic-password -U -s {} -a {} -w {}\n".format(
+        _sec_quote(service), _sec_quote(account), _sec_quote(secret)
+    )
     result = subprocess.run(
-        [
-            "security", "add-generic-password", "-U",
-            "-s", service, "-a", account, "-w", secret,
-        ],
+        ["security", "-i"],
+        input=command,
         capture_output=True,
         text=True,
         timeout=10,
     )
     if result.returncode != 0:
         raise OSError(f"Keychain write failed: {result.stderr.strip()}")
+
+
+def _sec_quote(value: str) -> str:
+    """Quote one argument for security(1)'s interactive command parser."""
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 # -- Windows: Credential Manager ----------------------------------------------

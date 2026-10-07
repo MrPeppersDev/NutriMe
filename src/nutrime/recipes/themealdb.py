@@ -15,7 +15,6 @@ stdlib (no new runtime deps); tests inject a canned-response callable.
 from __future__ import annotations
 
 import json
-import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
@@ -28,7 +27,7 @@ from nutrime.recipes.frontmatter import (
 )
 from nutrime.recipes.ids import new_recipe_id
 from nutrime.recipes.store import collect_upstream_ids
-from nutrime.recipes.web import now_iso
+from nutrime.recipes.web import now_iso, safe_urlopen
 
 BASE_URL = "https://www.themealdb.com/api/json/v1/1"
 SOURCE_NAME = "TheMealDB"
@@ -39,7 +38,7 @@ HttpFetcher = Callable[[str], dict[str, Any]]
 
 
 def _urllib_fetch(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url, timeout=30) as response:
+    with safe_urlopen(url, timeout=30) as response:
         raw = response.read().decode("utf-8")
     return json.loads(raw)
 

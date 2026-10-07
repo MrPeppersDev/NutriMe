@@ -60,6 +60,7 @@ from nutrime.recipes.search import (
 )
 from nutrime.recipes.store import RecipeVault
 from nutrime.recipes.web import Pacer
+from nutrime.tenancy import _now_iso
 
 _INGREDIENT_DISPLAY = re.compile(
     r"^@(?:(?P<braced>[^@{}]+)\{(?P<qty>[^%}]*)%?(?P<unit>[^}]*)\}|(?P<bare>\S+))$"
@@ -158,8 +159,59 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         self.wfile.write(body)
+
+    # -- browser-boundary checks (2026-10-07 security audit) ------------------
+    # The server is localhost-only, but every website open in the same
+    # browser can still *send* requests here (CSRF — verified live), and
+    # a hostile site can re-resolve its own domain to 127.0.0.1 to *read*
+    # responses (DNS rebinding). Host + Origin checks close both.
+
+    _LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "[::1]"})
+
+    def _browser_boundary_ok(self, *, state_changing: bool) -> bool:
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip()
+        if host not in self._LOCAL_HOSTS:
+            self._json({"error": "bad host"}, status=403)
+            return False
+        if state_changing:
+            origin = (self.headers.get("Origin") or "").strip()
+            if origin:
+                parsed = urllib.parse.urlparse(origin)
+                if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+                    self._json({"error": "cross-origin request refused"},
+                               status=403)
+                    return False
+        return True
+
+    def _server_error(self, exc: Exception) -> None:
+        """Generic 500: full detail to a local log, none to the client.
+
+        Exception text can carry filesystem paths, sqlite schema, even
+        credential-tool stderr — none of which belongs in a browser
+        response (and before the Host check, that browser could have
+        been any website via rebinding).
+        """
+        import traceback
+
+        try:
+            log_path = self.server.app.data_dir / "server-errors.log"
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(
+                    f"{_now_iso()} {self.command} {self.path}\n"
+                    f"{traceback.format_exc()}\n"
+                )
+        except Exception:  # noqa: BLE001 — logging must never mask the 500
+            pass
+        self._json(
+            {"error": "Something went wrong on NutriMe's side. Details are"
+                      " in server-errors.log in the data folder."},
+            status=500,
+        )
 
     def _json(self, payload: Any, status: int = 200) -> None:
         self._send(
@@ -182,6 +234,8 @@ class _Handler(BaseHTTPRequestHandler):
     # -- routing ---------------------------------------------------------------
 
     def do_GET(self) -> None:  # noqa: N802 (http.server API)
+        if not self._browser_boundary_ok(state_changing=False):
+            return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
         query = urllib.parse.parse_qs(parsed.query)
@@ -235,9 +289,11 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001 — surface, don't crash the server
-            self._json({"error": str(exc)}, status=500)
+            self._server_error(exc)
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._browser_boundary_ok(state_changing=True):
+            return
         parsed = urllib.parse.urlparse(self.path)
         try:
             if parsed.path == "/api/inventory":
@@ -287,7 +343,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._json({"error": "not found"}, status=404)
         except Exception as exc:  # noqa: BLE001
-            self._json({"error": str(exc)}, status=500)
+            self._server_error(exc)
 
     # -- members (#29) -----------------------------------------------------------
     # One shared device, no auth: the page sends the picked member in the
@@ -996,9 +1052,13 @@ class _Handler(BaseHTTPRequestHandler):
 
     # -- API: recipes ------------------------------------------------------------
 
+    _RECIPE_ID = re.compile(r"^rcp-[0-9a-f-]{36}$")
+
     def _api_recipe_detail(self, recipe_id: str) -> None:
         vault = self.server.vault
-        if not recipe_id or not vault.exists(recipe_id):
+        # Shape check before any filesystem touch (defense in depth over
+        # the vault's own containment guard).
+        if not self._RECIPE_ID.match(recipe_id) or not vault.exists(recipe_id):
             self._json({"error": "recipe not found"}, status=404)
             return
         self._json(recipe_detail(vault.read(recipe_id)))
@@ -2988,8 +3048,8 @@ async function loadTonight() {
     parts.push(
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
       '<span class="hint">Use soon:</span> ' + chips +
-      '<button class="btn-quiet" onclick="$(\\'have\\').value=' +
-      JSON.stringify(names).replace(/"/g, "&quot;") + ';doSearch()">find recipes</button></div>'
+      '<button class="btn-quiet" data-find-soon="' + esc(names) +
+      '">find recipes</button></div>'
     );
   }
   if (data.tonight) {
@@ -2999,9 +3059,9 @@ async function loadTonight() {
       (parts.length ? ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)' : '') + '">' +
       '<span class="serif" style="font-size:21px">' + esc(t.title) + "</span>" +
       (t.total_time_min ? '<span class="hint">\\u23f1 ' + t.total_time_min + " min</span>" : "") +
-      '<button class="btn-quiet" onclick="openDetail(\\'' + esc(t.recipe_id) + '\\')">view recipe</button>' +
-      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="markCooked(\\'' +
-      esc(t.recipe_id) + '\\',\\'' + esc(t.plan_id) + '\\')">We cooked it</button>' +
+      '<button class="btn-quiet" data-view-recipe="' + esc(t.recipe_id) + '">view recipe</button>' +
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" data-cooked-recipe="' +
+      esc(t.recipe_id) + '" data-cooked-plan="' + esc(t.plan_id) + '">We cooked it</button>' +
       "</div>" +
       (t.attribution ? '<div class="attr" style="margin-top:8px">' + esc(t.attribution) + "</div>" : "")
     );
@@ -3026,11 +3086,21 @@ async function loadTonight() {
       '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">' +
       '<input type="text" id="feelText" placeholder="e.g. great energy all evening"' +
       ' style="flex:1 1 260px;font-size:14.5px;padding:10px 13px;border:1.5px solid var(--line);border-radius:9px;font-family:inherit">' +
-      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="sendFeel(\\'' +
-      esc(a.meal_event_id) + '\\')">Save</button></div></div>'
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" data-send-feel="' +
+      esc(a.meal_event_id) + '">Save</button></div></div>'
     );
   }
   body.innerHTML = parts.join("");
+  // Wire via dataset, never string-interpolated onclick (XSS audit
+  // 2026-10-07: esc() is the wrong escape inside a JS string literal).
+  body.querySelectorAll("[data-view-recipe]").forEach(b =>
+    b.onclick = () => openDetail(b.dataset.viewRecipe));
+  body.querySelectorAll("[data-cooked-recipe]").forEach(b =>
+    b.onclick = () => markCooked(b.dataset.cookedRecipe, b.dataset.cookedPlan));
+  body.querySelectorAll("[data-send-feel]").forEach(b =>
+    b.onclick = () => sendFeel(b.dataset.sendFeel));
+  body.querySelectorAll("[data-find-soon]").forEach(b =>
+    b.onclick = () => { $("have").value = b.dataset.findSoon; doSearch(); });
   box.style.display = "block";
 }
 async function sendFeel(mealEventId) {
@@ -3186,8 +3256,8 @@ function renderIntakeStep() {
     const condExtras = [...s.conditions]
       .filter(c => !(INTAKE_Q.profile_fields.conditions || []).includes(c))
       .map(c => '<span class="chip">' + esc(c) +
-        '<button onclick="removeCondition(' + JSON.stringify(c).replace(/"/g, "&quot;") +
-        ')" title="Remove">\\u00d7</button></span>').join(" ");
+        '<button data-remove-condition="' + esc(c) +
+        '" title="Remove">\\u00d7</button></span>').join(" ");
     sheet.innerHTML = intakeHeader("What to avoid, what you enjoy") +
       '<h4 style="margin:4px 0 2px">Never serve \\u2014 hard rules</h4>' +
       '<p class="hint" style="margin:0 0 8px">Recipes with any of these never appear. ' +
@@ -3227,6 +3297,8 @@ function renderIntakeStep() {
         $("avoidInput").focus();
       }
     });
+    sheet.querySelectorAll("[data-remove-condition]").forEach(b =>
+      b.onclick = () => removeCondition(b.dataset.removeCondition));
     $("condInput").addEventListener("keydown", e => {
       if (e.key === "Enter" && e.target.value.trim()) {
         INTAKE_STATE.conditions.add(e.target.value.trim());
@@ -3757,14 +3829,19 @@ async function loadHome() {
   if (!rows.length) { box.hidden = true; return; }
   $("homePlanLabel").textContent = show === "tomorrow" ? "Tomorrow" : "Today and tomorrow";
   $("homePlanBody").innerHTML = rows.map(e => planRow(e, plan.today_day, false)).join("");
+  wirePlanRows($("homePlanBody"));
   box.hidden = false;
 }
 
+function wirePlanRows(container) {
+  container.querySelectorAll("[data-open-recipe]").forEach(b =>
+    b.onclick = () => openDetail(b.dataset.openRecipe));
+}
 function planRow(e, today, withActions) {
   if (e.recipe_id) WHY[e.recipe_id] = {from: "plan", note: e.note};
   const title = e.recipe_id ?
-    '<button class="btn-quiet" style="padding:0;text-align:left" onclick="openDetail(\\'' +
-      esc(e.recipe_id) + '\\')">' + esc(e.title) + "</button>" :
+    '<button class="btn-quiet" style="padding:0;text-align:left" data-open-recipe="' +
+      esc(e.recipe_id) + '">' + esc(e.title) + "</button>" :
     '<span class="hint">' + esc(e.note || "no recipe") + "</span>";
   return '<div class="dayRow"><span class="dayTag' + (e.day === today ? " today" : "") + '">' +
     esc(dayLabel(e.day, today)) + " · " + esc(e.slot) + '</span><div class="dayTitle">' + title +
@@ -3814,10 +3891,13 @@ async function loadReorientOptions() {
     (r.total_time_min ? ' <span class="hint">' + r.total_time_min + " min</span>" : "") +
     (r.on_hand_matches.length ? '<div class="hint">uses ' + esc(r.on_hand_matches.join(", ")) + "</div>" : "") +
     '<div class="attr">' + esc(r.attribution) + "</div></div>" +
-    (REORIENT ? '<button class="btn-go" style="min-height:0;padding:9px 14px" onclick="swapTonight(\\'' +
-      esc(r.recipe_id) + '\\')">Cook this instead</button>' :
-      '<button class="btn-quiet" onclick="openDetail(\\'' + esc(r.recipe_id) + '\\')">view</button>') +
+    (REORIENT ? '<button class="btn-go" style="min-height:0;padding:9px 14px" data-swap-recipe="' +
+      esc(r.recipe_id) + '">Cook this instead</button>' :
+      '<button class="btn-quiet" data-open-recipe="' + esc(r.recipe_id) + '">view</button>') +
     "</div>").join("");
+  box.querySelectorAll("[data-swap-recipe]").forEach(b =>
+    b.onclick = () => swapTonight(b.dataset.swapRecipe));
+  wirePlanRows(box);
 }
 async function swapTonight(recipeId) {
   const res = await jpost("/api/plans/swap", {
@@ -3838,7 +3918,9 @@ async function loadPlans() {
   box.innerHTML = list.plans.map(pl =>
     '<div class="planItem"><span>' + esc(String(pl.created_at || "").slice(0, 10)) + " · " +
     esc(pl.days) + " days · " + esc(pl.meals_planned) + " meals</span>" +
-    '<button class="btn-quiet" onclick="showPlan(\\'' + esc(pl.plan_id) + '\\')">open</button></div>').join("");
+    '<button class="btn-quiet" data-show-plan="' + esc(pl.plan_id) + '">open</button></div>').join("");
+  box.querySelectorAll("[data-show-plan]").forEach(b =>
+    b.onclick = () => showPlan(b.dataset.showPlan));
   showPlan(list.plans[0].plan_id);
 }
 async function showPlan(planId) {
@@ -3847,6 +3929,7 @@ async function showPlan(planId) {
   $("planDetailLabel").textContent = "Plan from " + String(plan.created_at || "").slice(0, 10);
   $("planDetail").innerHTML = plan.entries.map(e => planRow(e, plan.today_day, true)).join("") ||
     '<div class="hint">This plan has no meals.</div>';
+  wirePlanRows($("planDetail"));
   $("planDetailBox").hidden = false;
 }
 $("planGo").onclick = async () => {

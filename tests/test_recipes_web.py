@@ -108,3 +108,59 @@ class TestSsrfGuard:
 
         # Resolves live; example.com is stable public infrastructure.
         check_url_safety("https://example.com/recipe")
+
+
+class TestRedirectGuards:
+    """The SSRF check must hold on every hop, not just the first URL."""
+
+    def _redirect_args(self, newurl: str):
+        import io
+        import urllib.request
+        from email.message import Message
+
+        req = urllib.request.Request("https://example.com/start")
+        return (req, io.BytesIO(b""), 302, "Found", Message(), newurl)
+
+    def test_redirect_to_internal_refused(self) -> None:
+        import pytest
+
+        from nutrime.recipes.web import UnsafeUrlError, _SafeRedirectHandler
+
+        handler = _SafeRedirectHandler()
+        for newurl in (
+            "http://127.0.0.1:8765/api/profile",
+            "http://169.254.169.254/latest/meta-data/",
+        ):
+            with pytest.raises(UnsafeUrlError):
+                handler.redirect_request(*self._redirect_args(newurl))
+
+    def test_redirect_to_public_allowed(self) -> None:
+        from nutrime.recipes.web import _SafeRedirectHandler
+
+        handler = _SafeRedirectHandler()
+        result = handler.redirect_request(
+            *self._redirect_args("https://example.com/moved")
+        )
+        assert result is not None
+        assert result.full_url == "https://example.com/moved"
+
+    def test_authenticated_requests_never_follow_redirects(self) -> None:
+        import pytest
+
+        from nutrime.recipes.web import UnsafeUrlError, _NoRedirectHandler
+
+        handler = _NoRedirectHandler()
+        # Even a safe public target is refused: urllib would re-send the
+        # Authorization header to it.
+        with pytest.raises(UnsafeUrlError):
+            handler.redirect_request(
+                *self._redirect_args("https://example.com/moved")
+            )
+
+    def test_safe_urlopen_rejects_unsafe_initial_url(self) -> None:
+        import pytest
+
+        from nutrime.recipes.web import UnsafeUrlError, safe_urlopen
+
+        with pytest.raises(UnsafeUrlError):
+            safe_urlopen("http://127.0.0.1:8765/api/profile")

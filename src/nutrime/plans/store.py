@@ -198,7 +198,12 @@ class PlanVault:
         self._root.mkdir(parents=True, exist_ok=True)
 
     def path_for(self, plan_id: str) -> Path:
-        return self._root / f"{plan_id}.md"
+        # Same containment guard as RecipeVault (2026-10-07 audit).
+        path = (self._root / f"{plan_id}.md").resolve()
+        root = self._root.resolve()
+        if not path.is_relative_to(root):
+            raise ValueError(f"plan id escapes the vault: {plan_id!r}")
+        return path
 
     def exists(self, plan_id: str) -> bool:
         return self.path_for(plan_id).exists()

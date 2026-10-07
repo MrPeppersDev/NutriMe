@@ -42,7 +42,7 @@ from typing import Any, Callable, Iterator
 from nutrime import credstore
 from nutrime.recipes.jsonld import SeedOutcome as JsonLdOutcome
 from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
-from nutrime.recipes.web import Pacer, TextFetcher
+from nutrime.recipes.web import Pacer, TextFetcher, safe_urlopen
 
 API_BASE = "https://api.pinterest.com/v5"
 OAUTH_AUTHORIZE_URL = "https://www.pinterest.com/oauth/"
@@ -147,7 +147,9 @@ def _token_request(form: dict[str, str], client_id: str, client_secret: str) -> 
         },
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    # redirects=False: the request carries the app's Basic credentials
+    # and urllib would re-send them to any redirect target.
+    with safe_urlopen(request, timeout=30, redirects=False) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -297,7 +299,9 @@ def _urllib_api_fetch(url: str, token: str) -> dict[str, Any]:
         url, headers={"Authorization": f"Bearer {token}"}
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        # redirects=False: the bearer token must never follow a redirect
+        # off api.pinterest.com (2026-10-07 audit).
+        with safe_urlopen(request, timeout=30, redirects=False) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         if err.code in (401, 403):
