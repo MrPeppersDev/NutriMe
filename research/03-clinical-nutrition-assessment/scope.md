@@ -72,7 +72,7 @@ An annotated reference map containing:
 
 For households with children as eaters (intake parent-mediated per [sweep #9](../09-multi-user-household/scope.md)):
 
-- **NutriSTEP** — preschool / school-age nutrition screening (validated, free)
+- **NutriSTEP** — toddler (18–35 mo) / preschool (3–5 y) nutrition screening (validated, free; no school-age version exists)
 - **Growth charts** — CDC (US), WHO (international, recommended for under-2)
 - **Bright Futures Nutrition Supervision** — AAP-published age-band guidance framework
 - **Pediatric eating disorder screening** — KEDS (Kids' Eating Disorders Survey), ChEAT (Children's Eating Attitudes Test), SCOFF adapted for adolescents
@@ -344,7 +344,7 @@ Per [sweep #9](../09-multi-user-household/scope.md) — children are eaters in t
 
 #### 6.1 Comprehensive screening
 
-- **NutriSTEP** (Randall Simpson et al., 2008 for preschool; 2014 for school-age): 17-item parent-completed nutrition screener for preschoolers (3–5 y) and school-age children (5–17 y). Validated in Canadian populations; subsequent translations and validations in US, Italian, Portuguese cohorts. Free, public-domain, available via Dietitians of Canada / NutriSTEP. Covers food-group adequacy, food-skills exposure, growth, eating environment, physical activity. Clean fit for NutriMe's parent-mediated child intake.
+- **NutriSTEP** (Randall Simpson et al., 2008 for preschool; Toddler version Randall Simpson et al., 2015): 17-item parent-completed nutrition screener for preschoolers (3–5 y), with a validated Toddler NutriSTEP for 18–35 months. **No school-age (5–17 y) version exists** (corrected 2026-10-07 — an earlier draft cited a school-age extension that could not be verified in Crossref or at nutritionscreen.ca; the gap above age 5 is real and NutriMe must not imply screener coverage there). Validated in Canadian populations; subsequent translations and validations in US, Turkish and other cohorts. Free, available via Dietitians of Canada / nutritionscreen.ca. Covers food-group adequacy, food-skills exposure, growth, eating environment, physical activity. Clean fit for NutriMe's parent-mediated child intake for ages 18 months–5 years; school-age children have no NutriSTEP pathway.
 
 #### 6.2 Growth references
 
@@ -668,7 +668,7 @@ The recurring challenge: every clinical-grade instrument that has been "consumer
 
 > Randall Simpson, J.A., Keller, H.H., Rysdale, L.A., Beyers, J.E. (2008). Nutrition Screening Tool for Every Preschooler (NutriSTEP): validation and test-retest reliability of a parent-administered questionnaire assessing nutrition risk of preschoolers. *European Journal of Clinical Nutrition*, 62(6), 770–780. https://doi.org/10.1038/sj.ejcn.1602780. **[Tier 3 — NutriSTEP preschool.]**
 
-> Murphy, J., Hatfield, J., Arsenault, J., Rysdale, L., Ouellette, V., Beyers, J., Bourgon, B., Vesey, K., Keller, H., Randall Simpson, J. (2014). NutriSTEP: nutrition screening for school-age children. *Canadian Journal of Dietetic Practice and Research*. **[Tier 3 — school-age extension.]** **[verify — no such paper was found (no volume, pages or DOI; not in Crossref), and no school-age NutriSTEP appears to exist. The validated versions are preschool (3–5 y) and Toddler NutriSTEP (18–35 mo): Randall Simpson et al. 2015, Appl Physiol Nutr Metab 40(9):877–886, https://doi.org/10.1139/apnm-2015-0048. The "5–17 y" claim at §4 needs a source or should be dropped.]**
+> Randall Simpson, J., Gumbley, J., Whyte, K., Lac, J., Morra, C., Rysdale, L., Turfryer, M., McGibbon, K., Beyers, J., Keller, H. (2015). Development, reliability, and validity testing of Toddler NutriSTEP: a nutrition risk screening questionnaire for children 18–35 months of age. *Applied Physiology, Nutrition, and Metabolism*, 40(9), 877–886. https://doi.org/10.1139/apnm-2015-0048. (DOI verified via Crossref 2026-10-07.) **[Tier 3 — Toddler NutriSTEP.]** *(Replaces a 2014 "school-age NutriSTEP" citation that could not be verified and appears not to exist — no Crossref record, no version listed above age 5 by the instrument's publisher. The §4 instrument entry was corrected accordingly.)*
 
 > **CDC** (current). *Growth Charts*. Centers for Disease Control and Prevention. https://www.cdc.gov/growthcharts/. Accessed 2026-04-28. **[Tier 1.]**
 

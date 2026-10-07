@@ -482,7 +482,9 @@ Documented in section B comparative table. Key materially divergent positions:
 
 > UNESCO (2010, expanded 2013). *Mediterranean Diet — Intangible Cultural Heritage*. https://ich.unesco.org/en/RL/mediterranean-diet-00884. [Tier 4 — cultural inscription, no health claim]
 
-> Willcox, B.J., Willcox, D.C., Suzuki, M. (2017). The Okinawa Centenarian Study: Investigating Healthy Aging among the World's Longest-Lived People. *Mechanisms of Ageing and Development*. [Tier 3 — cohort] **[verify — the cited DOI (10.1016/j.mad.2016.05.004) is an unrelated NOX2/doxorubicin paper, and no *Mech Ageing Dev* article has this title; it matches a Springer encyclopedia entry (Suzuki, Willcox & Willcox 2016, https://doi.org/10.1007/978-981-287-080-3_74-1). Candidates for the §265 diet claim: Willcox, Willcox, Todoriki & Suzuki 2009, *The Okinawan diet: health implications of a low-calorie, nutrient-dense, antioxidant-rich dietary pattern low in glycemic load*, J Am Coll Nutr 28(sup4), https://doi.org/10.1080/07315724.2009.10718117 (narrative review); or Willcox, Willcox & Suzuki 2017, *Mech Ageing Dev* 165:75–79, https://doi.org/10.1016/j.mad.2016.11.001 (descriptive cohort).]**
+> Willcox, B.J., Willcox, D.C., Suzuki, M. (2017). Demographic, phenotypic, and genetic characteristics of centenarians in Okinawa and Japan: Part 1—centenarians in Okinawa. *Mechanisms of Ageing and Development*, 165, 75–79. https://doi.org/10.1016/j.mad.2016.11.001. (DOI verified via Crossref 2026-10-07.) [Tier 3 — Okinawa Centenarian Study cohort; supports the longevity-association claim]
+
+> Willcox, D.C., Willcox, B.J., Todoriki, H., Suzuki, M. (2009). The Okinawan Diet: Health Implications of a Low-Calorie, Nutrient-Dense, Antioxidant-Rich Dietary Pattern Low in Glycemic Load. *Journal of the American College of Nutrition*, 28(sup4). https://doi.org/10.1080/07315724.2009.10718117. (DOI verified via Crossref 2026-10-07.) [Tier 3/4 — narrative review; supports the dietary-pattern description (sweet-potato staple, low caloric density)]
 
 ### Cross-body comparative and methodology references
 
