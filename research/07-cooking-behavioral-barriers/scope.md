@@ -119,7 +119,7 @@ The **American Time Use Survey** (US Bureau of Labor Statistics, ongoing since 2
 
 Key findings consistently surfaced in the peer-reviewed literature using ATUS microdata:
 
-- **Average US adult food-preparation time** has hovered in the **~30–40 minute/day** range across recent ATUS waves, with women spending roughly twice as much as men, and a long-running secular *decline* from the mid-20th century through the early 2000s that has since plateaued [Tier 3 — Smith, Ng & Popkin 2013, *Nutrition Journal*; Tier 3 — Wolfson, Bleich, Smith & Popkin 2017, *Public Health Nutrition*].
+- **Average US adult food-preparation time** has hovered in the **~30–40 minute/day** range across recent ATUS waves, with women spending roughly twice as much as men, and a long-running secular *decline* from the mid-20th century through the early 2000s that has since plateaued [Tier 3 — Smith, Ng & Popkin 2013, *Nutrition Journal*; Tier 3 — Wolfson, Bleich, Smith & Frattaroli 2016, *Appetite* 97].
 - **Cooking frequency clusters** — Wolfson & Bleich's repeated NHANES analyses identify three groups of US adults: low cookers (~0–2 dinners/week prepared at home), medium cookers (3–5/week), and high cookers (6–7/week). Higher cooking frequency is associated with healthier diet quality (lower energy intake from outside sources, higher Healthy Eating Index scores) [Tier 3 — Wolfson & Bleich 2015, *Public Health Nutrition*].
 - **Working full-time** is one of the strongest negative correlates of household food preparation time in ATUS, alongside being male and being younger; presence of children *increases* prep time among women but not consistently among men [Tier 3 — Mancino & Newman 2007 USDA-ERS Report ERR-40; Tier 3 — Hamrick et al. 2011 USDA-ERS *Eating and Health Module of ATUS*].
 
@@ -159,7 +159,7 @@ Mills et al. 2017 (*BMC Public Health*) synthesised the food-skills literature a
 
 #### 2.3 Skill-perception gaps — believing cooking is harder than it is
 
-Wolfson, Bleich, Smith & Popkin 2016 (*Appetite*) and Lavelle et al. 2016 (*Appetite*, "Learning cooking skills at different ages") show that perceived cooking ability is a stronger predictor of cooking frequency than measured cooking ability — i.e., people who *think* they can't cook don't cook, regardless of objective skill [Tier 3 — Wolfson et al. 2016 *Appetite*; Tier 3 — Lavelle et al. 2016 *Appetite*].
+Wolfson, Bleich, Smith & Frattaroli 2016 (*Appetite* 97) and Lavelle et al. 2016 (*Appetite*, "Learning cooking skills at different ages") show that perceived cooking ability is a stronger predictor of cooking frequency than measured cooking ability — i.e., people who *think* they can't cook don't cook, regardless of objective skill [Tier 3 — Wolfson et al. 2016 *Appetite*; Tier 3 — Lavelle et al. 2016 *Appetite*].
 
 McGowan et al. 2017 (*Appetite*) in the same Belfast group showed perceived complexity is the dominant predictor of recipe avoidance — when the same dish is presented as simpler, intent-to-cook rises [Tier 3].
 
@@ -397,8 +397,8 @@ A: Section 9 above. The Tier-0 + Tier-1 equipment list covers the majority of th
 ### Cooking time, cooking frequency, and diet quality (peer-reviewed)
 
 - Wolfson, J.A. & Bleich, S.N. (2015). Is cooking at home associated with better diet quality or weight-loss intention? *Public Health Nutrition*, 18(8), 1397–1406. https://doi.org/10.1017/S1368980014001943. **[Tier 3.]**
-- Wolfson, J.A., Bleich, S.N., Smith, K.C., & Popkin, B.M. (2017). What does cooking mean to you?: Perceptions of cooking and factors related to cooking behavior. *Public Health Nutrition*, 20(14), 2487–2495. **[Tier 3 — verify volume/issue/DOI.]**
-- Wolfson, J.A., Bleich, S.N., Smith, K.C., Catalano, P.J. (2016). Perceptions of cooking and factors associated with cooking behavior in US adults. *Appetite*, 106, 113–123. https://doi.org/10.1016/j.appet.2016.02.041. **[Tier 3 — verify volume.]**
+- Wolfson, J.A., Bleich, S.N., Smith, K.C., & Frattaroli, S. (2016). What does cooking mean to you?: Perceptions of cooking and factors related to cooking behavior. *Appetite*, 97, 146–154. https://doi.org/10.1016/j.appet.2015.11.030. **[Tier 3. DOI verified via Crossref 2026-10-08; the previous entry placed this title in the wrong journal (PHN 2017) — no such paper exists.]**
+- Wolfson, J.A., Smith, K.C., Frattaroli, S., & Bleich, S.N. (2016). Public perceptions of cooking and the implications for cooking behaviour in the USA. *Public Health Nutrition*, 19(9), 1606–1615. https://doi.org/10.1017/S1368980015003778. **[Tier 3. DOI verified via Crossref 2026-10-08; replaces a garbled entry ("Perceptions of cooking... US adults", *Appetite* 106) whose DOI resolved to an unrelated taste-willingness study and whose title/volume match no indexed paper.]**
 - Smith, L.P., Ng, S.W. & Popkin, B.M. (2013). Trends in US home food preparation and consumption: analysis of national nutrition surveys and time use studies from 1965–1966 to 2007–2008. *Nutrition Journal*, 12, 45. https://doi.org/10.1186/1475-2891-12-45. **[Tier 3.]**
 - Monsivais, P., Aggarwal, A. & Drewnowski, A. (2014). Time spent on home food preparation and indicators of healthy eating. *American Journal of Preventive Medicine*, 47(6), 796–802. https://doi.org/10.1016/j.amepre.2014.07.033. **[Tier 3.]**
 - Virudachalam, S., Long, J.A., Harhay, M.O., Polsky, D.E., & Feudtner, C. (2014). Prevalence and patterns of cooking dinner at home in the USA: National Health and Nutrition Examination Survey (NHANES) 2007–2008. *Public Health Nutrition*, 17(5), 1022–1030. https://doi.org/10.1017/S1368980013002589. **[Tier 3.]**
