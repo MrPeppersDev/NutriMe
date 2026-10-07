@@ -139,7 +139,7 @@ def notifications(app, member_id: str, *, now: datetime | None = None) -> list[d
         plans = vault.list_plans() if vault.root.exists() else []
         covered = False
         if plans:
-            latest = plans[-1]
+            latest = plans[0]  # list_plans is newest-first
             created = _parse(str(latest.frontmatter.get("created_at")))
             if created:
                 tomorrow_day = (now.date() - created.date()).days + 2

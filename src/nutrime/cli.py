@@ -1142,7 +1142,7 @@ def _cmd_grocery_build(args: argparse.Namespace) -> int:
         if not plans:
             print("(no plans yet — run `nutrime plans generate`)")
             return 1
-        plan_id = plans[-1].plan_id  # list_plans orders by created_at
+        plan_id = plans[0].plan_id  # list_plans is newest-first
     if not plan_vault.exists(plan_id):
         print(f"no such plan: {plan_id}")
         return 1

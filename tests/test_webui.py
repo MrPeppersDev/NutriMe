@@ -320,6 +320,68 @@ class TestTonightAndFeedbackApi:
         assert "error" in err
 
 
+class TestLatestPlanSelection:
+    """Audit P0: list_plans() is newest-first; consumers indexed as if
+    oldest-first and served the first-ever plan."""
+
+    def _write_plan(self, server, recipe, *, created_at: str):
+        from nutrime.plans.store import (
+            PlanEntry,
+            PlanVault,
+            new_plan_id,
+            render_plan_body,
+        )
+
+        plan_id = new_plan_id()
+        fm = {
+            "plan_id": plan_id,
+            "content_type": "meal_plan",
+            "created_at": created_at,
+            "tenant_id": server.app.tenant_id,
+            "days": 1,
+            "meal_slots": ["dinner"],
+            "meals_planned": 1,
+            "model": "test",
+            "llm_request_ids": [],
+            "llm_request_log_ids": [],
+            "constraints_applied": [],
+            "candidate_count": 1,
+        }
+        entries = (
+            PlanEntry(day=1, slot="dinner", recipe_id=recipe["recipe_id"],
+                      title=recipe["title"]),
+        )
+        PlanVault(server.app.corpus_dir).write(
+            plan_id, fm, render_plan_body(entries)
+        )
+        return plan_id
+
+    def test_tonight_uses_newest_plan(self, server) -> None:
+        from datetime import date
+
+        results = _get(server, "/api/search")["results"]
+        old_recipe, new_recipe = results[0], results[1]
+        today = date.today().isoformat()
+        self._write_plan(server, old_recipe, created_at="2020-01-01T00:00:00")
+        self._write_plan(server, new_recipe, created_at=f"{today}T00:00:00")
+
+        tonight = _get(server, "/api/tonight")["tonight"]
+        assert tonight is not None
+        assert tonight["recipe_id"] == new_recipe["recipe_id"]
+
+    def test_grocery_defaults_to_newest_plan(self, server) -> None:
+        from datetime import date
+
+        results = _get(server, "/api/search")["results"]
+        today = date.today().isoformat()
+        self._write_plan(server, results[0], created_at="2020-01-01T00:00:00")
+        newest = self._write_plan(
+            server, results[1], created_at=f"{today}T00:00:00"
+        )
+        grocery = _get(server, "/api/grocery")
+        assert grocery["plan_id"] == newest
+
+
 class TestSourcesApi:
     def test_sources_counts(self, server) -> None:
         data = _get(server, "/api/sources")

@@ -1313,7 +1313,7 @@ class _Handler(BaseHTTPRequestHandler):
         tonight = None
         plans = plan_vault.list_plans() if plan_vault.root.exists() else []
         if plans:
-            latest = plans[-1]
+            latest = plans[0]  # list_plans is newest-first
             entries = [e for e in latest.entries() if e.filled]
             if entries:
                 from datetime import date, datetime
@@ -1795,7 +1795,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not plans:
                 self._json({"error": "no plans yet"}, status=404)
                 return
-            plan_id = plans[-1].plan_id
+            plan_id = plans[0].plan_id  # list_plans is newest-first
         if not plan_vault.exists(plan_id):
             self._json({"error": f"no such plan: {plan_id}"}, status=404)
             return
