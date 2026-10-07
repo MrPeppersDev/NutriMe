@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterable
 
-from nutrime.recipes.allergens import TOP_ALLERGENS
+from nutrime.recipes.allergens import ALLERGEN_SYNONYMS, TOP_ALLERGENS
 from nutrime.recipes.store import RecipeRecord, RecipeVault
 
 _INGREDIENT_LINE = re.compile(r"^@(?P<braced>[^@{}]+)\{|^@(?P<bare>\S+)$")
@@ -397,7 +397,12 @@ def filters_from_constraints(
         text = (entry.payload.get("abstracted_text") or "").strip().lower()
         if text.startswith("avoids "):
             term = text[len("avoids ") :].strip()
-            canonical = allergen_names.get(normalize_term(term))
+            norm = normalize_term(term)
+            # #57: user-facing allergen names (milk, wheat, tree nuts —
+            # the FDA's own labels) map to the internal vocabulary; only
+            # a term that is NOT an allergen name becomes a plain
+            # ingredient exclusion.
+            canonical = allergen_names.get(norm) or ALLERGEN_SYNONYMS.get(norm)
             if canonical is not None:
                 exclude_allergens.add(canonical)
             else:

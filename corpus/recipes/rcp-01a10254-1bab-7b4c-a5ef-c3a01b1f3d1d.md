@@ -31,7 +31,8 @@ yields:
   count: 4
   unit: 'servings'
   yield_note: '4'
-top_allergens_present: []
+top_allergens_present: 
+  - 'eggs'
 ingredient_resolution_summary: 
   fully_resolved: 0
   partial: 0
@@ -39,6 +40,7 @@ ingredient_resolution_summary:
 ingredient_resolution_status: 'unresolved_pending_review'
 vetting_status: 'vetted'
 vetting_version: 2
+allergens_original: []
 ---
 
 >> title: Jamaican Jerk Chicken Tacos

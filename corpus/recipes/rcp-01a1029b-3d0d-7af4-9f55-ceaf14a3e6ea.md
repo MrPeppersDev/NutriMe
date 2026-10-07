@@ -33,6 +33,7 @@ yields:
   unit: 'servings'
 top_allergens_present: 
   - 'fish'
+  - 'gluten'
   - 'soy'
 ingredient_resolution_summary: 
   fully_resolved: 0
@@ -41,6 +42,9 @@ ingredient_resolution_summary:
 ingredient_resolution_status: 'unresolved_pending_review'
 vetting_status: 'vetted'
 vetting_version: 2
+allergens_original: 
+  - 'fish'
+  - 'soy'
 ---
 
 >> title: Recipe: Seared Salmon with Soy, Scallions, and Ginger

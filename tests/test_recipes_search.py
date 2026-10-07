@@ -187,6 +187,28 @@ class TestConstraintSeam:
         )
         assert filters.exclude_ingredients == frozenset({"cilantro"})
 
+    def test_fda_allergen_names_map_to_hard_blocks(self):
+        # #57: "milk", "wheat", "tree nuts" are the FDA's own names for
+        # three of the nine major allergens — they must become allergen
+        # hard-blocks, never plain substring exclusions.
+        cases = {
+            "avoids milk": "dairy",
+            "avoids wheat": "gluten",
+            "avoids tree nuts": "tree_nuts",
+            "avoids tree nut": "tree_nuts",
+            "avoids nuts": "tree_nuts",
+            "avoids egg": "eggs",
+            "avoids peanut": "peanuts",
+            "avoids shrimp": "shellfish",
+            "avoids soya": "soy",
+        }
+        for text, canonical in cases.items():
+            filters = filters_from_constraints(
+                [FakeEntry({"abstracted_text": text})]
+            )
+            assert filters.exclude_allergens == frozenset({canonical}), text
+            assert filters.exclude_ingredients == frozenset(), text
+
     def test_prefers_maps_to_boost(self):
         filters = filters_from_constraints(
             [FakeEntry({"abstracted_text": "prefers italian"})]
