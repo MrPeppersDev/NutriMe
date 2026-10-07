@@ -932,6 +932,7 @@ def _cmd_recipes_vet(args: argparse.Namespace) -> int:
         f" flagged {outcome.flagged} for review;"
         f" {outcome.duplicates} duplicate(s) hidden;"
         f" allergen tags added on {outcome.allergens_added};"
+        f" categories inferred on {outcome.categorized};"
         f" {outcome.already_vetted} already vetted."
     )
     return 0
@@ -1148,7 +1149,8 @@ def _cmd_grocery_build(args: argparse.Namespace) -> int:
         return 1
 
     inventory = [
-        item.name for item in list_items(app.substrate, app.tenant_id)
+        item.matching_name
+        for item in list_items(app.substrate, app.tenant_id)
     ]
     groceries = build_grocery_list(
         plan_vault.read(plan_id),

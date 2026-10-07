@@ -51,7 +51,8 @@ from dataclasses import dataclass
 
 from nutrime.recipes.store import RecipeRecord, RecipeVault
 
-VETTING_VERSION = 2
+# 3 (2026-10-08): meal-category inference for untagged recipes (P2 #14).
+VETTING_VERSION = 3
 HIDDEN_STATUSES = frozenset({"quarantined", "duplicate"})
 
 # Words kept lowercase when title-casing (unless first/last)
@@ -287,6 +288,65 @@ def reconcile_allergens(record: RecipeRecord) -> list[str] | None:
     return missing or None
 
 
+# -- V3: meal-category inference (audit P2 #14) --------------------------------
+# 782 recipes carried meal_categories: [] — and the dinner slot is defined
+# by EXCLUSION (anything not tagged dessert/side/breakfast/... is a
+# candidate main), so an untagged dessert lands in dinner pools. This
+# infers the slot-relevant categories from the title, conservatively:
+# only patterns that are unambiguous get a tag; anything else stays
+# untagged and keeps its main-course-by-exclusion default. Title-only on
+# purpose — ingredient lists share too much across courses (a cake and a
+# quiche both have eggs/flour/butter).
+
+_CATEGORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("dessert", re.compile(
+        r"\b(desserts?|cakes?|cupcakes?|cookies?|brownies?|blondies?|fudge|"
+        r"cobblers?|crumbles?|crisps?|pudding|custard|flan|sorbet|gelato|"
+        r"ice cream|cheesecake|tiramisu|baklava|macaroons?|meringues?|"
+        r"truffles?|parfaits?|shortcake|gingerbread|biscotti|"
+        r"caramel sauce|muffins?|doughnuts?|donuts?|ambrosia|rice krispie)\b"
+        # Pie/tart default to dessert UNLESS a savory marker precedes
+        # ("chicken pot pie", "shepherd's pie", "fish pie" stay mains).
+        r"|(?<!pot )(?<!shepherd's )(?<!shepherds )(?<!cottage )(?<!tamale )"
+        r"(?<!fish )(?<!meat )(?<!pizza )\b(pies?|tarts?)\b", re.I)),
+    ("breakfast", re.compile(
+        r"\b(pancakes?|waffles?|oatmeal|porridge|granola|muesli|"
+        r"french toast|breakfast|omelett?es?|scrambled eggs?|"
+        r"overnight oats?)\b", re.I)),
+    ("drinks", re.compile(
+        r"\b(smoothies?|lassi|milkshakes?|shakes?|punch|lemonade|"
+        r"coolers?|spritzers?|hot (?:chocolate|cocoa)|iced tea|"
+        r"aguas? frescas?|horchata|cider)\b", re.I)),
+    ("side", re.compile(
+        r"\b(coleslaw|slaw|dressings?|vinaigrettes?|salsas?|dips?|"
+        r"spreads?|relish|chutney|pickles?|pickled|croutons?|"
+        r"side(?:\s+dish)?)\b", re.I)),
+    ("snack", re.compile(
+        r"\b(snacks?|trail mix|energy (?:balls?|bites?)|popcorn|"
+        r"roasted chickpeas?)\b", re.I)),
+    # Informational tags — no slot effect, but searchable.
+    ("soup", re.compile(r"\b(soups?|chowders?|bisques?|gazpacho)\b", re.I)),
+    ("salad", re.compile(r"\bsalads?\b", re.I)),
+)
+
+
+def infer_meal_categories(record: RecipeRecord) -> list[str]:
+    """Conservative title-based category inference for untagged recipes.
+
+    Returns [] when nothing matches — the recipe keeps its implicit
+    main-course-by-exclusion status, which is the right default for the
+    ambiguous middle.
+    """
+    title = str(record.frontmatter.get("title", ""))
+    out = [cat for cat, pattern in _CATEGORY_PATTERNS if pattern.search(title)]
+    # A "salad dressing" is a side, not a salad; a "soup mix" title with
+    # "dip" stays a side. Dessert wins over everything (apple pie salad
+    # is unlikely; fruit-salad desserts tagging both is harmless).
+    if "side" in out and "salad" in out:
+        out.remove("salad")
+    return out
+
+
 # -- V2: duplicates ------------------------------------------------------------------
 
 _TITLE_FILLER = frozenset(
@@ -374,6 +434,7 @@ class VetOutcome:
     flagged: int = 0
     duplicates: int = 0
     allergens_added: int = 0
+    categorized: int = 0
 
 
 def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
@@ -385,7 +446,7 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
     the whole vault, so a new ingest can be matched against old rows.
     """
     examined = normalized = quarantined = skipped = 0
-    flagged = duplicates = allergens_added = 0
+    flagged = duplicates = allergens_added = categorized = 0
 
     records = list(vault.iter_recipes())
     staged: dict[str, dict] = {}
@@ -428,6 +489,17 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
                 set(fm.get("top_allergens_present") or []) | set(missing)
             )
             allergens_added += 1
+
+        # V3 (P2 #14): untagged recipes get conservative title-inferred
+        # categories so a dessert can't land in a dinner pool via the
+        # main-course-by-exclusion default. Only ever fills EMPTY lists —
+        # source-provided tags are never touched.
+        if not fm.get("meal_categories"):
+            inferred = infer_meal_categories(candidate)
+            if inferred:
+                fm["meal_categories"] = inferred
+                fm["meal_categories_inferred"] = True
+                categorized += 1
 
         verdict = vet_record(candidate)
         findings = quality_findings(candidate)
@@ -495,4 +567,5 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
         flagged=flagged,
         duplicates=duplicates,
         allergens_added=allergens_added,
+        categorized=categorized,
     )

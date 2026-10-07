@@ -163,7 +163,9 @@ class TestQualityFindings:
         fm = vault.read(rid).frontmatter
         assert fm["vetting_status"] == "vetted"
         assert "vetting_flags" not in fm
-        assert fm["vetting_version"] == 2
+        from nutrime.recipes.vetting import VETTING_VERSION
+
+        assert fm["vetting_version"] == VETTING_VERSION
 
     def test_pointer_only_method_quarantined(self, tmp_path: Path) -> None:
         vault = _vault(tmp_path)
@@ -311,7 +313,9 @@ class TestDuplicates:
         assert outcome.already_vetted == 0  # no version stamp → re-examined
         assert vault.read(rid).frontmatter["vetting_status"] == "quarantined"
         assert vault.read(rid).frontmatter["vetting_reason"].startswith("de-scope")
-        assert vault.read(v1).frontmatter["vetting_version"] == 2
+        from nutrime.recipes.vetting import VETTING_VERSION
+
+        assert vault.read(v1).frontmatter["vetting_version"] == VETTING_VERSION
 
     def test_second_pass_writes_nothing(self, tmp_path: Path) -> None:
         vault = _vault(tmp_path)
@@ -321,3 +325,69 @@ class TestDuplicates:
         outcome = vet_vault(vault)
         assert outcome.already_vetted == 1
         assert vault.path_for(rid).stat().st_mtime_ns == before
+
+
+class TestInferMealCategories:
+    """V3 (P2 #14): untagged recipes get conservative title-inferred
+    categories so desserts can't reach dinner pools by exclusion."""
+
+    def _infer(self, title):
+        from nutrime.recipes.store import RecipeRecord
+        from nutrime.recipes.vetting import infer_meal_categories
+
+        return infer_meal_categories(
+            RecipeRecord(recipe_id="rcp-x", frontmatter={"title": title},
+                         body="", path=None)
+        )
+
+    def test_desserts_caught(self) -> None:
+        for title in ("Ambrosia", "Apple Crisp", "Banana Bread Muffins",
+                      "Chocolate Chip Cookies", "Pumpkin Pie",
+                      "Rice Pudding", "Strawberry Shortcake"):
+            assert "dessert" in self._infer(title), title
+
+    def test_breakfast_and_drinks(self) -> None:
+        assert "breakfast" in self._infer("Blueberry Pancakes")
+        assert "breakfast" in self._infer("Overnight Oats with Apples")
+        assert "drinks" in self._infer("Mango Lassi")
+        assert "drinks" in self._infer("Berry Banana Smoothie")
+
+    def test_sides_dips_dressings(self) -> None:
+        assert "side" in self._infer("Black Bean Dip")
+        assert "side" in self._infer("Honey Mustard Dressing")
+        assert "side" in self._infer("Fresh Tomato Salsa")
+        assert "side" in self._infer("Creamy Coleslaw")
+
+    def test_mains_stay_untagged(self) -> None:
+        # The ambiguous middle keeps main-course-by-exclusion.
+        for title in ("2-Step Chicken", "Beef and Broccoli Stir-Fry",
+                      "Baked Salmon with Lemon", "Lentil Chili"):
+            assert self._infer(title) == [], title
+
+    def test_salad_dressing_is_side_not_salad(self) -> None:
+        got = self._infer("Garden Salad Dressing")
+        assert "side" in got and "salad" not in got
+
+    def test_vet_vault_fills_only_empty(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        untagged = _write(vault, "Apple Crisp")
+        tagged_rid = _write(vault, "Weird Dessert Casserole")
+        fm = dict(vault.read(tagged_rid).frontmatter)
+        fm["meal_categories"] = ["main course"]  # source said main; trust it
+        vault.write(tagged_rid, fm, vault.read(tagged_rid).body)
+        outcome = vet_vault(vault, revet=True)
+        assert outcome.categorized == 1
+        got = vault.read(untagged).frontmatter
+        assert got["meal_categories"] == ["dessert"]
+        assert got["meal_categories_inferred"] is True
+        assert vault.read(tagged_rid).frontmatter["meal_categories"] == ["main course"]
+
+    def test_inferred_dessert_leaves_dinner_pool(self, tmp_path: Path) -> None:
+        from nutrime.plans.assemble import candidates_for_slot
+
+        vault = _vault(tmp_path)
+        _write(vault, "Peach Cobbler")
+        main = _write(vault, "Chicken Stew")
+        vet_vault(vault)
+        pool = candidates_for_slot(vault, SearchFilters(), "dinner")
+        assert [r.recipe_id for r in pool] == [main]
