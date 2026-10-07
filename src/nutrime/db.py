@@ -166,7 +166,9 @@ def apply_migrations(
 
     newly_applied: list[Migration] = []
     for migration in pending:
-        sql = migration.path.read_text()
+        # Explicit encoding: Windows defaults read_text to cp1252, and
+        # several migrations carry non-ASCII characters (#53).
+        sql = migration.path.read_text(encoding="utf-8")
         # One real transaction per migration: statements + the
         # schema_migrations row commit together, so a crash mid-migration
         # leaves nothing behind and the retry is clean. (executescript

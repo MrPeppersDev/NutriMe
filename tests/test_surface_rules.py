@@ -197,7 +197,11 @@ def test_corpus_has_no_banned_content_false_positives() -> None:
     offenders = []
     for f in files:
         verdict = GUARD.check(
-            SurfaceContent(surface="corpus", text=f.read_text(), generated=False)
+            SurfaceContent(
+                surface="corpus",
+                text=f.read_text(encoding="utf-8"),
+                generated=False,
+            )
         )
         offenders += [
             (f.name, x.reason) for x in verdict.findings
