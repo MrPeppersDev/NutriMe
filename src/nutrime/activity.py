@@ -136,14 +136,19 @@ def notifications(app, member_id: str, *, now: datetime | None = None) -> list[d
     if on["plan_gap"]:
         from nutrime.plans.store import PlanVault
 
+        from nutrime.plans.store import plan_day_today
+
         vault = PlanVault(app.corpus_dir)
         plans = vault.list_plans() if vault.root.exists() else []
         covered = False
         if plans:
             latest = plans[0]  # list_plans is newest-first
-            created = _parse(str(latest.frontmatter.get("created_at")))
-            if created:
-                tomorrow_day = (now.date() - created.date()).days + 2
+            created_at = str(latest.frontmatter.get("created_at") or "")
+            if created_at:
+                # Local-date day math (#53): tomorrow = today_day + 1.
+                tomorrow_day = plan_day_today(
+                    created_at, now=now.astimezone()
+                ) + 1
                 covered = any(e.day == tomorrow_day and e.filled for e in latest.entries())
         if not covered:
             out.append({

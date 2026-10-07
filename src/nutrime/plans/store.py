@@ -54,6 +54,31 @@ def new_plan_id() -> str:
     return f"pln-{uuid7()}"
 
 
+def plan_day_today(created_at: str, *, now: "datetime | None" = None) -> int:
+    """Which plan day is 'today', where day 1 is the day the plan was made.
+
+    ``created_at`` is stamped in UTC (``_now_iso``); "day" is a LOCAL
+    calendar day. Convert the UTC instant to local time before comparing
+    dates — otherwise, in a behind-UTC zone during the evening (when the
+    UTC clock has already rolled to the next date), today reads as day 0.
+    This off-by-one failed in UTC-11 (#53 / 2026-10-06 audit). Falls back
+    to day 1 for an unparseable or missing stamp.
+    """
+    from datetime import datetime, timezone
+
+    now = now or datetime.now()
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return 1
+    if created.tzinfo is not None:
+        # Compare in the local zone: astimezone() with no arg targets local.
+        created_local_date = created.astimezone().date()
+    else:
+        created_local_date = created.date()
+    return (now.date() - created_local_date).days + 1
+
+
 @dataclass(frozen=True)
 class PlanEntry:
     """One meal slot in a plan. ``recipe_id`` is None when the slot failed."""

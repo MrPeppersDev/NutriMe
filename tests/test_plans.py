@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 import random
+import time
+from datetime import datetime
 
 import pytest
 
@@ -34,6 +36,7 @@ from nutrime.plans.store import (
     PlanVault,
     new_plan_id,
     parse_plan_body,
+    plan_day_today,
     render_plan_body,
     validate_plan_frontmatter,
 )
@@ -218,6 +221,49 @@ class TestPlanVault:
     def test_wrong_content_type_rejected(self):
         with pytest.raises(ValueError, match="content_type"):
             validate_plan_frontmatter(_plan_fm(content_type="recipe"))
+
+
+class TestPlanDayToday:
+    """Regression for #53: plan-day math must compare LOCAL calendar days.
+
+    created_at is stamped in UTC; in a behind-UTC zone during the evening
+    the UTC clock has already rolled to tomorrow, and naive UTC-date math
+    read "today" as day 0 (verified failing in UTC-11 pre-fix).
+    """
+
+    @pytest.fixture
+    def pago_pago(self, monkeypatch):
+        if not hasattr(time, "tzset"):
+            pytest.skip("tzset not available on this platform")
+        monkeypatch.setenv("TZ", "Pacific/Pago_Pago")  # UTC-11, no DST
+        time.tzset()
+        yield
+        monkeypatch.undo()
+        time.tzset()
+
+    def test_utc_evening_instant_is_day_one(self, pago_pago):
+        # Pinned instant: 21:00 local on 2026-03-05 = 08:00 UTC 2026-03-06.
+        # A plan created at that instant, asked about at that instant, is
+        # day 1 — the UTC stamp carries tomorrow's date.
+        created_at = "2026-03-06T08:00:00Z"
+        local_now = datetime(2026, 3, 5, 21, 0, 0)
+        assert plan_day_today(created_at, now=local_now) == 1
+
+    def test_next_local_day_is_day_two(self, pago_pago):
+        created_at = "2026-03-06T08:00:00Z"  # evening of 03-05 local
+        local_now = datetime(2026, 3, 6, 7, 0, 0)  # next local morning
+        assert plan_day_today(created_at, now=local_now) == 2
+
+    def test_naive_stamp_compared_as_is(self):
+        # Legacy/test fixtures write naive stamps; those are taken at face
+        # value rather than shifted.
+        assert plan_day_today(
+            "2026-03-05T00:00:00", now=datetime(2026, 3, 5, 23, 0, 0)
+        ) == 1
+
+    def test_unparseable_or_missing_stamp_falls_back_to_day_one(self):
+        assert plan_day_today("", now=datetime(2026, 3, 5)) == 1
+        assert plan_day_today("not-a-date", now=datetime(2026, 3, 5)) == 1
 
 
 class TestPlanBody:

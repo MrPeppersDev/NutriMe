@@ -468,14 +468,17 @@ class _Handler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _plan_day_today(plan) -> int:
-        """Which plan day is today (day 1 = the day the plan was made)."""
-        from datetime import date, datetime
+        """Which plan day is today (day 1 = the day the plan was made).
 
-        created = str(plan.frontmatter.get("created_at", ""))[:10]
-        try:
-            return (date.today() - datetime.fromisoformat(created).date()).days + 1
-        except ValueError:
-            return 1
+        created_at is stamped in UTC; "day 1" is a LOCAL calendar day, so
+        the UTC instant is converted to local before its date is taken —
+        otherwise an evening plan in a behind-UTC zone (where UTC has
+        already rolled to tomorrow) reads as day 0 (2026-10-06 audit /
+        #53: this exact off-by-one failed in UTC-11).
+        """
+        from nutrime.plans.store import plan_day_today
+
+        return plan_day_today(str(plan.frontmatter.get("created_at", "")))
 
     def _api_plans_list(self) -> None:
         from nutrime.plans.store import PlanVault
@@ -1426,15 +1429,11 @@ class _Handler(BaseHTTPRequestHandler):
             latest = plans[0]  # list_plans is newest-first
             entries = [e for e in latest.entries() if e.filled]
             if entries:
-                from datetime import date, datetime
+                from nutrime.plans.store import plan_day_today
 
-                created = str(latest.frontmatter.get("created_at", ""))[:10]
-                try:
-                    day_index = (
-                        date.today() - datetime.fromisoformat(created).date()
-                    ).days + 1
-                except ValueError:
-                    day_index = 1
+                day_index = plan_day_today(
+                    str(latest.frontmatter.get("created_at", ""))
+                )
                 todays = [e for e in entries if e.day == day_index]
                 pick = todays[0] if todays else None
                 if pick is not None:
