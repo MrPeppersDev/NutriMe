@@ -46,6 +46,9 @@ DEFAULT_SCRIPT: list[str] = [
     # dietary + allergens
     "vegetarian",        # preferences
     "peanut, shellfish", # allergens
+    # conditions + avoid-foods (parity with the web intake)
+    "type 2 diabetes",   # conditions
+    "cilantro",          # avoid foods
     # HVS (2 items) — never / sometimes → positive
     "never_true",
     "sometimes_true",
@@ -100,6 +103,22 @@ def test_baseline_end_to_end_persists_and_scores(initialized_app) -> None:
     )
     assert disclosure_hits >= 3
 
+    # 2026-10-06 audit: the CLI used to construct profiles without
+    # conditions/avoid_foods, silently skipping the safety layer. The
+    # scripted condition must now reach the condition-gating registry.
+    assert outcome.profile.conditions == ("type 2 diabetes",)
+    assert outcome.profile.avoid_foods == ("cilantro",)
+    from nutrime.conditions import household_gates
+    from nutrime.knowledge.derivation import sync_from_intake
+
+    sync_from_intake(initialized_app.substrate, initialized_app.tenant_id)
+    gates = household_gates(
+        initialized_app.substrate, initialized_app.tenant_id
+    )
+    assert any(
+        "diabetes" in c.canonical for c in gates.conditions
+    ), "CLI-disclosed condition must reach the gating registry"
+
 
 def test_baseline_accepts_numeric_choice(initialized_app) -> None:
     """Users can type '1' instead of 'not_at_all' — same effect."""
@@ -111,6 +130,8 @@ def test_baseline_accepts_numeric_choice(initialized_app) -> None:
         "",          # skip weight
         "",          # no preferences
         "",          # no allergens
+        "",          # no conditions
+        "",          # no avoid foods
         "1", "1",    # PHQ-2 not_at_all x2
         "1", "1",    # GAD-2 not_at_all x2
         "1", "1",    # HVS never_true x2
@@ -137,6 +158,7 @@ def test_baseline_reprompts_on_invalid_year(initialized_app) -> None:
         "adult",
         "", "",         # skip height + weight
         "", "",         # no preferences / allergens
+        "", "",         # no conditions / avoid foods
         "never_true", "never_true",
         "very_good", "very_good",
         "rarely_or_never", "rarely_or_never",

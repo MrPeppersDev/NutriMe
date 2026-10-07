@@ -507,6 +507,10 @@ def run_checkin_interactive(
     allergens = keep("Allergies, comma-separated ('none' to clear)", ", ".join(profile.allergens))
     prefs = keep("Dietary preferences, comma-separated ('none' to clear)",
                  ", ".join(profile.dietary_preferences))
+    conditions = keep("Diagnosed conditions, comma-separated ('none' to clear)",
+                      ", ".join(profile.conditions))
+    avoids = keep("Foods never to serve (beyond allergies), comma-separated"
+                  " ('none' to clear)", ", ".join(profile.avoid_foods))
 
     def as_list(answer: str, current: tuple[str, ...]) -> tuple[str, ...]:
         if not answer:
@@ -521,6 +525,8 @@ def run_checkin_interactive(
         weight_kg=float(weight) if weight else profile.weight_kg,
         allergens=as_list(allergens, profile.allergens),
         dietary_preferences=as_list(prefs, profile.dietary_preferences),
+        conditions=as_list(conditions, profile.conditions),
+        avoid_foods=as_list(avoids, profile.avoid_foods),
     )
     screeners = {}
     if prompter("Retake the screening questions? [Y/n]: ").strip().lower() not in ("n", "no"):

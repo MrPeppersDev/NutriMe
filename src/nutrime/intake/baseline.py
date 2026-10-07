@@ -195,6 +195,26 @@ def _collect_profile(prompter: Prompter, emitter: Emitter) -> IntakeProfile:
         emitter,
         "Food allergens to avoid (e.g. peanut, shellfish, gluten):",
     )
+    # Conditions + avoid-foods (2026-10-06 audit): the CLI used to skip
+    # both, so CLI-onboarded households got ZERO refuse/gate behavior
+    # from the clinical condition layer. Same questions the web asks.
+    emitter("— health conditions + foods to avoid —")
+    from nutrime.conditions import COMMON_CONDITIONS
+
+    emitter(
+        "Common examples: " + ", ".join(COMMON_CONDITIONS[:6]) + ", ..."
+    )
+    conditions = _ask_list(
+        prompter,
+        emitter,
+        "Diagnosed conditions meal planning should know about"
+        " (meal plans gate or carry consult notes accordingly):",
+    )
+    avoid_foods = _ask_list(
+        prompter,
+        emitter,
+        "Foods to never serve, beyond allergens (e.g. cilantro, organ meat):",
+    )
     return IntakeProfile(
         year_of_birth=year_of_birth,
         sex_assigned_at_birth=sex_assigned_at_birth,
@@ -203,6 +223,8 @@ def _collect_profile(prompter: Prompter, emitter: Emitter) -> IntakeProfile:
         weight_kg=weight_kg,
         dietary_preferences=dietary_preferences,
         allergens=allergens,
+        conditions=conditions,
+        avoid_foods=avoid_foods,
     )
 
 

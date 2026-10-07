@@ -226,6 +226,7 @@ def test_cli_interactive_checkin(tmp_path: Path, monkeypatch, capsys) -> None:
     app.substrate.close(); app.operational.close()
     answers = iter([
         "", "72", "none", "",   # stage keep, weight 72, clear allergies, prefs keep
+        "", "",                 # conditions keep, avoid-foods keep
         "n",                    # skip screeners
         "4", "30", "thai",
     ])
