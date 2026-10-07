@@ -4,6 +4,71 @@ Running record of build sessions: what landed, where it lives, what is
 left. Newest session first. Strategic context stays in
 [roadmap.md](roadmap.md); this is the "what was done" trail.
 
+## 2026-10-07/08 — audit remediation sessions (P0 → P1 → P2)
+
+The 2026-10-06/07 audit queue, worked oldest-severity-first across
+several budget-interrupted sessions. Everything below is on `main`.
+
+### P0s (both audit passes) — all closed
+- **Security exploit chain** (`898e31f`, closes #50): Host/Origin
+  browser boundary (CSRF + DNS rebinding), SSRF guard re-checked on
+  every redirect hop (`safe_urlopen`), vault path containment, XSS
+  onclick→data-* sweep, generic 500s logging to `server-errors.log`,
+  keychain writes via stdin. Exploit probes re-run live post-fix.
+- **Data integrity** (`1caf726`): `db.transaction()` (BEGIN IMMEDIATE,
+  nestable), race-free tenant bootstrap (4-way concurrent initialize
+  verified), crash-safe per-migration commits, atomic vault writes.
+- **Threaded server** (`346a814`): ThreadingHTTPServer + per-thread
+  Application; WAL mode. /api/tonight answers in 7ms during a search.
+- **Latest-plan bug** (`c6052dd`): five consumers read plans[-1] of a
+  newest-first list — tonight/grocery/CLI/notification read the OLDEST
+  plan. Regression tests verified failing pre-fix.
+- **Consent enforcement** (`7cbe982`), **CLI condition gating**
+  (`2479e1c`), **allergen shellfish gap + first live-vault vet**
+  (`1a60be7`), **UTC/local plan-day math** (`951e074`, regression test
+  pins a UTC-evening instant; suite green across 7 TZs).
+
+### 2026-10-07 audit siblings (#53, #55-#58) — all closed
+- #53 Windows UTF-8 (`506a0d8`); #55 expired perishables excluded from
+  all cooking surfaces + "probably toss" strip (`a29814b`); #56
+  shelf-life table rebuilt per the FDA cold-storage chart + LLM-tier
+  raw-protein clamps (`a065ff2`); #57 FDA allergen-name synonyms +
+  detector gap sweep, vault re-vetted, 342 recipes gained tags
+  (`00591ad`); #58 condition registry fails CLOSED — unrecognized →
+  gate, refuse-tier rows filled, negation + Roman numerals (`0d1e1c3`).
+
+### #49 — plan reasons become a fixed vocabulary (`dc8e031`)
+The planner model no longer writes display text: it picks a
+`reason_code` (7 codes) and `render_reason()` builds the sentence from
+corpus facts. Off-vocabulary codes degrade to "" at parse. The regex
+layer stays as defense in depth and got the probe-table paraphrases.
+
+### P1 UX (`bd39403`) + docs (#52 `c10ed5a`, #59 partial `280fba9`)
+"We cooked this" on recipe detail (feedback ungated from plans);
+mobile modals above the tab bar + 16px inputs; Escape no longer wedges
+the member picker; honest failure states; per-slot unfilled reasons
+shown; refusal banner on Plans; grocery "got it" → kitchen list with
+lexicon-classified location/date; per-plan grocery link.
+product-framing.md aligned to Block A v2. Sweep-07 Wolfson DOIs fixed
+(Crossref-verified). #51 licensing closed by owner decision
+(public-only sources + attribution = keep the corpus).
+
+### P2 (`9989f03` + verification runs)
+- **Meal-category inference** (vetting v3): title-based, fills EMPTY
+  `meal_categories` only, `meal_categories_inferred: true` stamp; 314
+  live recipes tagged; desserts can no longer reach dinner pools via
+  main-by-exclusion. Savory-pie exceptions (pot/shepherd's/tamale...).
+- **Crawler first run verified**: budgetbytes + simplyrecipes, 7
+  recipes written with correct attribution + link-back frontmatter.
+- **Planner live evidence**: real `plans generate` against qwen3:8b —
+  2/2 dinner slots filled, reason codes rendered deterministically.
+
+### In flight (parallel session, not yet merged)
+Shared food-matching module (`foods/matching.py`), allergen "-free"/
+vegan negation + plant-milk rewrites, inventory `match_name` column
+(migration 0012), grocery netting via the shared matcher, allergen-chip
+UI rework. Next migration number: 0013.
+
 ## 2026-10-06 — cloud session (direction-reset follow-through)
 
 Work was split into one stacked PR per issue. Merge them in order; each
