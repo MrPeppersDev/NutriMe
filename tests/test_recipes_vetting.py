@@ -251,7 +251,7 @@ class TestAllergenReconcile:
         fm = vault.read(rid).frontmatter
         assert "peanuts" in fm["top_allergens_present"]
         assert fm["allergens_original"] == ["wheat"]
-        assert outcome.allergens_added == 1
+        assert outcome.allergens_reconciled == 1
 
     def test_reconciled_allergen_filters_search(self, tmp_path: Path) -> None:
         vault = _vault(tmp_path)
@@ -261,6 +261,61 @@ class TestAllergenReconcile:
         )
         vet_vault(vault)
         assert search(vault, SearchFilters(exclude_allergens=frozenset({"peanuts"}))) == []
+
+    def test_stale_false_positive_retired(self, tmp_path: Path) -> None:
+        # V4: a recipe stamped "dairy" by the pre-negation detector
+        # (almond milk) gets the tag removed on recompute, so dairy
+        # avoiders see it again. tree_nuts (the real allergen) stays.
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Overnight Oats",
+            _body(["@rolled oats{1%cup}", "@almond milk{1%cup}"], GOOD_STEPS),
+            allergens=["dairy", "tree_nuts"],
+        )
+        outcome = vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert fm["top_allergens_present"] == ["tree_nuts"]
+        assert fm["allergens_original"] == ["dairy", "tree_nuts"]
+        assert outcome.allergens_reconciled == 1
+        # Visible to dairy avoiders again; still hidden from nut avoiders.
+        assert [r.recipe_id for r in search(
+            vault, SearchFilters(exclude_allergens=frozenset({"dairy"}))
+        )] == [rid]
+        assert search(
+            vault, SearchFilters(exclude_allergens=frozenset({"tree_nuts"}))
+        ) == []
+
+    def test_allergens_original_first_write_wins(self, tmp_path: Path) -> None:
+        # #57's pass already stamped allergens_original on 342 live
+        # files; a V4 recompute must not overwrite that ingest-time
+        # snapshot with #57's intermediate state.
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Smoothie",
+            _body(["@almond milk{1%cup}", "@banana{1}"], GOOD_STEPS),
+            allergens=["dairy", "tree_nuts"],
+        )
+        record = vault.read(rid)
+        fm = dict(record.frontmatter)
+        fm["allergens_original"] = ["tree_nuts"]  # pre-#57 ingest list
+        vault.write(rid, fm, record.body)
+        vet_vault(vault, revet=True)
+        fm = vault.read(rid).frontmatter
+        assert fm["allergens_original"] == ["tree_nuts"]
+        assert fm["top_allergens_present"] == ["tree_nuts"]
+
+    def test_consistent_tags_untouched(self, tmp_path: Path) -> None:
+        vault = _vault(tmp_path)
+        rid = _write_v2(
+            vault, "Peanut Satay",
+            _body(["@peanut butter{2%tbsp}", "@rice{1%cup}"], GOOD_STEPS),
+            allergens=["peanuts"],
+        )
+        outcome = vet_vault(vault)
+        fm = vault.read(rid).frontmatter
+        assert fm["top_allergens_present"] == ["peanuts"]
+        assert "allergens_original" not in fm
+        assert outcome.allergens_reconciled == 0
 
 
 class TestDuplicates:

@@ -32,10 +32,12 @@ V2 (issue #31, 2026-10-06) adds content checks, stamped as
    (``vetting_flags`` — kept searchable, shown for review); only clear
    junk quarantines (instructions that are just a pointer elsewhere,
    non-food ingredient lines).
-4. **Allergen consistency** — re-runs detection over the ingredient list;
-   anything detected but not declared is ADDED to
-   ``top_allergens_present`` (the safe direction: filtering only gets
-   stricter), with the pre-vet list kept as ``allergens_original``.
+4. **Allergen consistency** — re-runs detection over the ingredient list
+   and RECOMPUTES ``top_allergens_present`` (V4: tags are machine-stamped,
+   so a smarter detector both adds new catches and retires stale false
+   positives — a wrong "contains dairy" hides safe recipes from the
+   avoider). The ingest-time list is kept as ``allergens_original``
+   (first write wins).
 5. **Cross-source duplicates** (`find_duplicates`) — same normalized
    title + overlapping ingredients. The non-canonical copy gets
    ``vetting_status: 'duplicate'`` + ``duplicate_of``; search hides it
@@ -52,7 +54,11 @@ from dataclasses import dataclass
 from nutrime.recipes.store import RecipeRecord, RecipeVault
 
 # 3 (2026-10-08): meal-category inference for untagged recipes (P2 #14).
-VETTING_VERSION = 3
+# 4 (2026-10-08): allergen tags RECOMPUTED, not union-ed — the detector
+#   learned "-free"/vegan negation and plant-milk rewrites, and union
+#   could never retire a stale false positive (recipes with almond milk
+#   stayed stamped "dairy", hiding safe recipes from dairy avoiders).
+VETTING_VERSION = 4
 HIDDEN_STATUSES = frozenset({"quarantined", "duplicate"})
 
 # Words kept lowercase when title-casing (unless first/last)
@@ -278,14 +284,25 @@ def quality_findings(record: RecipeRecord) -> list[Finding]:
 
 
 def reconcile_allergens(record: RecipeRecord) -> list[str] | None:
-    """Detected-but-undeclared allergens, or None when consistent."""
+    """The recomputed allergen set, or None when it matches what's declared.
+
+    V4: full recompute, not add-only. Every ``top_allergens_present``
+    tag in this corpus is machine-stamped (ingest ran the same
+    detector; no tags are human-authored), so when the detector learns
+    something — negation handling, plant-milk rewrites — the honest
+    move is to re-run it, dropping stale false positives along with
+    adding new catches. A wrong "contains dairy" is not harmless: the
+    allergen hard-block hides exactly the safe recipes from the
+    avoider it's protecting.
+    """
     from nutrime.recipes.allergens import detect_allergens
     from nutrime.recipes.search import ingredient_names
 
     declared = set(record.frontmatter.get("top_allergens_present") or [])
     detected = set(detect_allergens(list(ingredient_names(record.body))))
-    missing = sorted(detected - declared)
-    return missing or None
+    if detected == declared:
+        return None
+    return sorted(detected)
 
 
 # -- V3: meal-category inference (audit P2 #14) --------------------------------
@@ -433,7 +450,7 @@ class VetOutcome:
     already_vetted: int
     flagged: int = 0
     duplicates: int = 0
-    allergens_added: int = 0
+    allergens_reconciled: int = 0
     categorized: int = 0
 
 
@@ -446,7 +463,7 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
     the whole vault, so a new ingest can be matched against old rows.
     """
     examined = normalized = quarantined = skipped = 0
-    flagged = duplicates = allergens_added = categorized = 0
+    flagged = duplicates = allergens_reconciled = categorized = 0
 
     records = list(vault.iter_recipes())
     staged: dict[str, dict] = {}
@@ -479,16 +496,17 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
             recipe_id=record.recipe_id, frontmatter=fm, body=record.body,
             path=record.path,
         )
-        missing = reconcile_allergens(candidate)
-        if missing:
+        recomputed = reconcile_allergens(candidate)
+        if recomputed is not None:
+            # First-write-wins on the audit trail: #57's pass already
+            # stamped allergens_original on 342 files — that snapshot
+            # (the ingest-time list) is the one worth keeping.
             if "allergens_original" not in fm:
                 fm["allergens_original"] = list(
                     fm.get("top_allergens_present") or []
                 )
-            fm["top_allergens_present"] = sorted(
-                set(fm.get("top_allergens_present") or []) | set(missing)
-            )
-            allergens_added += 1
+            fm["top_allergens_present"] = recomputed
+            allergens_reconciled += 1
 
         # V3 (P2 #14): untagged recipes get conservative title-inferred
         # categories so a dessert can't land in a dinner pool via the
@@ -566,6 +584,6 @@ def vet_vault(vault: RecipeVault, *, revet: bool = False) -> VetOutcome:
         already_vetted=skipped,
         flagged=flagged,
         duplicates=duplicates,
-        allergens_added=allergens_added,
+        allergens_reconciled=allergens_reconciled,
         categorized=categorized,
     )

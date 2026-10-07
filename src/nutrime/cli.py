@@ -931,7 +931,7 @@ def _cmd_recipes_vet(args: argparse.Namespace) -> int:
         f" title(s); quarantined {outcome.quarantined};"
         f" flagged {outcome.flagged} for review;"
         f" {outcome.duplicates} duplicate(s) hidden;"
-        f" allergen tags added on {outcome.allergens_added};"
+        f" allergen tags added on {outcome.allergens_reconciled};"
         f" categories inferred on {outcome.categorized};"
         f" {outcome.already_vetted} already vetted."
     )
