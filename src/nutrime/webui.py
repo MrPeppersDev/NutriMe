@@ -969,6 +969,8 @@ class _Handler(BaseHTTPRequestHandler):
     # -- API: search -----------------------------------------------------------
 
     def _api_search(self, query: dict[str, list[str]]) -> None:
+        from nutrime.recipes.allergens import household_watchlist
+
         def first(key: str) -> str:
             values = query.get(key) or [""]
             return values[0].strip()
@@ -1126,6 +1128,11 @@ class _Handler(BaseHTTPRequestHandler):
                 "corpus_count": self.server.vault.count(),
                 "phase": phase_note,
                 "on_hand_count": len(on_hand),
+                # Allergens anyone in the household avoids — the UI
+                # shows "contains X" neutrally and reddens only these.
+                "household_allergens": household_watchlist(
+                    app.substrate, app.tenant_id
+                ),
             }
         )
 
@@ -1140,7 +1147,14 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._RECIPE_ID.match(recipe_id) or not vault.exists(recipe_id):
             self._json({"error": "recipe not found"}, status=404)
             return
-        self._json(recipe_detail(vault.read(recipe_id)))
+        from nutrime.recipes.allergens import household_watchlist
+
+        detail = recipe_detail(vault.read(recipe_id))
+        app = self.server.app
+        detail["household_allergens"] = household_watchlist(
+            app.substrate, app.tenant_id
+        )
+        self._json(detail)
 
     # -- API: cycle tracking (per-member, opt-in) ----------------------------------
 
@@ -2264,6 +2278,8 @@ PAGE = """<!doctype html>
   .tag.have { background: var(--leaf-soft); color: var(--leaf); }
   .tag.boost { background: #faf0dc; color: var(--gold); }
   .tag.warn { background: #f7e5de; color: var(--accent); }
+  /* "contains X" when nobody avoids X: informational, not alarming */
+  .tag.contains { background: var(--card); color: var(--ink-soft); border: 1px dashed var(--line); font-weight: 500; }
   .cardFoot { margin-top: auto; font-size: 12px; color: var(--ink-soft); display: flex; justify-content: space-between; gap: 8px; }
   .attr { font-size: 11.5px; color: var(--ink-soft); border-top: 1px dashed var(--line); padding-top: 8px; overflow-wrap: anywhere; }
   .empty {
@@ -3099,11 +3115,21 @@ function searchParams() {
   if (SOURCES.size) params.set("sources", [...SOURCES].join(","));
   return params;
 }
+// Allergens anyone in the household avoids (from the latest search
+// response): "contains X" chips redden only for these.
+let WATCHED_ALLERGENS = new Set();
+function allergenChip(a) {
+  const watched = WATCHED_ALLERGENS.has(a);
+  const label = "contains " + a.replace(/_/g, " ");
+  return '<span class="tag ' + (watched ? "warn" : "contains") + '">' +
+    (watched ? "\\u26a0 " : "") + esc(label) + "</span>";
+}
 async function doSearch(append) {
   if (!append) OFFSET = 0;
   const params = searchParams();
   if (OFFSET) params.set("offset", OFFSET);
   const data = await jget("/api/search?" + params.toString());
+  if (data.household_allergens) WATCHED_ALLERGENS = new Set(data.household_allergens);
   const box = $("resultsBox");
   const shown = OFFSET + data.results.length;
   $("resultMeta").textContent = "showing " + shown + " of " + data.total +
@@ -3148,7 +3174,10 @@ async function doSearch(append) {
     if (r.times_cooked) tags += '<span class="tag boost">\\u2665 cooked ' + r.times_cooked + "x" +
       (r.avg_enjoyment ? " \\u00b7 " + r.avg_enjoyment + "/5" : "") + "</span>";
     if (r.novel_cuisine) tags += '<span class="tag boost">\\u2726 new cuisine</span>';
-    for (const a of r.allergens) tags += '<span class="tag warn">' + esc(a) + "</span>";
+    // Watched allergens first (the ones that matter), then informational.
+    const aSorted = [...r.allergens].sort((x, y) =>
+      (WATCHED_ALLERGENS.has(y) ? 1 : 0) - (WATCHED_ALLERGENS.has(x) ? 1 : 0));
+    for (const a of aSorted) tags += allergenChip(a);
     card.innerHTML =
       "<h3>" + esc(r.title) + "</h3>" +
       (tags ? '<div class="matchLine">' + tags + "</div>" : "") +
@@ -3184,15 +3213,17 @@ function safeUrl(u) { return typeof u === "string" && /^https?:[/][/]/i.test(u);
 async function openDetail(id) {
   const d = await jget("/api/recipes/" + id);
   if (d.error) return;
+  if (d.household_allergens) WATCHED_ALLERGENS = new Set(d.household_allergens);
   const meta = [];
   if (d.total_time_min) meta.push("\\u23f1 " + d.total_time_min + " min");
   if (d.yields) meta.push("serves " + d.yields);
   if (d.cuisine.length) meta.push(d.cuisine.join(", "));
-  if (d.allergens.length) meta.push("contains: " + d.allergens.join(", "));
   $("sheet").innerHTML =
     '<button class="closeX" onclick="closeDetail()" aria-label="Close">\\u00d7</button>' +
     "<h3>" + esc(d.title) + "</h3>" +
     '<div class="meta">' + esc(meta.join(" \\u00b7 ")) + "</div>" +
+    (d.allergens.length ? '<div class="matchLine" style="margin-top:8px">' +
+      d.allergens.map(allergenChip).join("") + "</div>" : "") +
     (d.equipment && d.equipment.length ?
       '<div class="meta" style="margin-top:8px">Equipment: ' + d.equipment.map(esc).join(", ") + "</div>" : "") +
     "<h4>Ingredients</h4><ul>" +

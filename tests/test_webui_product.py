@@ -227,3 +227,38 @@ def test_page_has_app_shell(server) -> None:
     assert "Can't reach NutriMe" in body
     # home precedes the other views so the first paint is the daily surface
     assert body.index('id="view-home"') < body.index('id="view-recipes"')
+
+
+class TestAllergenDisplayContext:
+    """The red treatment is personal: "contains X" reddens only when a
+    household member actually avoids X (2026-10-08 UI rework)."""
+
+    def test_search_carries_empty_watchlist_by_default(self, server) -> None:
+        status, data = _call(server, "/api/search?q=")
+        assert status == 200
+        assert data["household_allergens"] == []
+
+    def test_declared_allergen_appears_in_watchlist(self, server) -> None:
+        _call(server, "/api/intake", {
+            "profile": {"year_of_birth": 1990, "sex_assigned_at_birth": "male",
+                        "life_stage": "adult", "allergens": ["peanuts"]},
+            "screeners": {},
+        })
+        _, data = _call(server, "/api/search?q=")
+        assert data["household_allergens"] == ["peanuts"]
+
+    def test_fda_name_canonicalized(self, server) -> None:
+        # "milk" (the FDA's own label) → canonical "dairy".
+        _call(server, "/api/intake", {
+            "profile": {"year_of_birth": 1988, "sex_assigned_at_birth": "female",
+                        "life_stage": "adult", "allergens": ["milk"]},
+            "screeners": {},
+        })
+        _, data = _call(server, "/api/search?q=")
+        assert data["household_allergens"] == ["dairy"]
+
+    def test_recipe_detail_carries_watchlist(self, server) -> None:
+        _, listing = _call(server, "/api/search?q=")
+        rid = listing["results"][0]["recipe_id"]
+        _, detail = _call(server, f"/api/recipes/{rid}")
+        assert "household_allergens" in detail
