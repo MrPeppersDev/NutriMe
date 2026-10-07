@@ -2446,6 +2446,9 @@ PAGE = """<!doctype html>
   .scale button.on { background: var(--leaf); color: #fff; }
   .why { background: var(--leaf-soft); border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 14.5px; }
   .why ul { margin: 6px 0 0 18px; }
+  .backRow { margin-bottom: 10px; }
+  .backLink { color: var(--ink-soft); text-decoration: none; font-size: 14px; }
+  .backLink:hover { color: var(--ink); }
   .act { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 14.5px; }
   .act time { color: var(--ink-soft); min-width: 92px; font-variant-numeric: tabular-nums; font-size: 13px; }
   .act .k { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); min-width: 64px; }
@@ -2683,6 +2686,7 @@ PAGE = """<!doctype html>
  </div>
 
  <div class="view" id="view-activity" data-view="activity" hidden>
+  <p class="backRow"><a href="#profile" class="backLink">&lsaquo; Back to profile</a></p>
   <h2 class="serif" style="font-size:30px">What NutriMe did with your data</h2>
   <section class="ask">
     <div class="formRow"><label class="opt">Show the last <select id="activityDays">
@@ -4059,8 +4063,9 @@ const LOADERS = {
 function showView(name, reload) {
   $("overlay").classList.remove("on");  // a section change closes any open sheet
   document.querySelectorAll(".view").forEach(v => { v.hidden = v.dataset.view !== name; });
+  const tab = name === "activity" ? "profile" : name;  // activity lives under Profile
   document.querySelectorAll(".tabs button").forEach(b => {
-    if (b.dataset.view === name) b.setAttribute("aria-current", "page");
+    if (b.dataset.view === tab) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   });
   if (location.hash.replace("#", "") !== name) history.replaceState(null, "", "#" + name);
