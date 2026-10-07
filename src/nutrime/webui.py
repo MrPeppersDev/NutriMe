@@ -985,8 +985,10 @@ class _Handler(BaseHTTPRequestHandler):
             }
         use_inventory = first("use_inventory") == "1"
         if use_inventory:
+            # matching_name: the generic recipe-facing name when intake
+            # stored one ("chives with chive flowers" → "chives").
             on_hand |= {
-                item.name.lower()
+                item.matching_name.lower()
                 for item in list_items(app.substrate, app.tenant_id)
             }
 
@@ -1035,8 +1037,12 @@ class _Handler(BaseHTTPRequestHandler):
 
             from nutrime.inventory.store import expiring_names
 
+            # Same name space as on_hand above — expiring_matches is an
+            # identity filter over on-hand names, so both must use
+            # matching_name or an intake-renamed item never earns its
+            # use-it-up boost.
             expiring = frozenset(
-                item.name.lower()
+                item.matching_name.lower()
                 for item in expiring_names(
                     app.substrate, app.tenant_id, today=date.today().isoformat()
                 )
@@ -1370,6 +1376,10 @@ class _Handler(BaseHTTPRequestHandler):
                     quantity=float(qty) if qty not in (None, "") else None,
                     unit=str(raw.get("unit") or "") or None,
                     best_by_date=best_by,
+                    match_name=(
+                        str(raw.get("match_name") or "").strip().lower()
+                        or None
+                    ),
                 )
             except ValueError as err:
                 errors.append(f"{name}: {err}")
@@ -1960,7 +1970,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"error": f"no such plan: {plan_id}"}, status=404)
             return
         inventory = [
-            item.name for item in list_items(app.substrate, app.tenant_id)
+            item.matching_name
+            for item in list_items(app.substrate, app.tenant_id)
         ]
         groceries = build_grocery_list(
             plan_vault.read(plan_id),
@@ -3014,6 +3025,9 @@ function renderPantryReview() {
         esc(p.name) + '</b>' + (p.quantity ? ' <span class="hint">' + esc(String(p.quantity)) +
         (p.unit ? " " + esc(p.unit) : "") + '</span>' : "") +
         (!p.recognized ? ' <span class="hint">(new to me — check the shelf)</span>' : "") +
+        (p.match_name ? ' <span class="hint">matches recipes as \\u201c' + esc(p.match_name) +
+          '\\u201d <button class="btn-quiet" style="padding:1px 7px;min-height:0" data-clearmatch="' + i +
+          '" title="Keep the exact name only">\\u00d7</button></span>' : "") +
         fresh + '</span>' +
         '<span><select data-locitem="' + i + '" style="font-size:13px;padding:6px 8px;border:1.5px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)">' +
         locOpts(p.location) + '</select> ' +
@@ -3034,11 +3048,15 @@ function renderPantryReview() {
     PANTRY_PROPOSED[parseInt(b.dataset.skipitem)].skip = true;
     renderPantryReview();
   });
+  box.querySelectorAll("[data-clearmatch]").forEach(b => b.onclick = () => {
+    PANTRY_PROPOSED[parseInt(b.dataset.clearmatch)].match_name = null;
+    renderPantryReview();
+  });
   const commit = $("pantryCommit");
   if (commit) commit.onclick = async () => {
     const items = PANTRY_PROPOSED.filter(p => !p.skip).map(p => ({
       name: p.name, location: p.location, quantity: p.quantity, unit: p.unit,
-      shelf_days: p.shelf_days, age_days: p.age_days,
+      shelf_days: p.shelf_days, age_days: p.age_days, match_name: p.match_name,
     }));
     commit.disabled = true;
     const res = await jpost("/api/inventory/bulk", {items}, true);
