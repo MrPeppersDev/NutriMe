@@ -147,6 +147,56 @@ class TestFailSafe:
         assert refine(items, None) is items
 
 
+class TestRawProteinGuard:
+    """#56: raw animal protein never leaves the LLM tier undated or
+    beyond the FDA raw-protein ceiling."""
+
+    def test_null_shelf_days_on_thawed_chicken_rejected(self) -> None:
+        items = preview("thawed chicken")
+        client = FakeClient(_answer([
+            {"name": "thawed chicken", "location": "fridge", "shelf_days": None},
+        ]))
+        (got,) = refine(items, client)
+        # Falls back to the lexicon's chicken answer, never undated.
+        assert got.shelf_days == 2
+        assert got.perishable
+
+    def test_long_shelf_days_on_raw_fish_clamped(self) -> None:
+        items = preview("fresh salmon")
+        client = FakeClient(_answer([
+            {"name": "fresh salmon", "location": "fridge", "shelf_days": 30},
+        ]))
+        (got,) = refine(items, client)
+        assert got.shelf_days == 5  # FDA raw-protein ceiling
+
+    def test_pantry_answer_for_raw_meat_forced_to_fridge(self) -> None:
+        items = preview("fresh turkey")
+        client = FakeClient(_answer([
+            {"name": "fresh turkey", "location": "pantry",
+             "shelf_days": 60},
+        ]))
+        (got,) = refine(items, client)
+        assert got.location == "fridge" and got.shelf_days == 5
+
+    def test_cured_meat_exempt_from_guard(self) -> None:
+        items = preview("smoked sausage")
+        client = FakeClient(_answer([
+            {"name": "smoked sausage", "location": "pantry",
+             "shelf_days": 180},
+        ]))
+        (got,) = refine(items, client)
+        assert got.location == "pantry" and got.shelf_days == 180
+
+    def test_frozen_answer_exempt_from_guard(self) -> None:
+        items = preview("thawed chicken")  # state word routes to LLM
+        client = FakeClient(_answer([
+            {"name": "thawed chicken", "location": "freezer",
+             "shelf_days": None},
+        ]))
+        (got,) = refine(items, client)
+        assert got.location == "freezer" and got.shelf_days is None
+
+
 class TestParse:
     def test_json_extracted_from_prose_wrapper(self) -> None:
         got = _parse('Sure! [{"name": "a", "location": "fridge"}] hope that helps')

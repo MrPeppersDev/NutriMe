@@ -26,34 +26,69 @@ from nutrime.inventory.store import Location
 _QTY_PREFIX = r"\d+(?:\.\d+)?(?:\s*(?:lb|lbs|oz|g|kg|x))?\s+"
 
 # -- classification lexicon ---------------------------------------------------
-# keyword (matched against normalized food words/bigrams; longest match
-# wins) → (default location, shelf-life days or None).
+# keyword (matched against normalized food n-grams, longest match wins)
+# → (default location, shelf-life days or None).
 # shelf_days is the "fresh today" horizon used when the user doesn't give
 # a date; None = shelf-stable, no freshness question asked.
+#
+# Values follow the FDA/USDA cold-storage chart
+# (https://www.fda.gov/media/74435/download, checked 2026-10-07 per #56),
+# taking the SHORT end of each published range — a too-early "use soon"
+# nudge is annoying; a too-late one feeds someone spoiled chicken. Where
+# FoodKeeper gives produce ranges the midpoint is used (spoilage there is
+# visible, unlike pathogen growth in proteins).
 
-_FRIDGE_SHORT = 4      # raw meat/fish, fresh herbs, berries
 _FRIDGE_MEDIUM = 7     # milk, most vegetables, deli, leftovers
-_FRIDGE_LONG = 21      # eggs, hard cheese, condiment-adjacent fresh
+_FRIDGE_LONG = 21      # hard cheese, condiment-adjacent fresh
+_SOFT_CHEESE = 7       # FDA: soft cheese 1 week (Listeria risk)
 _COUNTER_FRUIT = 5
 
 _LEXICON: dict[str, tuple[Location, int | None]] = {
-    # -- raw proteins (fridge, short) --
+    # -- raw proteins (fridge, short; FDA raw poultry/ground/fish 1-2 d,
+    #    raw red-meat cuts 3-5 d) --
     "chicken": (Location.FRIDGE, 2), "turkey": (Location.FRIDGE, 2),
+    "duck": (Location.FRIDGE, 2),
     "beef": (Location.FRIDGE, 3), "steak": (Location.FRIDGE, 3),
     "pork": (Location.FRIDGE, 3), "lamb": (Location.FRIDGE, 3),
+    "veal": (Location.FRIDGE, 3),
     "ground beef": (Location.FRIDGE, 2), "ground turkey": (Location.FRIDGE, 2),
-    "sausage": (Location.FRIDGE, 5), "bacon": (Location.FRIDGE, 7),
+    "ground pork": (Location.FRIDGE, 2), "ground lamb": (Location.FRIDGE, 2),
+    "ground chicken": (Location.FRIDGE, 2), "ground veal": (Location.FRIDGE, 2),
+    "beef mince": (Location.FRIDGE, 2), "minced beef": (Location.FRIDGE, 2),
+    "mince": (Location.FRIDGE, 2),
+    # FDA: raw sausage 1-2 d (#56: was 5).
+    "sausage": (Location.FRIDGE, 2), "bacon": (Location.FRIDGE, 7),
+    "hot dog": (Location.FRIDGE, 7),  # FDA: opened 1 week
     "fish": (Location.FRIDGE, 2), "salmon": (Location.FRIDGE, 2),
+    "cod": (Location.FRIDGE, 2), "tilapia": (Location.FRIDGE, 2),
+    "halibut": (Location.FRIDGE, 2), "trout": (Location.FRIDGE, 2),
     "shrimp": (Location.FRIDGE, 2), "tuna steak": (Location.FRIDGE, 2),
-    "crab": (Location.FRIDGE, 2), "tofu": (Location.FRIDGE, 7),
-    "deli": (Location.FRIDGE, 5), "ham": (Location.FRIDGE, 5),
+    "crab": (Location.FRIDGE, 2), "scallop": (Location.FRIDGE, 2),
+    "mussel": (Location.FRIDGE, 2), "clam": (Location.FRIDGE, 2),
+    "oyster": (Location.FRIDGE, 2), "lobster": (Location.FRIDGE, 2),
+    "squid": (Location.FRIDGE, 2), "calamari": (Location.FRIDGE, 2),
+    "octopus": (Location.FRIDGE, 2),
+    "tofu": (Location.FRIDGE, 7),
+    "deli": (Location.FRIDGE, 4), "ham": (Location.FRIDGE, 4),  # FDA: slices 3-4 d
     # -- dairy + eggs --
     "milk": (Location.FRIDGE, _FRIDGE_MEDIUM), "cream": (Location.FRIDGE, _FRIDGE_MEDIUM),
     "half and half": (Location.FRIDGE, _FRIDGE_MEDIUM),
     "yogurt": (Location.FRIDGE, 14), "kefir": (Location.FRIDGE, 14),
     "butter": (Location.FRIDGE, 60), "cheese": (Location.FRIDGE, _FRIDGE_LONG),
+    # Soft cheeses hold ~1 week, not the hard-cheese 3 (#56; Listeria
+    # risk makes the distinction matter for pregnant eaters).
+    "mozzarella": (Location.FRIDGE, _SOFT_CHEESE),
+    "goat cheese": (Location.FRIDGE, _SOFT_CHEESE),
+    "brie": (Location.FRIDGE, _SOFT_CHEESE),
+    "feta": (Location.FRIDGE, _SOFT_CHEESE),
+    "ricotta": (Location.FRIDGE, _SOFT_CHEESE),
+    "burrata": (Location.FRIDGE, _SOFT_CHEESE),
     "cream cheese": (Location.FRIDGE, 14), "cottage cheese": (Location.FRIDGE, 7),
-    "sour cream": (Location.FRIDGE, 14), "egg": (Location.FRIDGE, 28),
+    "sour cream": (Location.FRIDGE, 14),
+    # FDA: raw shell eggs 3-5 weeks; prepared egg dishes much less.
+    "egg": (Location.FRIDGE, 21),
+    "hard boiled egg": (Location.FRIDGE, 7),
+    "egg salad": (Location.FRIDGE, 3), "egg white": (Location.FRIDGE, 2),
     # -- produce: fridge --
     "lettuce": (Location.FRIDGE, 5), "spinach": (Location.FRIDGE, 5),
     "kale": (Location.FRIDGE, 5), "arugula": (Location.FRIDGE, 4),
@@ -94,6 +129,14 @@ _LEXICON: dict[str, tuple[Location, int | None]] = {
     "leftover": (Location.FRIDGE, 3), "cooked": (Location.FRIDGE, 3),
     "soup": (Location.FRIDGE, 4), "hummus": (Location.FRIDGE, 7),
     "salsa": (Location.FRIDGE, 10), "pesto": (Location.FRIDGE, 7),
+    # Prepared salads (FDA: 3-5 d) — bigram entries so "potato salad"
+    # never falls through to pantry-30d "potato" (#56).
+    "potato salad": (Location.FRIDGE, 3), "pasta salad": (Location.FRIDGE, 3),
+    "chicken salad": (Location.FRIDGE, 3), "tuna salad": (Location.FRIDGE, 3),
+    "macaroni salad": (Location.FRIDGE, 3), "coleslaw": (Location.FRIDGE, 3),
+    # FDA: refrigerate cut melon and raw sprouts (#56).
+    "cut melon": (Location.FRIDGE, 3),
+    "sprout": (Location.FRIDGE, 2), "bean sprout": (Location.FRIDGE, 2),
     # -- shelf-stable (no freshness question) --
     "rice": (Location.PANTRY, None), "pasta": (Location.PANTRY, None),
     "noodle": (Location.PANTRY, None), "flour": (Location.PANTRY, None),
@@ -170,23 +213,47 @@ def _normalize_words(name: str) -> list[str]:
     return out
 
 
+# Unknown items carrying one of these words look like animal protein,
+# dairy, or a prepared dish — the classes where "pantry, no date" is a
+# food-safety miss, not a shrug (#56). They default to fridge with a
+# conservative short date instead.
+_PERISHABLE_HINTS = re.compile(
+    r"\b(meat|fillet|filet|cutlet|chop|breast|thigh|wing|drumstick|roast|"
+    r"loin|rib|shank|brisket|liver|kidney|giblet|poultry|seafood|"
+    r"sashimi|sushi|ceviche|pate|terrine|salad|slaw|casserole|stew|"
+    r"curry|quiche|custard|pudding|mousse|dip|deli|fresh)\b",
+    re.I,
+)
+_UNKNOWN_PERISHABLE_DAYS = 2
+
+
 def classify(name: str) -> tuple[Location, int | None, bool]:
     """(location, shelf_days, recognized) for one food name.
 
-    Longest lexicon match wins (bigrams before single words) so
-    "sweet potato" beats "potato" and "peanut butter" beats "peanut".
-    Frozen/canned modifiers override location.
+    Longest lexicon match wins (trigrams, then bigrams, then single
+    words) so "half and half" beats "half", "sweet potato" beats
+    "potato" and "peanut butter" beats "peanut". Frozen/canned
+    modifiers override location.
     """
     if _FROZEN.search(name):
         return Location.FREEZER, None, True
     if _CANNED.search(name):
         return Location.PANTRY, None, True
     words = _normalize_words(name)
+    trigrams = [
+        f"{a} {b} {c}" for a, b, c in zip(words, words[1:], words[2:])
+    ]
     bigrams = [f"{a} {b}" for a, b in zip(words, words[1:])]
-    for candidate in bigrams + words:
+    for candidate in trigrams + bigrams + words:
         hit = _LEXICON.get(candidate)
         if hit is not None:
             return hit[0], hit[1], True
+    # Unknown but perishable-looking (#56): fridge with a short date —
+    # "pantry, no date" for an unrecognized cut of meat means no
+    # use-soon nudge ever fires. Still recognized=False so the LLM tier
+    # and the review step can refine it.
+    if _PERISHABLE_HINTS.search(name):
+        return Location.FRIDGE, _UNKNOWN_PERISHABLE_DAYS, False
     # Unknown food: pantry, no freshness question — the review step is
     # where the user corrects us, and pantry is the no-pressure default.
     return Location.PANTRY, None, False

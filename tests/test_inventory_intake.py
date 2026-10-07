@@ -61,6 +61,55 @@ class TestClassify:
         loc, days, known = classify("xylotholo root")
         assert loc == Location.PANTRY and days is None and not known
 
+    # -- #56: every probe-table row, against the FDA cold-storage chart --
+
+    def test_raw_meats_fda_short_end(self) -> None:
+        # FDA: raw sausage and all ground meats 1-2 days.
+        for name in ("sausage", "ground pork", "ground lamb", "beef mince"):
+            loc, days, _ = classify(name)
+            assert loc == Location.FRIDGE and days == 2, name
+
+    def test_ham_fda_slices(self) -> None:
+        loc, days, _ = classify("sliced ham")
+        assert loc == Location.FRIDGE and days == 4
+
+    def test_egg_preparations_not_shell_egg_life(self) -> None:
+        assert classify("hard boiled eggs")[1] == 7
+        assert classify("egg salad")[1] == 3
+        assert classify("egg whites")[1] == 2
+
+    def test_prepared_salads_fridge_not_pantry(self) -> None:
+        for name in ("potato salad", "pasta salad", "chicken salad"):
+            loc, days, _ = classify(name)
+            assert loc == Location.FRIDGE and days == 3, name
+
+    def test_soft_cheese_one_week(self) -> None:
+        for name in ("goat cheese", "mozzarella", "brie", "feta", "ricotta"):
+            loc, days, _ = classify(name)
+            assert loc == Location.FRIDGE and days == 7, name
+
+    def test_trigram_half_and_half(self) -> None:
+        loc, days, known = classify("half and half")
+        assert loc == Location.FRIDGE and days == 7 and known
+
+    def test_raw_seafood_and_meats_without_llm(self) -> None:
+        # #56: these fell to pantry-no-date when the LLM tier was off.
+        for name in ("cod", "tilapia", "scallops", "mussels", "lobster",
+                     "squid", "duck", "veal", "hot dogs"):
+            loc, days, _ = classify(name)
+            assert loc == Location.FRIDGE and days is not None, name
+
+    def test_cut_melon_and_sprouts_refrigerate(self) -> None:
+        assert classify("bean sprouts")[0] == Location.FRIDGE
+        # ("cut melon" carries a state word so the LLM tier may refine
+        # it, but the lexicon floor must already say fridge.)
+        assert classify("cut melon")[0] == Location.FRIDGE
+
+    def test_unknown_perishable_looking_gets_fridge_short_date(self) -> None:
+        # #56: unknown-but-perishable must not be pantry/no-date.
+        loc, days, known = classify("wagyu picanha cutlet")
+        assert loc == Location.FRIDGE and days == 2 and not known
+
 
 class TestPreview:
     def test_full_paste_round(self) -> None:

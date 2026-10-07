@@ -37,6 +37,24 @@ FOOD_CLASSIFICATION = "food_storage_classification"
 _VALID_LOCATIONS = frozenset({"fridge", "pantry", "freezer", "countertop"})
 _MAX_SHELF_DAYS = 730
 
+# #56 guard: raw animal protein must never leave this tier with no date
+# — "thawed chicken" answered shelf_days=null would mean no use-soon
+# nudge ever fires on raw meat. Names matching this get a hard ceiling
+# (FDA raw-protein fridge range tops out at 5 days for red-meat cuts)
+# and null is replaced by the lexicon's answer or the ceiling.
+_RAW_PROTEIN = re.compile(
+    r"\b(chicken|turkey|duck|beef|steak|pork|lamb|veal|mince|sausage|"
+    r"fish|salmon|cod|tilapia|halibut|trout|tuna|shrimp|prawn|crab|"
+    r"scallop|mussel|clam|oyster|lobster|squid|calamari|octopus|"
+    r"meat|fillet|filet|cutlet|chop|breast|thigh|drumstick|loin|"
+    r"brisket|liver)\b",
+    re.I,
+)
+_RAW_PROTEIN_MAX_DAYS = 5
+_CURED = re.compile(
+    r"\b(cured|smoked|dried|jerky|canned|tinned|salted|fermented)\b", re.I
+)
+
 _SYSTEM = (
     "You are a food-storage expert. For each food item, decide where a home"
     " cook should store it and how many days it keeps from today, reasoning"
@@ -100,6 +118,24 @@ def refine(items: list[ProposedItem], client) -> list[ProposedItem]:
                 shelf = max(0, min(int(shelf), _MAX_SHELF_DAYS))
             except (TypeError, ValueError):
                 continue
+        # #56: raw animal protein (not cured/dried/canned) never leaves
+        # here undated or beyond the FDA raw-protein ceiling, whatever
+        # the model said. Frozen is the one state that legitimately
+        # clears the date.
+        item_name = out[idx].name
+        if (
+            location != "freezer"
+            and _RAW_PROTEIN.search(item_name)
+            and not _CURED.search(item_name)
+        ):
+            if shelf is None:
+                shelf = (
+                    out[idx].shelf_days
+                    if out[idx].shelf_days is not None
+                    else _RAW_PROTEIN_MAX_DAYS
+                )
+            shelf = min(shelf, _RAW_PROTEIN_MAX_DAYS)
+            location = "fridge"
         out[idx] = replace(
             out[idx],
             location=location,
