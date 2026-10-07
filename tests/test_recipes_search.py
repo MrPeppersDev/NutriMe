@@ -543,3 +543,94 @@ class TestStaplesOutOfStock:
         # the oil-free recipe is now the only cookable-tonight one
         assert results[0].recipe_id == "rcp-no-oil"
         assert results[0].missing_ingredients == ()
+
+
+class TestMatchPrecision:
+    """Match-quality pass: token boundaries, compound heads, synonyms."""
+
+    def test_no_inside_word_matches(self):
+        from nutrime.recipes.search import _terms_match
+
+        for a, b in (
+            ("apple", "pineapple"), ("egg", "eggplant"), ("pea", "peanut"),
+            ("corn", "cornstarch"), ("ginger", "gingersnaps"),
+        ):
+            assert not _terms_match(a, b), f"{a} wrongly matched {b}"
+            assert not _terms_match(b, a), f"{b} wrongly matched {a}"
+
+    def test_compound_heads_not_satisfied_by_modifier(self):
+        from nutrime.recipes.search import _terms_match
+
+        for a, b in (
+            ("rice", "rice vinegar"), ("rice", "rice wine"),
+            ("milk", "coconut milk"), ("butter", "peanut butter"),
+            ("cream", "cream of tartar"), ("onion", "onion powder"),
+            ("garlic", "garlic powder"), ("chicken", "chicken stock"),
+        ):
+            assert not _terms_match(a, b), f"{a} wrongly satisfied {b}"
+
+    def test_head_itself_satisfies_compound(self):
+        from nutrime.recipes.search import _terms_match
+
+        assert _terms_match("vinegar", "rice vinegar")
+        assert _terms_match("rice vinegar", "rice vinegar")
+        assert _terms_match("stock", "chicken stock")
+
+    def test_plain_modifiers_still_match(self):
+        from nutrime.recipes.search import _terms_match
+
+        # non-compound phrases keep the generous behavior
+        assert _terms_match("chicken", "chicken thighs")
+        assert _terms_match("chicken", "boneless chicken breasts")
+        assert _terms_match("onion", "yellow onion")
+        assert _terms_match("tomatoes", "canned tomatoes, diced")
+
+    def test_synonyms(self):
+        from nutrime.recipes.search import _terms_match
+
+        assert _terms_match("green onions", "scallions")
+        assert _terms_match("scallion", "green onion, sliced")
+        assert _terms_match("chickpeas", "garbanzo beans")
+        assert _terms_match("zucchini", "courgette")
+        assert _terms_match("shrimp", "prawns")
+        assert _terms_match("eggplant", "aubergine")
+
+    def test_exclusion_matcher_keeps_recall(self):
+        from nutrime.recipes.search import _exclusion_match
+
+        # safety direction: base-food avoiders catch derived compounds
+        assert _exclusion_match("peanut", "peanut butter")
+        assert _exclusion_match("onion", "onion powder")
+        assert _exclusion_match("milk", "coconut milk") is True  # conservative
+        # but token boundaries still hold
+        assert not _exclusion_match("egg", "eggplant")
+        assert not _exclusion_match("apple", "pineapple")
+
+    def test_junk_lines_do_not_count_missing(self, tmp_path):
+        vault = RecipeVault(tmp_path / "junk-corpus")
+        vault.ensure()
+        vault.write(
+            "rcp-prose",
+            _frontmatter("rcp-prose", "Historical Duck"),
+            _body(
+                "@duck{1}",
+                "@and truss them at the back of the bird. After the duck is stuffed{}",
+                "@To every lb. of lump sugar allow 1 gill of spring water{}",
+            ),
+        )
+        results = search(vault, SearchFilters(on_hand=frozenset({"duck"})))
+        (hit,) = results
+        assert hit.missing_ingredients == ()  # prose never counts
+
+    def test_descriptor_lines_match_cleanly(self, tmp_path):
+        vault = RecipeVault(tmp_path / "desc-corpus")
+        vault.ensure()
+        vault.write(
+            "rcp-desc",
+            _frontmatter("rcp-desc", "Herby Potatoes"),
+            _body("@medium potatoes, sliced{3}", "@oregano, minced (or 1 tsp dried){}"),
+        )
+        results = search(vault, SearchFilters(on_hand=frozenset({"potatoes", "oregano"})))
+        (hit,) = results
+        assert len(hit.on_hand_matches) == 2
+        assert hit.missing_ingredients == ()
