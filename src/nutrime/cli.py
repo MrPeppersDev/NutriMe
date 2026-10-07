@@ -893,6 +893,53 @@ def _cmd_recipes_crawl(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_recipes_pins_extract(args: argparse.Namespace) -> int:
+    """Drain the #24 image-pin queue through the local vision model."""
+    from nutrime.llm.base import CAP_LOCAL_PRIVATE, CAP_VISION
+    from nutrime.llm.client import LlmClient
+    from nutrime.llm.ollama import OllamaProvider, is_available
+    from nutrime.recipes.pin_vision import (
+        VISION_MODEL_DEFAULT,
+        extract_queued_pins,
+    )
+    from nutrime.recipes.pinboard import QUEUE_FILENAME
+
+    data_dir = Path(args.data_dir).expanduser() if args.data_dir else None
+    app = initialize(data_dir=data_dir)
+    queue_path = app.data_dir / QUEUE_FILENAME
+    if not queue_path.exists():
+        print("No image-pin queue — run `nutrime recipes fetch --source board` first.")
+        return 0
+    if not is_available():
+        from nutrime.plans.service import LOCAL_MODEL_SETUP
+
+        print(LOCAL_MODEL_SETUP)
+        return 2
+    model = args.model or VISION_MODEL_DEFAULT
+    provider = OllamaProvider(
+        model=model,
+        timeout_s=300.0,  # a 7B vision model reading a dense card is slow
+        capabilities=frozenset(
+            {CAP_LOCAL_PRIVATE, CAP_VISION}
+        ),
+    )
+    client = LlmClient((provider,), app.rule_engine, app.audit)
+    vault = RecipeVault(app.corpus_dir)
+    outcome = extract_queued_pins(
+        queue_path, vault, client, limit=args.limit
+    )
+    print(
+        f"Image pins: {outcome.pending} pending; {outcome.written} recipe(s)"
+        f" written, {outcome.not_recipes} not readable recipes,"
+        f" {len(outcome.failures)} failure(s)."
+    )
+    for pin_id, reason in outcome.failures[:10]:
+        print(f"  {pin_id}: {reason}")
+    if outcome.written:
+        print("Run `nutrime recipes vet` to vet the new recipes.")
+    return 0
+
+
 def _cmd_recipes_vet(args: argparse.Namespace) -> int:
     from nutrime.recipes.vetting import vet_vault
 
@@ -1552,6 +1599,32 @@ def build_parser() -> argparse.ArgumentParser:
     rec_crawl.add_argument("--verbose", action="store_true")
     rec_crawl.add_argument("--data-dir")
     rec_crawl.set_defaults(func=_cmd_recipes_crawl)
+
+    rec_pins = recipes_sub.add_parser(
+        "pins",
+        help="Image-only pin tools (#24): extract recipes from pin photos.",
+    )
+    rec_pins_sub = rec_pins.add_subparsers(dest="pins_command", required=True)
+    rec_pins_extract = rec_pins_sub.add_parser(
+        "extract",
+        help=(
+            "Read queued image-only pins with the local vision model and"
+            " write the recipes they show to the vault."
+        ),
+    )
+    rec_pins_extract.add_argument(
+        "--limit", type=int, default=None, help="Extract at most N pins."
+    )
+    rec_pins_extract.add_argument(
+        "--model",
+        default=None,
+        help="Vision model tag (default: qwen2.5vl:7b).",
+    )
+    rec_pins_extract.add_argument(
+        "--data-dir",
+        help="Override data directory (default: $NUTRIME_DATA_DIR or ~/.nutrime).",
+    )
+    rec_pins_extract.set_defaults(func=_cmd_recipes_pins_extract)
 
     rec_vet = recipes_sub.add_parser(
         "vet",

@@ -101,6 +101,11 @@ def initialize(
     from nutrime.inventory.llm_classify import register_envelope
 
     register_envelope(phi_envelope)
+    from nutrime.recipes.pin_vision import (
+        register_envelope as register_pin_vision_envelope,
+    )
+
+    register_pin_vision_envelope(phi_envelope)
 
     engine = rule_engine or default_rule_engine(phi_envelope)
     attach_pre_egress_audit(engine, audit)

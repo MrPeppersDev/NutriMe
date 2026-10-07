@@ -70,6 +70,31 @@ class TestOllamaProvider:
         assert result.text == "hello"
         assert result.prompt_tokens == 12
 
+    def test_images_are_base64_on_the_message(self, monkeypatch) -> None:
+        import base64
+
+        captured = {}
+
+        def fake_post(url, body, timeout):
+            captured["body"] = json.loads(body)
+            return _ok_response()
+
+        monkeypatch.setattr(ollama_mod, "_post", fake_post)
+        provider = OllamaProvider()
+        provider.complete(
+            _request(
+                messages=(
+                    ChatMessage(
+                        role="user", content="read this", images=(b"\x89PNG",)
+                    ),
+                ),
+            )
+        )
+        message = captured["body"]["messages"][1]
+        assert message["images"] == [base64.b64encode(b"\x89PNG").decode()]
+        # Text-only messages must not grow an images key.
+        assert "images" not in captured["body"]["messages"][0]
+
     def test_connection_refused_fails_fast_with_hint(self, monkeypatch) -> None:
         def fake_post(url, body, timeout):
             raise OSError("Connection refused")

@@ -26,12 +26,19 @@ CAP_CLOUD_PERMITTED = "cloud-permitted"
 # A3/A1-v2 two-tier posture: providers carrying this run on-device and
 # never egress. The client REQUIRES it for any PHI-tagged request.
 CAP_LOCAL_PRIVATE = "local-private"
+# Provider accepts images on messages (pin-photo recipe extraction, #24).
+CAP_VISION = "vision"
 
 
 @dataclass(frozen=True)
 class ChatMessage:
     role: str  # 'user' | 'assistant'
     content: str
+    # Raw image bytes attached to this message, base64-encoded by the
+    # adapter. Routing must include CAP_VISION in required_capabilities
+    # when any message carries images; text-only providers ignore none —
+    # the client never hands them an image-bearing request.
+    images: tuple[bytes, ...] = ()
 
 
 @dataclass(frozen=True)

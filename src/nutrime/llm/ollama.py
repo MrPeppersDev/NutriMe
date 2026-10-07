@@ -22,6 +22,7 @@ key, no keychain: localhost needs neither.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
@@ -103,9 +104,13 @@ class OllamaProvider:
         messages = []
         if request.system:
             messages.append({"role": "system", "content": request.system})
-        messages.extend(
-            {"role": m.role, "content": m.content} for m in request.messages
-        )
+        for m in request.messages:
+            entry: dict = {"role": m.role, "content": m.content}
+            if m.images:
+                entry["images"] = [
+                    base64.b64encode(img).decode("ascii") for img in m.images
+                ]
+            messages.append(entry)
         model = self._resolved_model()
         body = json.dumps(
             {
