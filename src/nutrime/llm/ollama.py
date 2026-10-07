@@ -86,6 +86,10 @@ class OllamaProvider:
     # calls are bounded selection/extraction tasks, so thinking stays off
     # unless a caller constructs the provider with think=True.
     think: bool = False
+    # Context window override. Ollama's default (4096 here) is too small
+    # for a dense image + long transcription (#24 vision extraction hit
+    # exceed_context_size on busy recipe cards); None keeps the default.
+    num_ctx: int | None = None
     capabilities: frozenset[str] = field(
         default_factory=lambda: frozenset(
             {CAP_LOCAL_PRIVATE, CAP_REASONING, CAP_STRUCTURED_OUTPUT}
@@ -112,13 +116,16 @@ class OllamaProvider:
                 ]
             messages.append(entry)
         model = self._resolved_model()
+        options: dict = {"num_predict": request.max_tokens}
+        if self.num_ctx is not None:
+            options["num_ctx"] = self.num_ctx
         body = json.dumps(
             {
                 "model": model,
                 "messages": messages,
                 "stream": False,
                 "think": self.think,
-                "options": {"num_predict": request.max_tokens},
+                "options": options,
             }
         )
         url = f"{self._resolved_url()}/api/chat"

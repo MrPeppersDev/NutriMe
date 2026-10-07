@@ -919,6 +919,7 @@ def _cmd_recipes_pins_extract(args: argparse.Namespace) -> int:
     provider = OllamaProvider(
         model=model,
         timeout_s=300.0,  # a 7B vision model reading a dense card is slow
+        num_ctx=8192,  # dense cards overflow the 4096 default
         capabilities=frozenset(
             {CAP_LOCAL_PRIVATE, CAP_VISION}
         ),
