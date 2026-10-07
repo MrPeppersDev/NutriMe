@@ -3204,10 +3204,8 @@ async function loadTonight() {
       '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap' +
       (parts.length ? ';margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)' : '') + '">' +
       '<span class="serif" style="font-size:19px;color:var(--ink-soft)">No meal planned tonight</span>' +
-      '<button class="btn-go" style="padding:9px 16px;min-height:0" onclick="' +
-      "document.getElementById('searchBox').scrollIntoView({behavior:'smooth'});" +
-      "document.getElementById('have').focus({preventScroll:true})" +
-      '">Find something to cook</button></div>'
+      '<button class="btn-go" style="padding:9px 16px;min-height:0" data-go-cook' +
+      '>Find something to cook</button></div>'
     );
   }
   if (data.awaiting_feel) {
@@ -3232,7 +3230,9 @@ async function loadTonight() {
   body.querySelectorAll("[data-send-feel]").forEach(b =>
     b.onclick = () => sendFeel(b.dataset.sendFeel));
   body.querySelectorAll("[data-find-soon]").forEach(b =>
-    b.onclick = () => { $("have").value = b.dataset.findSoon; doSearch(); });
+    b.onclick = () => { $("have").value = b.dataset.findSoon; showView("recipes"); doSearch(); });
+  body.querySelectorAll("[data-go-cook]").forEach(b =>
+    b.onclick = () => { showView("recipes"); $("have").focus({preventScroll: true}); });
   box.style.display = "block";
 }
 async function sendFeel(mealEventId) {
