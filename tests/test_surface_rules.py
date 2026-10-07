@@ -65,6 +65,15 @@ BLOCKED = [
     "Ｌｏｇ ｗｈａｔ ｙｏｕ ａｔｅ today.",
     "Salmon low​ers your blood pressure.",
     "Turmeric   CURES   cancer.",
+    # #49 paraphrases — the probe table rows that passed. The structural
+    # fix is the reason-code vocabulary (test_plans), but the regex layer
+    # is defense in depth for every other generated surface.
+    "This dish can help bring your blood pressure down.",
+    "A great choice for keeping your A1C in check.",
+    "Garlic is basically a natural antibiotic.",
+    "Stick to about 800 calories daily to see results fast.",
+    "Try going 4 days on just water to reset your gut.",
+    "Eat this and you may be able to stop taking your insulin.",
 ]
 
 ANNOTATED = [

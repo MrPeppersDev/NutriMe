@@ -16,12 +16,13 @@ constraint. That local filtering *is* the aggregation half of decomposition.
 Variety is deterministic, not delegated: already-chosen recipe ids are removed
 from later slots' candidate pools rather than asked-for in the prompt.
 
-Pre-surface (#30): the model's one-line ``reason`` is the only model-written
-text a plan shows, so it passes the constitutional surface guard before it
-is stored. A blocked reason is dropped (the selection stands — the recipe
-came from the corpus, not the model); an annotated one carries the
-consult-professional line adjacent to it. Findings ride on the outcome so
-the caller can audit them.
+Pre-surface (#30, hardened per #49): the model writes NO display text at
+all. It picks a ``reason_code`` from a fixed vocabulary and the note is
+rendered deterministically from corpus facts (time, on-hand matches,
+expiring matches). Paraphrase space is unbounded, so filtering free text
+was unwinnable — constraining the output is the fix the regex layer
+couldn't be. The surface guard still runs on the rendered note as
+defense in depth, and findings ride on the outcome for audit.
 """
 
 from __future__ import annotations
@@ -97,7 +98,8 @@ DEFAULT_CANDIDATES = 12
 _SYSTEM = (
     "You are a meal planner. You select meals from a fixed list of candidate"
     " recipes; you never invent a recipe, and you never suggest one that is"
-    " not in the list. Reply with JSON only."
+    " not in the list. You never write prose: you report your pick and a"
+    " reason code from the fixed vocabulary. Reply with JSON only."
 )
 
 
@@ -223,10 +225,66 @@ def build_prompt(
     lines += [
         "",
         "Pick exactly one candidate. Reply with JSON only, in this form:",
-        '{"recipe_id": "<id copied from the list>", "reason": "<one short'
-        ' sentence>"}',
+        '{"recipe_id": "<id copied from the list>", "reason_code":'
+        ' "<one of: ' + ", ".join(REASON_CODES) + '>"}',
     ]
     return "\n".join(lines)
+
+
+# -- reason vocabulary (#49) -------------------------------------------------
+# The model picks a code; the sentence the household reads is rendered
+# here, from corpus facts. No model-written display text exists, so no
+# paraphrased health claim can reach a plan note.
+
+REASON_CODES: tuple[str, ...] = (
+    "quick",          # short total time
+    "uses_on_hand",   # overlaps the kitchen inventory
+    "uses_expiring",  # uses up something due soon
+    "variety",        # breaks up the week / new cuisine
+    "crowd_pleaser",  # broadly liked, mild
+    "seasonal_fit",   # fits the season / weather
+    "balanced",       # rounds out the day's other meals
+)
+
+
+def render_reason(
+    code: str, candidate: "SearchResult | None"
+) -> str:
+    """Deterministic display text for a reason code.
+
+    Facts come from the search result (corpus + inventory), never from
+    the model. An unknown code renders as "" — fail-closed to silence.
+    """
+    on_hand = ", ".join(candidate.on_hand_matches[:3]) if candidate else ""
+    expiring = ", ".join(candidate.expiring_matches[:3]) if candidate else ""
+    time_min = candidate.total_time_min if candidate else None
+    if code == "quick":
+        return (
+            f"On the table in about {time_min} minutes."
+            if time_min
+            else "Quick to make."
+        )
+    if code == "uses_on_hand":
+        return (
+            f"Uses what's in the kitchen: {on_hand}."
+            if on_hand
+            else "Works with what's already in the kitchen."
+        )
+    if code == "uses_expiring":
+        return (
+            f"Uses up food that's due soon: {expiring}."
+            if expiring
+            else "Uses up ingredients before they go to waste."
+        )
+    if code == "variety":
+        return "Something different to break up the week."
+    if code == "crowd_pleaser":
+        return "Mild and broadly liked — an easy sell at the table."
+    if code == "seasonal_fit":
+        return "A good fit for the season."
+    if code == "balanced":
+        return "Rounds out the day's other meals."
+    return ""
 
 
 # -- the guard -------------------------------------------------------------
@@ -260,8 +318,13 @@ def parse_selection(
             f"model selected {recipe_id!r}, which was not among the"
             f" {len(candidate_ids)} candidates offered for this slot"
         )
-    reason = str(payload.get("reason", "")).strip()
-    return recipe_id, reason
+    # #49: the model picks from a fixed vocabulary — it does not write
+    # display text. An off-vocabulary code (including legacy free-text
+    # "reason") degrades to "" rather than failing the selection.
+    code = str(payload.get("reason_code", "")).strip().lower()
+    if code not in REASON_CODES:
+        code = ""
+    return recipe_id, code
 
 
 # -- assembly --------------------------------------------------------------
@@ -379,7 +442,9 @@ def assemble_plan(
             plan.model = response.model
 
             try:
-                recipe_id, reason = parse_selection(response.text, candidate_ids)
+                recipe_id, reason_code = parse_selection(
+                    response.text, candidate_ids
+                )
             except SelectionError as exc:
                 outcome = SlotOutcome(
                     day=day,
@@ -399,10 +464,18 @@ def assemble_plan(
                 continue
 
             chosen.add(recipe_id)
+            # #49: the note is rendered here from corpus facts — the
+            # model only contributed a vocabulary code. The guard still
+            # runs on the rendered text as defense in depth (a template
+            # edit or interpolated fact could regress).
+            chosen_candidate = next(
+                (c for c in candidates if c.recipe_id == recipe_id), None
+            )
+            rendered = render_reason(reason_code, chosen_candidate)
             verdict = guard.check(
                 SurfaceContent(
                     surface="plan_reason",
-                    text=reason,
+                    text=rendered,
                     generated=True,
                     eater_sensitivities=eater_sensitivities,
                 )

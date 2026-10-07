@@ -144,7 +144,7 @@ class SelectingProvider:
         ]
         chosen = ids[min(self._index, len(ids) - 1)]
         return ProviderResult(
-            text=json.dumps({"recipe_id": chosen, "reason": "fits the night"}),
+            text=json.dumps({"recipe_id": chosen, "reason_code": "quick"}),
             model="fake-model",
             stop_reason="end_turn",
             prompt_tokens=10,
@@ -291,12 +291,21 @@ class TestPlanBody:
 
 class TestParseSelection:
     def test_accepts_candidate(self):
-        text = '{"recipe_id": "rcp-d1", "reason": "quick"}'
+        text = '{"recipe_id": "rcp-d1", "reason_code": "quick"}'
         assert parse_selection(text, frozenset({"rcp-d1"})) == ("rcp-d1", "quick")
 
     def test_tolerates_prose_around_json(self):
-        text = 'Sure!\n{"recipe_id": "rcp-d1", "reason": "ok"}\nHope that helps.'
+        text = 'Sure!\n{"recipe_id": "rcp-d1", "reason_code": "quick"}\nHope that helps.'
         assert parse_selection(text, frozenset({"rcp-d1"}))[0] == "rcp-d1"
+
+    def test_off_vocabulary_code_degrades_to_empty(self):
+        # #49: the model cannot smuggle display text through the code
+        # field — anything off-vocabulary (including legacy free-text
+        # "reason") becomes "".
+        text = '{"recipe_id": "rcp-d1", "reason_code": "lowers your blood pressure"}'
+        assert parse_selection(text, frozenset({"rcp-d1"})) == ("rcp-d1", "")
+        legacy = '{"recipe_id": "rcp-d1", "reason": "Garlic cures cancer"}'
+        assert parse_selection(legacy, frozenset({"rcp-d1"})) == ("rcp-d1", "")
 
     def test_rejects_recipe_outside_candidate_set(self):
         # The load-bearing guard: the corpus is licensed recipe-by-recipe, so
@@ -532,17 +541,18 @@ class TestAssemble:
 
 
 class ReasonProvider(SelectingProvider):
-    """Selects the first candidate with a fixed, scripted reason."""
+    """Selects the first candidate with a scripted reason_code field."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason_code: str, field_name: str = "reason_code"):
         super().__init__()
-        self._reason = reason
+        self._reason_code = reason_code
+        self._field = field_name
 
     def complete(self, request: LlmRequest) -> ProviderResult:
         result = super().complete(request)
         chosen = json.loads(result.text)["recipe_id"]
         return ProviderResult(
-            text=json.dumps({"recipe_id": chosen, "reason": self._reason}),
+            text=json.dumps({"recipe_id": chosen, self._field: self._reason_code}),
             model=result.model,
             stop_reason=result.stop_reason,
             prompt_tokens=result.prompt_tokens,
@@ -552,42 +562,60 @@ class ReasonProvider(SelectingProvider):
         )
 
 
-class TestPlanReasonSurfaceGuard:
-    """#30: the model's reason is surface-checked before it is stored."""
+class TestPlanReasonVocabulary:
+    """#30 hardened per #49: the model picks a reason code; display text
+    is rendered from corpus facts. No model prose reaches a plan note."""
 
-    def _one(self, recipes, engine, audit, reason, **kw):
+    def _one(self, recipes, engine, audit, reason_code, **kw):
         plan = assemble_plan(
-            recipes, _client(engine, audit, ReasonProvider(reason)),
+            recipes, _client(engine, audit, ReasonProvider(reason_code, **{
+                k: kw.pop(k) for k in ("field_name",) if k in kw
+            })),
             PlanSpec(days=1, slots=("dinner",)), SearchFilters(), **kw,
         )
         return plan.outcomes[0]
 
-    def test_benign_reason_kept(self, recipes, engine, audit):
-        outcome = self._one(recipes, engine, audit, "Quick and uses the spinach.")
-        assert outcome.entry.note == "Quick and uses the spinach."
+    def test_vocabulary_code_renders_deterministic_note(self, recipes, engine, audit):
+        outcome = self._one(recipes, engine, audit, "variety")
+        assert outcome.entry.note == "Something different to break up the week."
         assert outcome.surface_findings == ()
 
-    def test_unsupported_claim_dropped_selection_stands(self, recipes, engine, audit):
-        outcome = self._one(recipes, engine, audit, "Garlic lowers blood pressure.")
-        assert outcome.entry.recipe_id is not None  # corpus pick still valid
-        assert outcome.entry.note == ""
-        assert outcome.surface_findings[0].rule_name == "evidence-floor"
+    def test_paraphrased_health_claim_cannot_reach_the_note(self, recipes, engine, audit):
+        # The issue's exact bypasses, sent as the model's "code": all
+        # off-vocabulary, all degrade to "" before the guard even runs.
+        for text in (
+            "This dish can help bring your blood pressure down.",
+            "A great choice for keeping your A1C in check.",
+            "Garlic is basically a natural antibiotic.",
+            "Stick to about 800 calories daily to see results fast.",
+            "Try going 4 days on just water to reset your gut.",
+            "Eat this and you may be able to stop taking your insulin.",
+        ):
+            outcome = self._one(recipes, engine, audit, text)
+            assert outcome.entry.recipe_id is not None, text  # pick stands
+            assert outcome.entry.note == "", text
 
-    def test_clinical_reason_annotated(self, recipes, engine, audit):
-        from nutrime.surface_rules import CONSULT_LINE
-
+    def test_legacy_free_text_reason_field_ignored(self, recipes, engine, audit):
         outcome = self._one(
-            recipes, engine, audit, "Low sodium, kind to kidney disease."
+            recipes, engine, audit, "Garlic lowers blood pressure.",
+            field_name="reason",
         )
-        assert outcome.entry.note.endswith(CONSULT_LINE)
-
-    def test_generated_recipe_in_reason_blocked(self, recipes, engine, audit):
-        outcome = self._one(
-            recipes, engine, audit,
-            "Here's a recipe: fry onions, add rice, simmer 20 minutes.",
-        )
+        assert outcome.entry.recipe_id is not None
         assert outcome.entry.note == ""
-        assert outcome.surface_findings[0].rule_name == "banned-content"
+
+    def test_rendered_notes_pass_the_surface_guard(self, recipes, engine, audit):
+        # Defense-in-depth invariant: every vocabulary rendering is
+        # itself clean under the guard, with and without facts.
+        from nutrime.plans.assemble import REASON_CODES, render_reason
+        from nutrime.surface_rules import SurfaceContent, default_surface_guard
+
+        guard = default_surface_guard()
+        for code in REASON_CODES:
+            text = render_reason(code, None)
+            verdict = guard.check(
+                SurfaceContent(surface="plan_reason", text=text)
+            )
+            assert verdict.action == "pass", (code, verdict)
 
 
 # -- CLI -------------------------------------------------------------------
@@ -687,10 +715,14 @@ class TestPlansCLI:
         assert out.index("pln-b") < out.index("pln-a")
 
 
-    def test_generate_audits_surface_findings(self, tmp_path, capsys, monkeypatch):
-        # #30: a dropped reason leaves an audit row naming the rule.
+    def test_generate_discards_model_prose_before_the_surface(self, tmp_path, capsys, monkeypatch):
+        # #30 hardened per #49: model prose in the reason field never
+        # reaches the surface layer at all — it is discarded at parse
+        # (off-vocabulary), the note is empty, and there is nothing for
+        # the guard to find or audit.
         import nutrime.cli as cli
         from nutrime.app import initialize
+        from nutrime.plans.store import PlanVault
 
         self._seed(tmp_path)
         monkeypatch.setattr(
@@ -711,9 +743,12 @@ class TestPlansCLI:
                 e for e in app.audit.events(limit=50)
                 if e.event_subkind == "surface_rule"
             ]
-            assert len(rows) == 1
-            assert rows[0].payload["rule"] == "evidence-floor"
-            assert rows[0].payload["action"] == "block"
+            assert rows == []  # nothing surfaced, nothing to audit
+            vault = PlanVault(app.corpus_dir)
+            plan = vault.read(vault.list_plans()[0].plan_id)
+            (entry,) = plan.entries()
+            assert entry.recipe_id is not None  # the pick stood
+            assert entry.note == ""             # the prose did not
         finally:
             app.substrate.close()
             app.operational.close()

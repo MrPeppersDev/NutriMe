@@ -132,12 +132,23 @@ _HARM_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
      "restriction advice"),
     # A daily target under 1,200 kcal (the common adult floor), not a
     # per-serving fact ("only 450 calories per serving" is a recipe property).
-    (re.compile(r"\b(1,?[01]\d\d|[1-9]\d\d|[1-9]\d)\s*(k?cal|calories)\s*(a|per|each)\s+day\b"
-                r"|\b(eat|consume|stay|keep)\s+(less\s+than|under|below|fewer\s+than)\s*"
+    # "daily" added per #49 ("about 800 calories daily" passed).
+    (re.compile(r"\b(1,?[01]\d\d|[1-9]\d\d|[1-9]\d)\s*(k?cal|calories)\s*(daily|(a|per|each)\s+day)\b"
+                r"|\b(eat|consume|stay|keep|stick\s+to)\s+(about\s+|around\s+|roughly\s+)?"
+                r"(less\s+than\s+|under\s+|below\s+|fewer\s+than\s+)?"
                 r"(1,?[01]\d\d|[1-9]\d\d|[1-9]\d)\s*(k?cal|calories)\b", re.I),
      "very-low-calorie target"),
-    (re.compile(r"\b(water|juice|dry)\s+fast(ing)?\s+for\s+(\d{2,}|[3-9])\s+days\b", re.I),
+    # Both the named-fast shape and the "N days on just water" paraphrase (#49).
+    (re.compile(r"\b(water|juice|dry)\s+fast(ing)?\s+for\s+(\d{2,}|[3-9])\s+days?\b"
+                r"|\b(\d{2,}|[2-9])\s+days?\s+(of\s+|on\s+)(just\s+|only\s+|nothing\s+but\s+)?water\b", re.I),
      "extended fasting"),
+    # Medication-cessation advice is a block, not an annotation (#49:
+    # "you may be able to stop taking your insulin" only annotated).
+    (re.compile(r"\b(stop|quit|ditch|drop|skip|come\s+off|no\s+longer\s+need)\w*\s+"
+                r"(taking\s+)?(your\s+|the\s+)?(insulin|metformin|statins?|"
+                r"blood\s+(pressure|thinner)\s*\w*|medications?|meds|"
+                r"antidepressants?|thyroid\s+\w+|prescriptions?)\b", re.I),
+     "medication-cessation advice"),
 )
 
 # Rule 4: an LLM-written recipe looks like quantities + method.
@@ -188,7 +199,7 @@ _CLAIM_VERB = (
 )
 _CLAIM_OBJECT = (
     r"(blood\s+pressure|cholesterol|inflammation|immun\w*|blood\s+sugar|glucose|"
-    r"insulin|metabolism|hormones?|gut\s+health|heart\s+(?:health|disease)|"
+    r"insulin|a1c|hba1c|metabolism|hormones?|gut\s+health|heart\s+(?:health|disease)|"
     r"(?:cancer|disease|stroke|diabetes)(?:\s+risk)?|risk\s+of\s+(?:heart\s+\w+|"
     r"cancer|stroke|diabetes|disease|dementia|death|osteoporosis)|weight|"
     r"(?:belly|body|visceral)\s+fat|toxins?|liver|brain\s+health|anxiety|"
@@ -196,6 +207,12 @@ _CLAIM_OBJECT = (
 )
 _HEALTH_CLAIM = re.compile(
     rf"\b{_CLAIM_VERB}\b(?:\s+\w+){{0,4}}?\s+{_CLAIM_OBJECT}\b"
+    # Verb-object-particle paraphrases (#49): "bring your blood pressure
+    # down", "keep your A1C in check", "get cholesterol under control".
+    rf"|\b(brings?|bringing|keeps?|keeping|gets?|getting)\s+(your\s+|the\s+)?"
+    rf"{_CLAIM_OBJECT}\s+(down|in\s+check|under\s+control)\b"
+    rf"|\bnatural\s+(antibiotic|antiviral|antibacterial|antidepressant|"
+    rf"statin|insulin|remedy)\b"
     rf"|\b(anti[\s-]?inflammatory|detox(?:ifying)?|fat[\s-]?burning|"
     rf"immune[\s-]?boosting|superfood|metabolism[\s-]?boosting)\b",
     re.I,
