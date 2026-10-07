@@ -56,28 +56,126 @@ _REGISTRY: tuple[tuple[re.Pattern[str], ConditionInfo], ...] = tuple(
     (re.compile(pattern, re.IGNORECASE), info)
     for pattern, info in (
         # -- refuse ----------------------------------------------------------
-        (r"\b(anorexi|bulimi|binge.?eating|arfid|eating\s+disorder)",
+        # \b removed before bulimi/anorexi stems is deliberate where a
+        # compound hides the stem: "diabulimia" (#58) has no word boundary
+        # before "bulimi".
+        (r"anorexi|bulimi|\b(binge.?eating|arfid|osfed|t1de|"
+         r"eating\s+disorder)",
          _c("active eating disorder", REFUSE,
             ("an eating-disorder treatment team (psychiatry + RDN)",),
             note="Meal planning during active eating-disorder recovery belongs "
                  "with the treatment team, not an app.")),
-        (r"\b(recent|post).{0,12}bariatric|bariatric.{0,20}(recent|this year|surgery in)",
-         _c("post-bariatric (early phase)", REFUSE,
+        # Bariatric: maintenance-phase wording gates; anything else —
+        # including bare procedure names (#58: "gastric bypass", "sleeve
+        # gastrectomy" fell through to disclaimer) — refuses, since the
+        # early staged phase is the dangerous one and the disclosure
+        # doesn't say which phase the eater is in.
+        (r"\b(bariatric|gastric\s+bypass|sleeve\s+gastrectomy|gastric\s+"
+         r"sleeve|gastric\s+band|lap.?band|rygb|roux.?en.?y|vsg|oagb|"
+         r"duodenal\s+switch)\b.{0,40}\b(maintenance|stable|years?\s+ago)|"
+         r"\b(maintenance|stable|years?\s+ago)\b.{0,40}\b(bariatric|gastric\s+"
+         r"bypass|sleeve\s+gastrectomy|gastric\s+sleeve|rygb|vsg|oagb)",
+         _c("post-bariatric (maintenance)", GATE,
+            ("the bariatric surgery team", "a bariatric RDN"),
+            plan_note="an eater is in post-bariatric maintenance — favor "
+                      "protein-forward, smaller-portion meals; avoid "
+                      "carbonated drinks and slider foods",
+            note="Maintenance-phase post-bariatric: plans proceed with "
+                 "protein-first, portion-aware rails.")),
+        (r"\b(bariatric|gastric\s+bypass|sleeve\s+gastrectomy|gastric\s+"
+         r"sleeve|gastric\s+band|lap.?band|rygb|roux.?en.?y|vsg\b|oagb|"
+         r"duodenal\s+switch)",
+         _c("post-bariatric (phase unknown or early)", REFUSE,
             ("the bariatric surgery team", "a bariatric RDN"),
             note="Early post-bariatric nutrition is staged and medically "
-                 "supervised; NutriMe stands back until maintenance.")),
+                 "supervised; NutriMe stands back until maintenance. If "
+                 "you're 6+ months out and stable, say so in the "
+                 "disclosure (e.g. \"gastric bypass, stable maintenance\") "
+                 "and NutriMe proceeds with protein-first rails.")),
         (r"\b(active|current|undergoing).{0,25}(cancer|chemo|radiation|oncolog)|"
          r"\b(chemo(therapy)?|radiation\s+therapy)\b",
          _c("oncology nutrition (active treatment)", REFUSE,
             ("the oncology team", "an oncology RDN"),
             note="Nutrition during active cancer treatment is managed by the "
                  "oncology team.")),
-        (r"\b(ckd|kidney\s+disease).{0,15}(stage\s*[45]|severe)|"
-         r"\bstage\s*[45].{0,15}(ckd|kidney)|\b(dialysis|kidney\s+failure|esrd)\b",
+        # Stage accepts Roman numerals (#58: "stage IV" parsed as early).
+        (r"\b(ckd|kidney\s+disease).{0,15}(stage\s*(4|5|iv\b|v\b)|severe)|"
+         r"\bstage\s*(4|5|iv\b|v\b).{0,15}(ckd|kidney)|"
+         r"\b(dialysis|kidney\s+failure|esrd|renal\s+failure)\b",
          _c("severe chronic kidney disease", REFUSE,
             ("a nephrologist", "a renal RDN"),
             note="Potassium, phosphorus, protein and fluid limits at this "
                  "stage are individually prescribed; NutriMe must not guess.")),
+        # -- refuse-tier conditions that fell through to disclaimer (#58) --
+        (r"\b(decompensat|hepatic\s+encephalopath|ascites|variceal|varices)",
+         _c("decompensated cirrhosis", REFUSE,
+            ("a hepatologist", "the transplant team"),
+            note="Decompensated liver disease needs specialist-set protein, "
+                 "sodium and fluid targets; NutriMe must not guess.")),
+        (r"\b(pku|phenylketonuria|msud|maple\s+syrup\s+urine|urea.?cycle|"
+         r"galactosemia|glycogen\s+storage|mcad|fatty\s+acid\s+oxidation|"
+         r"inborn\s+error)",
+         _c("hereditary metabolic disorder", REFUSE,
+            ("a metabolic-disease / genetics team", "a metabolic RDN"),
+            note="Hereditary metabolic disorders are managed with precise, "
+                 "prescribed dietary formulas — metabolic-team territory "
+                 "only.")),
+        (r"\b(cystic\s+fibrosis|\bcf\s+(team|clinic|patient))",
+         _c("cystic fibrosis", REFUSE,
+            ("the CF care team", "a CF-specialized RDN"),
+            note="CF nutrition (high-energy targets, enzyme timing, "
+                 "fat-soluble vitamins) belongs with the CF team.")),
+        (r"\b(acute\s+kidney|aki\b)",
+         _c("acute kidney injury", REFUSE,
+            ("the treating (inpatient) team", "a nephrologist"),
+            note="Nutrition during the acute phase is managed by the "
+                 "treating team.")),
+        (r"\bshort\s+bowel",
+         _c("short bowel syndrome", REFUSE,
+            ("a GI / intestinal-failure team", "a nutrition-support RDN"),
+            note="Short bowel nutrition is specialist-team territory.")),
+        (r"\b(ketogenic|keto)\s+(diet\s+)?(for|therapy).{0,20}(epilep|seizure)|"
+         r"\b(epilep|seizure).{0,30}(ketogenic|keto\b)|\bmedical\s+keto",
+         _c("medical ketogenic diet", REFUSE,
+            ("the neurology / keto team", "a keto-trained RDN"),
+            note="Therapeutic ketogenic diets for epilepsy are prescribed "
+                 "and ratio-controlled by the neuro-keto team.")),
+        (r"\b(palliative|hospice|end.?of.?life)",
+         _c("palliative / end-of-life care", REFUSE,
+            ("the palliative-care team",),
+            note="Comfort-focused nutrition is guided by the palliative "
+                 "team, not a meal planner.")),
+        (r"\b(cachexia)",
+         _c("cancer cachexia", REFUSE,
+            ("the oncology team", "an oncology RDN"),
+            note="Cachexia needs specialist nutrition support.")),
+        (r"\b(hyperemesis)",
+         _c("hyperemesis gravidarum", REFUSE,
+            ("the obstetric team",),
+            note="Hyperemesis needs medical management — often IV fluids "
+                 "and antiemetics — before meal planning helps.")),
+        (r"\b(dka.?prone|brittle\s+diabet)",
+         _c("brittle / DKA-prone diabetes", REFUSE,
+            ("an endocrinologist", "a CDCES"),
+            note="DKA-prone diabetes needs specialist-team management.")),
+        (r"\b(failure\s+to\s+thrive|faltering\s+growth)",
+         _c("failure to thrive", REFUSE,
+            ("a pediatrician", "a pediatric RDN"),
+            note="Growth faltering needs pediatric assessment before an "
+                 "app plans meals.")),
+        # Negated coordination refuses (#58): "type 1 diabetes, no
+        # endocrinologist" must not match the with-coordination gate
+        # below just because the word "endocrinologist" appears.
+        (r"\b(t1d|type\s*1\s*diabet).{0,40}\b(no|not|without|don.?t|"
+         r"doesn.?t|haven.?t|can.?t|lost|lack|looking\s+for|need)"
+         r"\b.{0,30}(endocrinolog|coordinat|care\s+team)",
+         _c("type 1 diabetes", REFUSE,
+            ("an endocrinologist",
+             "a certified diabetes care and education specialist (CDCES)"),
+            note="Type 1 planning needs endocrinologist coordination. If that "
+                 "is in place, edit the disclosure to say so (e.g. \"type 1 "
+                 "diabetes, coordinated with endocrinologist\") and NutriMe "
+                 "will proceed with carb-counting rails.")),
         (r"\b(t1d|type\s*1\s*diabet).{0,40}(endocrinolog|coordinat|care\s+team)",
          _c("type 1 diabetes (endocrinologist-coordinated)", GATE,
             ("an endocrinologist",
@@ -94,6 +192,19 @@ _REGISTRY: tuple[tuple[re.Pattern[str], ConditionInfo], ...] = tuple(
                  "diabetes, coordinated with endocrinologist\") and NutriMe "
                  "will proceed with carb-counting rails.")),
         # -- gate --------------------------------------------------------------
+        # Transplant before the general kidney pattern: "kidney
+        # transplant" must not read as early-stage CKD (#58 — the
+        # tacrolimus/cyclosporine + grapefruit interaction is the point).
+        (r"\b(kidney|renal|liver|heart|organ)\s+transplant|"
+         r"\btransplant.{0,25}(kidney|renal|liver|heart)|"
+         r"\b(tacrolimus|cyclosporine|immunosuppress)",
+         _c("organ transplant (immunosuppressed)", GATE,
+            ("the transplant team", _RDN),
+            plan_note="an eater takes transplant immunosuppressants — "
+                      "exclude grapefruit and pomelo entirely, and favor "
+                      "thoroughly-cooked food-safety-conservative meals",
+            note="Immunosuppressant rails: no grapefruit/pomelo, strict "
+                 "food-safety tilt, alongside the transplant team.")),
         (r"\b(ckd|chronic\s+kidney|kidney\s+disease)",
          _c("chronic kidney disease (early stage)", GATE,
             ("a nephrologist", "a renal RDN"),
@@ -183,18 +294,23 @@ COMMON_CONDITIONS: tuple[str, ...] = (
 
 _UNRECOGNIZED = ConditionInfo(
     canonical="",
-    behavior=DISCLAIMER,
+    behavior=GATE,
     specialties=("your doctor", _RDN),
-    note="Not in NutriMe's condition registry — treated with the standard "
-         "consult-a-professional care, no special rails.",
+    note="Not in NutriMe's condition registry — plans proceed with a "
+         "clear flag that this condition carries no special rails here; "
+         "please confirm the plan approach with your care team.",
 )
 
 
 def classify(disclosure_text: str) -> ConditionInfo:
     """Deterministically classify one free-text disclosure.
 
-    Unrecognized text fails toward ``disclaimer`` (Rule 1 still applies via
-    the surface layer), never silently toward "no condition".
+    Unrecognized text fails CLOSED toward ``gate`` (#58): a clinical
+    layer must not hand an unknown condition the least restrictive
+    behavior. The gate surfaces the condition on every plan and refers
+    out, rather than refusing outright — the registry can't tell "mild
+    seasonal allergy" from something serious, so it asks instead of
+    assuming either way.
     """
     text = disclosure_text.strip()
     for pattern, info in _REGISTRY:
@@ -204,6 +320,11 @@ def classify(disclosure_text: str) -> ConditionInfo:
         canonical=text.lower(),
         behavior=_UNRECOGNIZED.behavior,
         specialties=_UNRECOGNIZED.specialties,
+        plan_note=(
+            f"an eater disclosed \"{text}\", which NutriMe has no "
+            "specific rails for — keep meals conservative and flag that "
+            "their care team should confirm the plan"
+        ),
         note=_UNRECOGNIZED.note,
     )
 

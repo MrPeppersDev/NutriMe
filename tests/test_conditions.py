@@ -66,11 +66,64 @@ class TestClassify:
         ):
             assert classify(text).behavior == DISCLAIMER, text
 
-    def test_unrecognized_fails_toward_disclaimer_not_silence(self) -> None:
+    def test_unrecognized_fails_closed_to_gate(self) -> None:
+        # #58: a clinical layer must not hand unknown conditions the
+        # least restrictive behavior. Unrecognized → gate (surfaced on
+        # every plan + refer-out), not disclaimer.
         info = classify("Ehlers-Danlos syndrome")
-        assert info.behavior == DISCLAIMER
+        assert info.behavior == GATE
         assert info.canonical == "ehlers-danlos syndrome"
         assert info.specialties  # always a refer-out
+        assert info.plan_note  # surfaced to the planner, not silent
+
+    def test_sweep10_refuse_tier_table(self) -> None:
+        # Table-driven from the #58 probe table + sweep 10 scope.md —
+        # every row here was falling through to disclaimer.
+        for text in (
+            "diabulimia",
+            "OSFED",
+            "type 1 diabetes, no endocrinologist",
+            "type 1 diabetes but I don't have an endocrinologist",
+            "gastric bypass",
+            "sleeve gastrectomy",
+            "kidney disease stage IV",
+            "CKD stage V",
+            "decompensated cirrhosis",
+            "PKU",
+            "phenylketonuria",
+            "cystic fibrosis",
+            "acute kidney injury",
+            "AKI",
+            "short bowel syndrome",
+            "ketogenic diet for epilepsy",
+            "palliative care",
+            "cancer cachexia",
+            "hyperemesis gravidarum",
+            "brittle diabetes",
+            "failure to thrive",
+        ):
+            assert classify(text).behavior == REFUSE, text
+
+    def test_sweep10_gate_tier_table(self) -> None:
+        for text in (
+            "kidney transplant",
+            "renal transplant on tacrolimus",
+            "gastric bypass, stable maintenance",
+            "bariatric surgery years ago, stable",
+        ):
+            assert classify(text).behavior == GATE, text
+
+    def test_transplant_gate_excludes_grapefruit(self) -> None:
+        info = classify("kidney transplant")
+        assert "grapefruit" in info.plan_note
+
+    def test_coordination_still_gates_when_affirmative(self) -> None:
+        # The negation fix must not break the affirmative path.
+        for text in (
+            "type 1 diabetes, coordinated with my endocrinologist",
+            "T1D managed with my care team",
+        ):
+            assert classify(text).behavior == GATE, text
 
     def test_case_insensitive(self) -> None:
         assert classify("TYPE 2 DIABETES").behavior == DISCLAIMER
