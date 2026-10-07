@@ -274,7 +274,7 @@ Implication for NutriMe: the **conflict-prioritization order** in the scope (all
 
 #### 3.2 Behavior change in couples — BCT taxonomy applied to dyads
 
-See §1.3 above. Additionally, [Hagger & Hamilton 2018](#references) and [Carr et al. 2019](#references) systematic reviews of dyadic behavior-change interventions identify:
+See §1.3 above. Additionally, [Hagger & Hamilton 2021](#references) and [Carr et al. 2019](#references) systematic reviews of dyadic behavior-change interventions identify:
 
 - Joint planning ("we will cook X tonight") consistently outperforms parallel individual planning ("you do your plan, I do mine").
 - **Shared self-monitoring** of household-level metrics (groceries bought, meals cooked at home) outperforms individual self-monitoring of personal behaviors when the goal is dietary change.
@@ -299,7 +299,7 @@ Implication for NutriMe: the system enters at the moment of value-salience-chang
 
 #### 3.4 Decision-making roles in household food provisioning — Sobal's work
 
-[Sobal, Bove & Rauschenbach 2002](#references); [Sobal & Bisogni 2009](#references); [Sobal, Hanson & Frongillo 2014](#references) documented role differentiation in household food provisioning:
+[Sobal, Bove & Rauschenbach 2002](#references); [Sobal & Bisogni 2009](#references); [Sobal & Hanson 2011](#references) documented role differentiation in household food provisioning:
 
 - **Provisioner** (who decides what enters the household)
 - **Preparer / cook** (who transforms ingredients into meals)
@@ -401,8 +401,8 @@ Per scope:
 
 The **patient-portal / family-portal** literature in medical informatics has developed substantially since the rollout of MyChart-style portals in the early 2010s and the 21st Century Cures Act's information-blocking rule (2020 onward). Relevant work:
 
-- **Proxy access** (one user accessing another household member's record — typically parent for child, adult child for elderly parent, spouse for spouse) is the central technical and ethical primitive. The literature ([Ancker et al. 2017](#references); [Steitz et al. 2019](#references); the **OurNotes / OpenNotes** family-of-projects) consistently identifies that **default-shared can violate the data-subject's autonomy** and **default-private can prevent legitimate caregiving** — neither extreme is acceptable.
-- **Adolescent portals** are the most studied edge case: federal rules around adolescent confidentiality (especially around sexual/reproductive health, mental health, substance use) require that some portions of an adolescent's record be *segregated from* parental proxy access even when the parent is otherwise the proxy. This pattern is well-codified in pediatric health informatics ([Bourgeois et al. 2018](#references); [Anoshiravani et al. 2018](#references); [Carlson et al. 2020](#references)). `[verify]`
+- **Proxy access** (one user accessing another household member's record — typically parent for child, adult child for elderly parent, spouse for spouse) is the central technical and ethical primitive. The literature ([Ancker et al. 2019](#references); [Steitz et al. 2017](#references); the **OurNotes / OpenNotes** family-of-projects) consistently identifies that **default-shared can violate the data-subject's autonomy** and **default-private can prevent legitimate caregiving** — neither extreme is acceptable.
+- **Adolescent portals** are the most studied edge case: federal rules around adolescent confidentiality (especially around sexual/reproductive health, mental health, substance use) require that some portions of an adolescent's record be *segregated from* parental proxy access even when the parent is otherwise the proxy. This pattern is well-codified in pediatric health informatics ([Bourgeois et al. 2018](#references); [Anoshiravani et al. 2011](#references); [Carlson et al. 2020](#references)). `[verify]`
 - **Couple-level proxy access** in adult contexts is *less* codified, with most systems defaulting to opt-in rather than opt-out. The literature ([Wolff et al. 2016](#references); [Latulipe et al. 2018](#references)) consistently recommends **granular, category-based consent** rather than all-or-nothing access.
 
 Implication for NutriMe: the **per-category privacy defaults** in the scope (preferences shared / health context not shared / semantic feedback not shared / surface feedback shared) align with the granular-category-based consent pattern recommended in the literature. The defaults should be **explicitly user-configurable** (already in scope) and should be **renegotiable** at periodic check-ins, not just at intake.
@@ -486,11 +486,11 @@ The NutriMe-scoped privacy defaults (preferences shared by default; health conte
 
 > Burke, V., Giangiulio, N., Gillam, H.F., Beilin, L.J., Houghton, S., & Milligan, R.A.K. (1999). Health promotion in couples adapting to a shared lifestyle. *Health Education Research*, 14(2), 269–288. https://doi.org/10.1093/her/14.2.269 **[Tier 3 — early couple-targeted dietary/lifestyle intervention.]**
 
-> Hartmann-Boyce, J., Aveyard, P., Koshiaris, C., & Jebb, S.A. (2018). Development of tools to study personal weight control strategies: OxFAB taxonomy. *Obesity*, 25(12), 2110–2116. https://doi.org/10.1002/oby.21984 **[Tier 3 — placeholder for the broader Hartmann-Boyce systematic-review series on dietary/weight intervention; specific couple-intervention review citation `[verify]`.]**
+> Hartmann-Boyce, J., Aveyard, P., Koshiaris, C., & Jebb, S.A. (2018). Development of tools to study personal weight control strategies: OxFAB taxonomy. *Obesity*, 25(12), 2110–2116. **[verify — the cited DOI (10.1002/oby.21984) is an unrelated colorectal-cancer biomarker study. The real OxFAB paper is *Obesity* 2016;24(2):314–320, https://doi.org/10.1002/oby.21341, and it is a taxonomy of individual weight-control strategies, not a couple-intervention review. No Hartmann-Boyce couple-intervention systematic review was found. Candidate for the §1.3 claim: Arden-Close & McGrath 2017, *Health behaviour change interventions for couples: a systematic review*, Br J Health Psychol 22(2):215–237, https://doi.org/10.1111/bjhp.12227.]** **[Tier 3 — placeholder for the broader Hartmann-Boyce systematic-review series on dietary/weight intervention; specific couple-intervention review citation `[verify]`.]**
 
 > Carr, R.M., Prestwich, A., Kwasnicka, D., Thøgersen-Ntoumani, C., Gucciardi, D.F., Quested, E., Hall, L.H., & Ntoumanis, N. (2019). Dyadic interventions to promote physical activity and reduce sedentary behaviour: systematic review and meta-analysis. *Health Psychology Review*, 13(1), 91–109. https://doi.org/10.1080/17437199.2018.1532312 **[Tier 2 — dyadic behavior-change systematic review; physical-activity-primary but mechanism-relevant.]**
 
-> Hagger, M.S., & Hamilton, K. (2018). Effects of socio-structural variables in the theory of planned behavior: a mediation model in multiple samples and behaviors. *Psychology & Health*, 33(11), 1357–1378. https://doi.org/10.1080/08870446.2018.1502311 **[Tier 3 — TPB / dyadic mechanism work; representative of Hagger lab's behavior-change theorization.]**
+> Hagger, M.S., & Hamilton, K. (2021). Effects of socio-structural variables in the theory of planned behavior: a mediation model in multiple samples and behaviors. *Psychology & Health*, 36(3), 307–333. https://doi.org/10.1080/08870446.2020.1784420 (DOI verified 2026-10-06.) **[Tier 3 — TPB / dyadic mechanism work; representative of Hagger lab's behavior-change theorization.]**
 
 > Lewis, M.A., & Butterfield, R.M. (2007). Social control in marital relationships: effect of one's partner on health behaviors. *Journal of Applied Social Psychology*, 37(2), 298–319. https://doi.org/10.1111/j.0021-9029.2007.00161.x **[Tier 3 — social-control vs. social-support distinction in couples.]**
 
@@ -568,7 +568,7 @@ The NutriMe-scoped privacy defaults (preferences shared by default; health conte
 
 > Sobal, J., Bove, C.F., & Rauschenbach, B.S. (2002). Commensal careers at entry into marriage: establishing commensal units and managing commensal circles. *Sociological Review*, 50(3), 378–397. https://doi.org/10.1111/1467-954X.00388 **[Tier 3 — commensal-careers framework for newly-cohabiting couples.]**
 
-> Sobal, J., Hanson, K.L., & Frongillo, E.A. (2014). Family meals and body weight in U.S. adults. *Public Health Nutrition*, 17(3), 552–561. https://doi.org/10.1017/S1368980013000349 **[Tier 3 — family meals + adult outcomes, US cross-sectional.]**
+> Sobal, J., & Hanson, K. (2011). Family meals and body weight in US adults. *Public Health Nutrition*, 14(9), 1555–1562. https://doi.org/10.1017/S1368980011000127 (DOI verified 2026-10-06. The previously cited 2014 three-author version with DOI S1368980013000349 does not exist. Note: this paper found no overall association between family-meal frequency and adult BMI, so check the §3.4 claim against it.) **[Tier 3 — family meals + adult outcomes, US cross-sectional.]**
 
 ### Common-base + per-plate-deltas — operational / professional kitchen
 
@@ -602,7 +602,7 @@ The NutriMe-scoped privacy defaults (preferences shared by default; health conte
 
 ### Privacy, consent, family health portals, shared EHR
 
-> Ancker, J.S., Mauer, E., Kalish, R.B., Vest, J.R., & Gossey, J.T. (2017). Early adopters of patient-generated health data upload in an electronic patient portal. *Applied Clinical Informatics*, 8(2), 568–579. https://doi.org/10.4338/ACI-2016-12-RA-0207 **[Tier 3 — patient portal adoption / proxy access context.]**
+> Ancker, J.S., Mauer, E., Kalish, R.B., Vest, J.R., & Gossey, J.T. (2019). Early adopters of patient-generated health data upload in an electronic patient portal. *Applied Clinical Informatics*, 10(2), 254–260. https://doi.org/10.1055/s-0039-1683987 (DOI verified 2026-10-06.) **[Tier 3 — patient portal adoption / proxy access context.]**
 
 > Wolff, J.L., Darer, J.D., Berger, A., Clarke, D., Green, J.A., Stametz, R.A., Delbanco, T., & Walker, J. (2017). Inviting patients and care partners to read doctors' notes: OpenNotes and shared access to electronic medical records. *Journal of the American Medical Informatics Association*, 24(e1), e166–e172. https://doi.org/10.1093/jamia/ocw108 **[Tier 3 — OpenNotes / shared access to EHR.]**
 
@@ -612,11 +612,11 @@ The NutriMe-scoped privacy defaults (preferences shared by default; health conte
 
 > Bourgeois, F.C., DesRoches, C.M., & Bell, S.K. (2018). Ethical challenges raised by OpenNotes for pediatric and adolescent patients. *Pediatrics*, 141(6), e20172745. https://doi.org/10.1542/peds.2017-2745 **[Tier 3 — adolescent confidentiality + portal proxy access ethics.]**
 
-> Anoshiravani, A., Gaskin, G., Kurzweil, A., Carlson, J., & Pageler, N. (2018). Implementing an interoperable personal health record in pediatrics: lessons learned at an academic children's hospital. *Journal of Participatory Medicine*, 10(1), e10. https://doi.org/10.2196/jopm.10242 **[Tier 3 — pediatric portal implementation lessons.]**
+> Anoshiravani, A., Gaskin, G.L., Wilson, T., Kopetsky, E., Sandborg, C., & Longhurst, C.A. (2011). Implementing an interoperable personal health record in pediatrics: lessons learned at an academic children's hospital. *Journal of Participatory Medicine*, 3, e30. (No DOI; the previously cited DOI 10.2196/jopm.10242 does not exist. **[verify author list and year against the journal page]**) **[Tier 3 — pediatric portal implementation lessons.]**
 
-> Carlson, J.L., Goldstein, R., Buhr, T., & Buckmiller, N. (2020). Teen and parent perspectives on electronic communication with health care providers. *Journal of Adolescent Health*, 67(3), 416–422. https://doi.org/10.1016/j.jadohealth.2020.04.032 **[Tier 3 — teen / parent perspectives on shared digital communication with providers; relevant to adolescent-portal consent design `[verify]`.]**
+> Carlson, J.L., Goldstein, R., Buhr, T., & Buckmiller, N. (2020). Teen and parent perspectives on electronic communication with health care providers. *Journal of Adolescent Health*, 67(3), 416–422. **[verify — the cited DOI (10.1016/j.jadohealth.2020.04.032) does not exist and no paper with this title was found. Likely intended: Carlson, J.L., Goldstein, R., Buhr, T., & Buhr, N. (2020). *Teenager, parent, and clinician perspectives on the electronic health record*. Pediatrics, 145(3), e20190193. https://doi.org/10.1542/peds.2019-0193.]** **[Tier 3 — teen / parent perspectives on shared digital communication with providers; relevant to adolescent-portal consent design `[verify]`.]**
 
-> Steitz, B.D., Cronin, R.M., Davis, S.E., Yan, E., & Jackson, G.P. (2019). Long-term patterns of patient portal use for pediatric patients at an academic medical center. *Applied Clinical Informatics*, 10(2), 264–271. https://doi.org/10.1055/s-0039-1685433 **[Tier 3 — long-term pediatric portal use patterns including adolescent transition.]**
+> Steitz, B., Cronin, R.M., Davis, S.E., Yan, E., & Jackson, G.P. (2017). Long-term patterns of patient portal use for pediatric patients at an academic medical center. *Applied Clinical Informatics*, 8(3), 779–793. https://doi.org/10.4338/ACI-2017-01-RA-0005 (DOI verified 2026-10-06.) **[Tier 3 — long-term pediatric portal use patterns including adolescent transition.]**
 
 > Patel, V.N., Dhopeshwarkar, R.V., Edwards, A., Barrón, Y., Sparenborg, J., & Kaushal, R. (2012). Consumer support for health information exchange and personal health records: a regional health information organization survey. *Journal of Medical Systems*, 36(3), 1043–1052. https://doi.org/10.1007/s10916-010-9566-0 **[Tier 3 — consumer attitudes on health-information access controls.]**
 

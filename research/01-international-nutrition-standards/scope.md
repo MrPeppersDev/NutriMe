@@ -316,7 +316,7 @@ Documented in section B comparative table. Key materially divergent positions:
 - **Sodium CDRR 2,300 mg (NASEM 2019) vs 2,000 mg (WHO/most others):** NASEM rejected setting a hard UL because the chronic-disease evidence shows continuous risk reduction with no clear inflection — a different evidentiary stance, not a different value preference.
 - **Calcium RNI 700 mg (UK) vs 1,000 mg (NASEM/India):** UK SACN re-evaluated bone-fracture evidence and concluded higher intakes don't deliver proportional benefit; NASEM retained the higher value based on bone density as primary indicator.
 - **Total fat 30% (WHO) vs 40% (NNR):** WHO weight-gain prevention framing vs NNR Mediterranean/Nordic dietary-pattern modelling allowing higher MUFA/PUFA.
-- **Free sugars 5% (SACN, WHO conditional) vs 10% (NASEM, most others):** Same Cochrane/Te Morenga 2014 evidence base; different threshold for "strong" vs "conditional" recommendation.
+- **Free sugars 5% (SACN, WHO conditional) vs 10% (NASEM, most others):** Same Cochrane/Te Morenga 2013 evidence base; different threshold for "strong" vs "conditional" recommendation.
 - **Iron premenopausal women 10.5 mg (Japan) vs 21 mg (India vegetarian):** Bioavailability assumptions differ by population dietary pattern (heme/non-heme split).
 
 **Q3: Which bodies have the most current evidence reviews vs. decades-old assumptions?**
@@ -370,7 +370,7 @@ Documented in section B comparative table. Key materially divergent positions:
 
 > **EFSA** (2023). *Scientific opinion on the tolerable upper intake level for selenium*. EFSA Journal 21(1):7704. https://doi.org/10.2903/j.efsa.2023.7704. [Tier 1]
 
-> **EFSA** (2024). *Scientific opinion on the safe level of intake for iron*. EFSA Journal 22(6):8819. https://doi.org/10.2903/j.efsa.2024.8819. [Tier 1]
+> **EFSA** (2024). *Scientific opinion on the tolerable upper intake level for iron*. EFSA Journal 22(6):8819. https://doi.org/10.2903/j.efsa.2024.8819. [Tier 1]
 
 > **SACN** (1991). *Dietary Reference Values for Food Energy and Nutrients for the United Kingdom* (Report of the Panel on Dietary Reference Values of COMA). HMSO. [Tier 1]
 
@@ -406,7 +406,7 @@ Documented in section B comparative table. Key materially divergent positions:
 
 > **WHO** (2026, January 26). *Healthy diet* (fact sheet). https://www.who.int/news-room/fact-sheets/detail/healthy-diet. Accessed 2026-04-28. [Tier 1]
 
-> **WHO** (2018–2025). *REPLACE — eliminating industrially-produced trans-fatty acids* (initiative). https://www.who.int/initiatives/replace-trans-fat. [Tier 1]
+> **WHO** (2018–2025). *REPLACE — eliminating industrially-produced trans-fatty acids* (initiative). https://www.who.int/teams/nutrition-and-food-safety/replace-trans-fat. [Tier 1]
 
 > **FAO/WHO/UNU** (2004). *Human Energy Requirements*. FAO Food and Nutrition Technical Report Series No. 1. https://www.fao.org/3/y5686e/y5686e00.htm. [Tier 1]
 
@@ -414,7 +414,7 @@ Documented in section B comparative table. Key materially divergent positions:
 
 > **FAO/WHO/UNU** (2007). *Protein and Amino Acid Requirements in Human Nutrition*. WHO Technical Report Series 935. https://iris.who.int/handle/10665/43411. [Tier 1]
 
-> **FAO** (2010). *Fats and Fatty Acids in Human Nutrition: Report of an Expert Consultation*. FAO Food and Nutrition Paper 91. https://www.fao.org/3/i1953e/i1953e00.htm. [Tier 1]
+> **FAO** (2010). *Fats and Fatty Acids in Human Nutrition: Report of an Expert Consultation*. FAO Food and Nutrition Paper 91. https://www.fao.org/4/i1953e/i1953e00.pdf. [Tier 1]
 
 > **FAO** (2026). *Food-based dietary guidelines* (country repository). https://www.fao.org/nutrition/education/food-dietary-guidelines/home/en/. Accessed 2026-04-28. [Tier 1]
 
@@ -482,13 +482,13 @@ Documented in section B comparative table. Key materially divergent positions:
 
 > UNESCO (2010, expanded 2013). *Mediterranean Diet — Intangible Cultural Heritage*. https://ich.unesco.org/en/RL/mediterranean-diet-00884. [Tier 4 — cultural inscription, no health claim]
 
-> Willcox, B.J., Willcox, D.C., Suzuki, M. (2017). The Okinawa Centenarian Study: Investigating Healthy Aging among the World's Longest-Lived People. *Mechanisms of Ageing and Development*. https://doi.org/10.1016/j.mad.2016.05.004. [Tier 3 — cohort]
+> Willcox, B.J., Willcox, D.C., Suzuki, M. (2017). The Okinawa Centenarian Study: Investigating Healthy Aging among the World's Longest-Lived People. *Mechanisms of Ageing and Development*. [Tier 3 — cohort] **[verify — the cited DOI (10.1016/j.mad.2016.05.004) is an unrelated NOX2/doxorubicin paper, and no *Mech Ageing Dev* article has this title; it matches a Springer encyclopedia entry (Suzuki, Willcox & Willcox 2016, https://doi.org/10.1007/978-981-287-080-3_74-1). Candidates for the §265 diet claim: Willcox, Willcox, Todoriki & Suzuki 2009, *The Okinawan diet: health implications of a low-calorie, nutrient-dense, antioxidant-rich dietary pattern low in glycemic load*, J Am Coll Nutr 28(sup4), https://doi.org/10.1080/07315724.2009.10718117 (narrative review); or Willcox, Willcox & Suzuki 2017, *Mech Ageing Dev* 165:75–79, https://doi.org/10.1016/j.mad.2016.11.001 (descriptive cohort).]**
 
 ### Cross-body comparative and methodology references
 
 > Bauer, J., Biolo, G., Cederholm, T. et al. (2013). Evidence-based recommendations for optimal dietary protein intake in older people: a position paper from the PROT-AGE Study Group. *J Am Med Dir Assoc*, 14(8), 542–559. https://doi.org/10.1016/j.jamda.2013.05.021. [Tier 2]
 
-> Te Morenga, L., Mallard, S., Mann, J. (2014). Dietary sugars and body weight: systematic review and meta-analyses. *BMJ*, 346:e7492. https://doi.org/10.1136/bmj.e7492. [Tier 2]
+> Te Morenga, L., Mallard, S., Mann, J. (2013). Dietary sugars and body weight: systematic review and meta-analyses of randomised controlled trials and cohort studies. *BMJ*, 346:e7492. https://doi.org/10.1136/bmj.e7492. [Tier 2]
 
 > Phillips, S.M., Chevalier, S., Leidy, H.J. (2016). Protein "requirements" beyond the RDA. *Applied Physiology, Nutrition, and Metabolism*, 41(5), 565–572. https://doi.org/10.1139/apnm-2015-0550. [Tier 2/3]
 
