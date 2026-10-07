@@ -72,7 +72,7 @@ def plan_base_filters(
         items = list_items(app.substrate, app.tenant_id)
         filters = replace(
             filters,
-            on_hand=frozenset(item.name for item in items),
+            on_hand=frozenset(item.matching_name for item in items),
             out_of_staples=staples_out(app.substrate, app.tenant_id),
         )
         applied.append(f"{len(items)} inventory item(s)")
@@ -82,7 +82,10 @@ def plan_base_filters(
         )
         if expiring:
             filters = replace(
-                filters, expiring=frozenset(i.name.lower() for i in expiring)
+                filters,
+                expiring=frozenset(
+                    i.matching_name.lower() for i in expiring
+                ),
             )
             applied.append(f"{len(expiring)} expiring item(s) prioritized")
     # V1: cook history boosts candidate pools (loved up, disliked down).

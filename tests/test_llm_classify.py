@@ -205,3 +205,66 @@ class TestParse:
     def test_non_dict_entries_dropped(self) -> None:
         got = _parse('[{"name": "a"}, "junk", 3]')
         assert got == [{"name": "a"}]
+
+
+class TestGenericName:
+    def test_generic_proposed_and_kept(self) -> None:
+        # Comma-delimited like a real paste; the odd item routes to the
+        # model, which proposes the recipe-facing name.
+        items = preview("milk, chives with chive flowers")
+        client = FakeClient(_answer([
+            {"name": "chives with chive flowers", "location": "fridge",
+             "shelf_days": 7, "generic": "chives"},
+        ]))
+        got = refine(items, client)
+        chives = next(p for p in got if "chive" in p.name)
+        assert chives.match_name == "chives"
+        milk = next(p for p in got if p.name == "milk")
+        assert milk.match_name is None  # untargeted stays untouched
+
+    def test_generic_null_means_no_match_name(self) -> None:
+        items = preview("xylotholo root")
+        client = FakeClient(_answer([
+            {"name": "xylotholo root", "location": "pantry",
+             "shelf_days": None, "generic": None},
+        ]))
+        (got,) = refine(items, client)
+        assert got.match_name is None
+
+    def test_generic_same_as_name_dropped(self) -> None:
+        # Echoing the name back is noise, not a rename.
+        items = preview("opened salsa")
+        client = FakeClient(_answer([
+            {"name": "opened salsa", "location": "fridge",
+             "shelf_days": 10, "generic": "Opened Salsa"},
+        ]))
+        (got,) = refine(items, client)
+        assert got.match_name is None
+
+    def test_generic_garbage_rejected(self) -> None:
+        # Sentences, JSON noise, over-long strings: validation drops
+        # them; the answer's location/shelf still applies.
+        for garbage in (
+            "store this in the refrigerator please",
+            "a" * 60,
+            "{nested: 1}",
+            "",
+            42,
+        ):
+            items = preview("opened salsa")
+            client = FakeClient(_answer([
+                {"name": "opened salsa", "location": "fridge",
+                 "shelf_days": 10, "generic": garbage},
+            ]))
+            (got,) = refine(items, client)
+            assert got.match_name is None, garbage
+            assert got.location == "fridge"
+
+    def test_generic_case_folded(self) -> None:
+        items = preview("opened kewpie")
+        client = FakeClient(_answer([
+            {"name": "opened kewpie", "location": "fridge",
+             "shelf_days": 30, "generic": "Mayonnaise"},
+        ]))
+        (got,) = refine(items, client)
+        assert got.match_name == "mayonnaise"

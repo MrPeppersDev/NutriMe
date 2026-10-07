@@ -54,6 +54,16 @@ class InventoryItem:
     best_by_date: str | None = None
     notes: str | None = None
     id: int | None = None
+    # Generic recipe-facing name for matching ("chives with chive
+    # flowers" → "chives"). None = the display name already is generic.
+    # Proposed by the intake LLM tier, user-reviewed, then fixed —
+    # matching stays deterministic after intake.
+    match_name: str | None = None
+
+    @property
+    def matching_name(self) -> str:
+        """The name search/grocery matching should use."""
+        return self.match_name or self.name
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -100,9 +110,9 @@ def add_item(
         """
         INSERT INTO inventory_item (
             tenant_id, name, location, quantity, unit,
-            best_by_date, notes, added_at, updated_at
+            best_by_date, notes, match_name, added_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             tenant_id,
@@ -112,6 +122,7 @@ def add_item(
             item.unit,
             item.best_by_date,
             item.notes,
+            item.match_name,
             now,
             now,
         ),
@@ -127,7 +138,8 @@ def list_items(
     location: str | None = None,
 ) -> list[InventoryItem]:
     query = (
-        "SELECT id, name, location, quantity, unit, best_by_date, notes"
+        "SELECT id, name, location, quantity, unit, best_by_date, notes,"
+        " match_name"
         " FROM inventory_item WHERE tenant_id = ?"
     )
     params: tuple = (tenant_id,)
@@ -145,6 +157,7 @@ def list_items(
             unit=row[4],
             best_by_date=row[5],
             notes=row[6],
+            match_name=row[7],
         )
         for row in rows
     ]

@@ -194,6 +194,10 @@ class ProposedItem:
     perishable: bool = False       # ask the freshness question
     shelf_days: int | None = None  # default horizon if they don't answer
     recognized: bool = True        # False → lexicon miss, defaults applied
+    # Generic recipe-facing name when the display name wouldn't match
+    # recipes on its own ("chives with chive flowers" → "chives").
+    # Proposed by the LLM tier, shown at review, stored on commit.
+    match_name: str | None = None
 
 
 def _normalize_words(name: str) -> list[str]:

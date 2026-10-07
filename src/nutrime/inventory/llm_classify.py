@@ -62,12 +62,25 @@ _SYSTEM = (
     " if the base food is shelf-stable; cured, canned-unopened, dried, UHT,"
     " and frozen items keep far longer than their fresh forms. Assume items"
     " are in the state the name describes, otherwise as typically purchased."
+    " Also give the item's plain generic food name — the word a recipe's"
+    " ingredient list would use (\"chives with chive flowers\" -> \"chives\","
+    " \"EVOO\" -> \"olive oil\", \"grandma's strawberry jam\" -> \"strawberry"
+    " jam\") — or null when the given name already is the generic name."
+    " Never generalize to a broader food: a substitution that changes the"
+    " dish is wrong (\"seedy bread\" -> null, NOT \"bread\")."
     " Reply with JSON only: a list of objects"
     ' {"name": "<name copied exactly>", "location":'
     ' "fridge"|"pantry"|"freezer"|"countertop", "shelf_days": <int days it'
-    " keeps, or null if it keeps a year or more>}."
+    ' keeps, or null if it keeps a year or more>, "generic": <plain food'
+    " name, or null>}."
     " No prose, no markdown fences."
 )
+
+# A proposed generic name is advisory UI-reviewed data, but still gets
+# hard validation: a short food-name shape (≤4 words, ≤40 chars, letters
+# only), no sentences, no JSON noise. Reject → None (the display name
+# matches on its own or not; never worse than before the tier ran).
+_GENERIC_OK = re.compile(r"^[a-z][a-z'-]*( [a-z'-]+){0,3}$")
 
 _JSON_ARRAY = re.compile(r"\[.*\]", re.DOTALL)
 
@@ -94,7 +107,7 @@ def refine(items: list[ProposedItem], client) -> list[ProposedItem]:
         query_type=FOOD_CLASSIFICATION,
         system=_SYSTEM,
         messages=(ChatMessage(role="user", content=listing),),
-        max_tokens=120 + 60 * len(targets),
+        max_tokens=120 + 80 * len(targets),  # +generic field per item
         caller_context="inventory/bulk_classify",
     )
     try:
@@ -136,12 +149,23 @@ def refine(items: list[ProposedItem], client) -> list[ProposedItem]:
                 )
             shelf = min(shelf, _RAW_PROTEIN_MAX_DAYS)
             location = "fridge"
+        generic = answer.get("generic")
+        match_name: str | None = None
+        if isinstance(generic, str):
+            cleaned = generic.strip().lower()
+            if (
+                len(cleaned) <= 40
+                and _GENERIC_OK.match(cleaned)
+                and cleaned != item_name.strip().lower()
+            ):
+                match_name = cleaned
         out[idx] = replace(
             out[idx],
             location=location,
             shelf_days=shelf,
             perishable=(shelf is not None and shelf <= _PERISHABLE_ASK_DAYS),
             recognized=True,
+            match_name=match_name,
         )
     return out
 

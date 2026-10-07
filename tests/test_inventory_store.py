@@ -220,3 +220,33 @@ class TestPersistence:
                 " (tenant_id, name, location, added_at, updated_at)"
                 " VALUES ('not-a-tenant', 'rice', 'pantry', '', '')"
             )
+
+
+class TestMatchName:
+    def test_round_trip(self, initialized_app) -> None:
+        add_item(
+            initialized_app.substrate,
+            initialized_app.tenant_id,
+            InventoryItem(
+                name="chives with chive flowers",
+                location="fridge",
+                match_name="chives",
+            ),
+        )
+        (item,) = list_items(
+            initialized_app.substrate, initialized_app.tenant_id
+        )
+        assert item.match_name == "chives"
+        assert item.matching_name == "chives"
+
+    def test_matching_name_defaults_to_name(self, initialized_app) -> None:
+        add_item(
+            initialized_app.substrate,
+            initialized_app.tenant_id,
+            InventoryItem(name="milk", location="fridge"),
+        )
+        (item,) = list_items(
+            initialized_app.substrate, initialized_app.tenant_id
+        )
+        assert item.match_name is None
+        assert item.matching_name == "milk"

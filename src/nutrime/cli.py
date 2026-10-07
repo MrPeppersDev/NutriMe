@@ -503,7 +503,7 @@ def _cmd_recipes_search(args: argparse.Namespace) -> int:
 
         filters = _replace(
             filters,
-            on_hand=frozenset(item.name for item in items),
+            on_hand=frozenset(item.matching_name for item in items),
         )
         applied.append(f"{len(items)} inventory item(s)")
     if applied:
@@ -1149,7 +1149,8 @@ def _cmd_grocery_build(args: argparse.Namespace) -> int:
         return 1
 
     inventory = [
-        item.name for item in list_items(app.substrate, app.tenant_id)
+        item.matching_name
+        for item in list_items(app.substrate, app.tenant_id)
     ]
     groceries = build_grocery_list(
         plan_vault.read(plan_id),
