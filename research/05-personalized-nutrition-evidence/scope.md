@@ -307,7 +307,7 @@ Trajectory: EU work emphasizes (a) multi-modal personalization (not just one omi
 #### I.4 United States — NIH "Nutrition for Precision Health" (2022–2030)
 
 - The NIH **Nutrition for Precision Health (NPH)** program, funded under the *All of Us* Research Program, is a ~$170M, 10,000-participant initiative (announced 2022, recruitment ongoing through the late 2020s) to study individual responses to dietary intervention combining multi-omic, microbiome, CGM, wearable, and dietary-pattern data. Results will materialize across the late 2020s and into the 2030s.
-- USDA's **2020–2025 Dietary Guidelines** and forthcoming **2025–2030 update** continue to take the population-level view; precision nutrition is acknowledged as research-stage, not policy-stage.
+- USDA's **2020–2025 Dietary Guidelines** took the population-level view; precision nutrition acknowledged as research-stage, not policy-stage. The **2025–2030 edition was released 2026-01-07** (realfood.gov) — it keeps the population-level posture (no precision-nutrition shift) but departs substantially from the 2020–2025 patterns elsewhere (protein emphasis 1.2–1.6 g/kg/d, full-fat dairy, new pyramid graphic); its advisory-committee report was partly set aside in the final document, so pattern-level claims sourced to "the current DGA" need rechecking against the 2025–2030 text.
 
 #### I.5 China — Chinese Nutrition Society precision-nutrition initiatives
 
@@ -409,7 +409,7 @@ Converging on the methodological frame (multi-modal personalization, phenotype-a
 - **European Commission** (rolling). *Cordis — Food4Me project (FP7, grant 265494)*. European Commission Community Research and Development Information Service. https://cordis.europa.eu/project/id/265494. Accessed 2026-04-29.
 - **European Commission** (rolling). *Cordis — Stance4Health project (Horizon 2020, grant 816303)*. https://cordis.europa.eu/project/id/816303. Accessed 2026-04-29.
 - **NHS / Public Health England** (2016, periodically updated). *The Eatwell Guide*. https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/the-eatwell-guide/. Accessed 2026-04-29.
-- **USDA & HHS** (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). U.S. Department of Agriculture and U.S. Department of Health and Human Services. https://www.dietaryguidelines.gov. Accessed 2026-04-29.
+- **USDA & HHS** (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). U.S. Department of Agriculture and U.S. Department of Health and Human Services. https://www.dietaryguidelines.gov. Accessed 2026-04-29. **[Superseded by the 2025–2030 edition, released 2026-01-07 (realfood.gov); #59 audit note 2026-10-08.]**
 - **NHMRC** (2013, under update). *Australian Dietary Guidelines*. National Health and Medical Research Council. https://www.eatforhealth.gov.au. Accessed 2026-04-29.
 - **Health Canada** (2019). *Canada's Food Guide*. https://food-guide.canada.ca. Accessed 2026-04-29.
 - **WHO** (2020). *Healthy diet fact sheet*. World Health Organization. https://www.who.int/news-room/fact-sheets/detail/healthy-diet. Accessed 2026-04-29.

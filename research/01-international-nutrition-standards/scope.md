@@ -248,7 +248,7 @@ Material divergences worth surfacing in the product (per Constitutional Rule 9 a
 
 Patterns published as authoritative (Tier 1) named patterns:
 
-- **US — DGA 2020–2025:** Three named patterns: (i) Healthy U.S.-Style; (ii) Healthy Mediterranean-Style; (iii) Healthy Vegetarian. Each modelled at multiple energy levels with food-group serving recommendations. Companion: **MyPlate** (USDA, 2011 and ongoing) graphical tool [Tier 1: USDA-HHS 2020].
+- **US — DGA 2020–2025:** Three named patterns: (i) Healthy U.S.-Style; (ii) Healthy Mediterranean-Style; (iii) Healthy Vegetarian. Each modelled at multiple energy levels with food-group serving recommendations. Companion: **MyPlate** (USDA, 2011 and ongoing) graphical tool [Tier 1: USDA-HHS 2020]. **Superseded 2026-01-07 by DGA 2025–2030** (realfood.gov): the three named patterns do not carry over as-is — the new edition reorganizes around protein emphasis (1.2–1.6 g/kg/d), full-fat dairy, whole-grain/refined-carb reduction and a new pyramid graphic. US-pattern claims in this sweep describe the 2020–2025 edition and need re-grounding before user-facing surfacing [#59 audit note 2026-10-08].
 - **US (academic + clinical) — DASH:** *Dietary Approaches to Stop Hypertension* — NHLBI clinical eating plan, last updated to current site Feb 2026. 2,000 kcal modelled day with sodium 2,300 mg (lower target 1,500 mg). Underlying RCTs published 1997–2001; supported as Tier 1 by AHA, ACC, JNC blood pressure guidelines [Tier 1: NHLBI 2026; underlying Tier 2: Appel et al. NEJM 1997, Sacks et al. NEJM 2001].
 - **US (academic) — MIND diet:** Mediterranean-DASH Intervention for Neurodegenerative Delay. Originated with Morris et al. 2015 Rush University. Not endorsed by USDA but cited in DGA-2020 dietary-pattern review and AHA materials. 15 dietary components scored; intervention RCT (MIND-NIH) results published 2023. [Tier 2/3: Morris et al. Alzheimers Dement 2015; Barnes et al. NEJM 2023].
 - **Mediterranean diet — multiple national pyramids:** Greek (Ministry of Health 2014), Italian (CREA + Mediterranean Diet Foundation 2009 / 2014), Spanish (SENC 2022), Portuguese (Mediterranean Wheel 2016). UNESCO Intangible Cultural Heritage 2010 (Cyprus, Croatia, Greece, Italy, Morocco, Portugal, Spain). Underlying clinical trial: PREDIMED (Estruch et al. NEJM 2013, retracted/republished 2018).
@@ -454,7 +454,7 @@ Documented in section B comparative table. Key materially divergent positions:
 
 ### Dietary patterns
 
-> **USDA & HHS** (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). https://www.dietaryguidelines.gov/. [Tier 1]
+> **USDA & HHS** (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). https://www.dietaryguidelines.gov/. [Tier 1] **[Superseded by DGA 2025–2030, released 2026-01-07, realfood.gov; #59 audit note 2026-10-08.]**
 
 > **USDA** (2011, ongoing). *MyPlate*. https://www.myplate.gov/. [Tier 1]
 

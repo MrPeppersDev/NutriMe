@@ -52,7 +52,7 @@ Sweep References live in:
 **Cross-cutting sources:**
 
 - *WHO healthy-diet guidance + sugars/sodium/fats guidelines* — sweeps #1, #5, #8, #10. Population-level nutrient targets feed both education content and clinical-condition gating.
-- *USDA/HHS Dietary Guidelines for Americans 2020–2025* — sweeps #1, #5, #8, #9 (B-24 chapter). Anchors US-context defaults across multiple domains.
+- *USDA/HHS Dietary Guidelines for Americans 2020–2025* — sweeps #1, #5, #8, #9 (B-24 chapter). Anchors US-context defaults across multiple domains. **Superseded by DGA 2025–2030 (released 2026-01-07, realfood.gov) — US-pattern claims citing "the current DGA" need re-grounding; supersession notes placed at each cite (#59, 2026-10-08).**
 - *PREDIMED (Estruch et al. 2013/2018)* — sweeps #1, #3 (MEDAS administered cohort), #5, #9. The dominant Mediterranean RCT.
 - *DASH (Appel 1997 + Sacks 2001)* — sweeps #1, #5. Foundational pattern trials.
 - *MIND diet (Morris 2015 + Barnes 2023)* — sweeps #1, #3 (pattern-screener context). Cohort + RCT evidence for cognition.

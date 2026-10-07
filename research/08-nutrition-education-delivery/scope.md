@@ -579,7 +579,7 @@ NICE produces a parallel patient-information stream alongside every clinical gui
 - Spiegelhalter, D. (2017). Risk and uncertainty communication. *Annual Review of Statistics and Its Application*, 4, 31–60. https://doi.org/10.1146/annurev-statistics-010814-020148
 - Spiegelhalter, D., Pearson, M., & Short, I. (2011). Visualizing uncertainty about the future. *Science*, 333(6048), 1393–1400. https://doi.org/10.1126/science.1191181
 - Taillie, L.S., Reyes, M., Colchero, M.A., Popkin, B., & Corvalán, C. (2020). An evaluation of Chile's Law of Food Labeling and Advertising on sugar-sweetened beverage purchases from 2015 to 2017: A before-and-after study. *PLOS Medicine*, 17(2), e1003015. https://doi.org/10.1371/journal.pmed.1003015
-- USDA / HHS (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). https://www.dietaryguidelines.gov/. Accessed 2026-04-28.
+- USDA / HHS (2020). *Dietary Guidelines for Americans, 2020–2025* (9th ed.). https://www.dietaryguidelines.gov/. Accessed 2026-04-28. **[Superseded by DGA 2025–2030, released 2026-01-07, realfood.gov; #59 audit note 2026-10-08.]**
 - Willett, W.C., & Stampfer, M.J. (2013). Current evidence on healthy eating. *Annual Review of Public Health*, 34, 77–95. https://doi.org/10.1146/annurev-publhealth-031811-124646
 
 ### Uncertainty and confidence visualization
