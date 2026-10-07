@@ -129,6 +129,103 @@ class TestClassify:
         assert classify("TYPE 2 DIABETES").behavior == DISCLAIMER
         assert classify("Celiac").behavior == GATE
 
+    # -- pediatric enumeration (#46 / sweep #10 §2) -------------------------
+
+    def test_pediatric_refuse_tier_table(self) -> None:
+        for text in (
+            "my son has leukemia",
+            "childhood cancer, in treatment",
+            "biliary atresia",
+            "Alagille syndrome",
+            "pediatric liver disease",
+            "my daughter's Crohn's disease",
+            "pediatric IBD",
+            "nephrotic syndrome",
+            "my child has kidney disease",
+            "EoE",
+            "eosinophilic esophagitis",
+            # already-covered pediatric rows keep refusing via the
+            # adult patterns:
+            "my child has type 1 diabetes",
+            "ARFID",
+            "pediatric anorexia",
+            "PKU",
+            "MSUD",
+            "pediatric cystic fibrosis",
+            "short bowel syndrome",
+            "ketogenic diet for my son's epilepsy",
+        ):
+            assert classify(text).behavior == REFUSE, text
+
+    def test_pediatric_coordination_gates(self) -> None:
+        # Refuse-without / gate-with rows flip on coordination wording,
+        # same pattern as adult T1D.
+        for text in (
+            "my daughter's Crohn's, coordinated with her GI team",
+            "pediatric IBD, managed with pediatric gastro",
+            "my child's kidney disease, nephrologist coordinating",
+            "eosinophilic esophagitis, on elimination diet with GI team",
+            "failure to thrive, pediatric RDN coordinating",
+            "pediatric T1D coordinated with endocrinologist",
+        ):
+            assert classify(text).behavior == GATE, text
+
+    def test_pediatric_gate_tier_table(self) -> None:
+        for text in (
+            "my kid has type 2 diabetes",
+            "cow's milk protein allergy",
+            "CMPA",
+            "FPIES",
+            "FPIAP",
+            "RED-S",
+            "female athlete triad",
+            "cleft palate feeding",
+            "dysphagia, IDDSI level 5",
+        ):
+            assert classify(text).behavior == GATE, text
+
+    def test_pediatric_t2d_gates_while_adult_disclaims(self) -> None:
+        # The pediatric row must win over the general t2d pattern.
+        assert classify("my kid has type 2 diabetes").behavior == GATE
+        assert classify("type 2 diabetes").behavior == DISCLAIMER
+
+    def test_pediatric_disclaimer_tier_table(self) -> None:
+        # Resolved to disclaimer by synthesis.md Tension #9
+        # (bounded-role principle).
+        for text in (
+            "childhood obesity",
+            "my son is overweight",
+            "autism food selectivity",
+            "autistic, sensory issues with food",
+            "picky eater",
+            "lactose intolerance",
+            "fructose malabsorption",
+        ):
+            assert classify(text).behavior == DISCLAIMER, text
+
+    def test_pediatric_obesity_no_weight_framing(self) -> None:
+        # AAP 2023 / Rule 3: family meals, never weight language
+        # directed at the child.
+        info = classify("childhood obesity")
+        assert "NOT" in info.plan_note
+        assert "weight" in info.plan_note
+
+    def test_picky_eating_satter_framing(self) -> None:
+        info = classify("picky eater")
+        assert "family-style" in info.plan_note
+
+    def test_fpies_enforces_trigger_exclusion(self) -> None:
+        info = classify("FPIES")
+        assert "exclude" in info.plan_note.lower()
+
+    def test_adult_rows_unchanged_by_pediatric_entries(self) -> None:
+        # Adult defaults must not be shadowed by the new rows.
+        assert classify("Crohn's disease").behavior == DISCLAIMER
+        assert classify("IBS").behavior == DISCLAIMER
+        assert classify("early kidney disease").behavior == GATE
+        assert classify("stage 4 CKD").behavior == REFUSE
+        assert classify("kidney transplant").behavior == GATE
+
     def test_specialties_mapped_per_scope_doc(self) -> None:
         assert any("endocrinolog" in s for s in classify("type 2 diabetes").specialties)
         assert any("nephrolog" in s for s in classify("dialysis").specialties)

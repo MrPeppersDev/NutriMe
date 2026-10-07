@@ -48,6 +48,16 @@ def _c(canonical, behavior, specialties, plan_note="", note=""):
     return ConditionInfo(canonical, behavior, tuple(specialties), plan_note, note)
 
 
+# "This is about a child" marker for the pediatric rows — the
+# disclosure usually says so ("my son's...", "pediatric...", "child
+# with..."). Rows that are pediatric-only by nature (FPIES, EoE,
+# biliary atresia…) match without it.
+_PED = (
+    r"\b(pediatric|paediatric|child(?:hood)?(?:.?s)?|kid(?:.?s)?|"
+    r"son(?:.?s)?|daughter(?:.?s)?|toddler(?:.?s)?|infant|baby|"
+    r"adolescent|teen(?:ager)?(?:.?s)?)\b"
+)
+
 # Registry per scope.md "Conditions in scope (initial)". Patterns are
 # matched case-insensitively against the member's free-text disclosure.
 # Order matters: the first match wins, so the more specific pattern
@@ -158,11 +168,101 @@ _REGISTRY: tuple[tuple[re.Pattern[str], ConditionInfo], ...] = tuple(
          _c("brittle / DKA-prone diabetes", REFUSE,
             ("an endocrinologist", "a CDCES"),
             note="DKA-prone diabetes needs specialist-team management.")),
+        # FTT with active coordination gates per the §2 table ("Gate —
+        # pediatric RDN coordination"); a bare disclosure still refuses
+        # below, since the dangerous case is unassessed faltering.
+        (r"\b(failure\s+to\s+thrive|faltering\s+growth).{0,50}\b(pediatric|"
+         r"paediatric)?\s*(rdn|dietitian|pediatrician|coordinat)|"
+         r"\b(rdn|dietitian|pediatrician).{0,40}(failure\s+to\s+thrive|"
+         r"faltering\s+growth)",
+         _c("failure to thrive (team-coordinated)", GATE,
+            ("a pediatrician", "a pediatric RDN"),
+            plan_note="a child eater is on a supervised catch-up-growth "
+                      "plan — favor energy-dense, protein-forward meals "
+                      "the family shares",
+            note="Proceeding alongside the pediatric team's "
+                 "catch-up-growth framework.")),
         (r"\b(failure\s+to\s+thrive|faltering\s+growth)",
          _c("failure to thrive", REFUSE,
             ("a pediatrician", "a pediatric RDN"),
             note="Growth faltering needs pediatric assessment before an "
-                 "app plans meals.")),
+                 "app plans meals. If a pediatric RDN is already "
+                 "coordinating, say so in the disclosure and NutriMe "
+                 "proceeds with energy-dense family-meal rails.")),
+        # -- pediatric enumeration (#46 / sweep #10 §2; kids as eaters) ----
+        # Pediatric ARFID/EDs, T1D, celiac, CF, inborn errors, short
+        # bowel, medical keto and oncology-in-treatment already match
+        # the patterns above; these entries cover the pediatric rows
+        # whose behavior DIFFERS from the adult default or that no
+        # adult pattern matches at all. assume-add posture per scope.md.
+        (_PED + r".{0,40}\b(cancer|leukemi|lymphoma|oncolog|tumou?r|"
+         r"neuroblastoma|wilms)|"
+         r"\b(cancer|leukemi|lymphoma|oncolog)\w*.{0,30}" + _PED,
+         _c("pediatric oncology", REFUSE,
+            ("the pediatric oncology team", "a pediatric oncology RDN"),
+            note="Nutrition during childhood cancer care is managed by "
+                 "the pediatric oncology team.")),
+        (_PED + r".{0,40}\b(liver\s+disease|cirrhosis|hepatic)|"
+         r"\b(biliary\s+atresia|alagille|kasai)",
+         _c("pediatric chronic liver disease", REFUSE,
+            ("a pediatric hepatologist",),
+            note="Pediatric liver disease needs hepatology-set nutrition "
+                 "targets; NutriMe must not guess.")),
+        (_PED + r".{0,40}\b(crohn|colitis|ibd|inflammatory\s+bowel)"
+         r".{0,50}\b(gi\b|gastro|coordinat|care\s+team)|"
+         r"\b(crohn|colitis|ibd).{0,30}" + _PED +
+         r".{0,50}\b(gi\b|gastro|coordinat|care\s+team)",
+         _c("pediatric IBD (GI-coordinated)", GATE,
+            ("a pediatric gastroenterologist", "a pediatric IBD RDN"),
+            plan_note="a child eater manages inflammatory bowel disease "
+                      "with their GI team — keep meals gentle and "
+                      "consistent with the team's current phase guidance",
+            note="Proceeding alongside the pediatric GI team.")),
+        (_PED + r".{0,40}\b(crohn|colitis|\bibd\b|inflammatory\s+bowel)|"
+         r"\b(crohn|colitis|\bibd\b|inflammatory\s+bowel).{0,30}" + _PED,
+         _c("pediatric IBD", REFUSE,
+            ("a pediatric gastroenterologist", "a pediatric IBD RDN"),
+            note="Pediatric IBD nutrition (including exclusive enteral "
+                 "nutrition for Crohn's) is GI-team territory. If a "
+                 "pediatric GI team is coordinating, say so in the "
+                 "disclosure and NutriMe proceeds with gentle rails.")),
+        (_PED + r".{0,40}\b(kidney|renal|nephrotic|nephropathy)"
+         r".{0,50}\b(nephrolog|coordinat|care\s+team)|"
+         r"\b(nephrotic|kidney).{0,30}" + _PED +
+         r".{0,50}\b(nephrolog|coordinat|care\s+team)",
+         _c("pediatric kidney condition (nephrology-coordinated)", GATE,
+            ("a pediatric nephrologist", "a pediatric renal RDN"),
+            plan_note="a child eater has a kidney condition managed with "
+                      "their nephrology team — go easy on potassium- and "
+                      "phosphorus-heavy meals and keep sodium modest",
+            note="Proceeding alongside the pediatric nephrology team's "
+                 "targets.")),
+        (_PED + r".{0,40}\b(kidney|renal|nephrotic|nephropathy)|"
+         r"\bnephrotic\s+syndrome",
+         _c("pediatric kidney condition", REFUSE,
+            ("a pediatric nephrologist", "a pediatric renal RDN"),
+            note="Potassium, phosphorus, protein and growth targets in "
+                 "pediatric kidney disease are individually prescribed. "
+                 "If pediatric nephrology is coordinating, say so in "
+                 "the disclosure and NutriMe proceeds with gentle "
+                 "rails.")),
+        (r"\b(eosinophilic\s+esophagitis|\beoe\b).{0,50}\b(gi\b|gastro|"
+         r"allerg|coordinat|care\s+team|elimination)",
+         _c("eosinophilic esophagitis (team-coordinated)", GATE,
+            ("a gastroenterologist", "an allergist", _RDN),
+            plan_note="an eater follows a supervised elimination diet "
+                      "for eosinophilic esophagitis — strictly exclude "
+                      "the foods their team has eliminated (declared in "
+                      "the avoid list)",
+            note="Proceeding alongside the GI/allergy team's elimination "
+                 "protocol — keep the avoid-foods list current with it.")),
+        (r"\b(eosinophilic\s+esophagitis|\beoe\b)",
+         _c("eosinophilic esophagitis", REFUSE,
+            ("a gastroenterologist", "an allergist", _RDN),
+            note="EoE elimination diets are staged and biopsy-guided — "
+                 "GI/allergy-team territory. If the team is "
+                 "coordinating, say so in the disclosure and keep the "
+                 "avoid-foods list current with the protocol.")),
         # Negated coordination refuses (#58): "type 1 diabetes, no
         # endocrinologist" must not match the with-coordination gate
         # below just because the word "endocrinologist" appears.
@@ -225,7 +325,103 @@ _REGISTRY: tuple[tuple[re.Pattern[str], ConditionInfo], ...] = tuple(
             plan_note="an eater has celiac disease — gluten must be strictly "
                       "avoided, including hidden sources",
             note="Strict gluten avoidance is enforced like an allergy.")),
+        # -- pediatric gate tier (#46 / sweep #10 §2) -------------------------
+        # Pediatric T2D gates where the adult default is disclaimer —
+        # must sit above the general t2d pattern.
+        (_PED + r".{0,40}\b(t2d|type\s*2\s*diabet)|"
+         r"\b(t2d|type\s*2\s*diabet)\w*.{0,30}" + _PED,
+         _c("pediatric type 2 diabetes", GATE,
+            ("a pediatric endocrinologist", "a CDCES"),
+            plan_note="a child eater manages type 2 diabetes — favor "
+                      "lower-added-sugar, carbohydrate-conscious family "
+                      "meals",
+            note="Pediatric type 2 diabetes: plans gate on carb-conscious "
+                 "meals alongside the pediatric endocrinology team.")),
+        (r"\b(cow.?s?\s+milk\s+protein\s+allerg|\bcmpa\b|\bfpies\b|"
+         r"food\s+protein.?induced\s+enterocolitis)",
+         _c("cow's milk protein allergy / FPIES", GATE,
+            ("a pediatric allergist", "a pediatric gastroenterologist"),
+            plan_note="a child eater has a food-protein allergy managed "
+                      "with their allergy team — strictly exclude the "
+                      "trigger foods (declared in the allergen/avoid "
+                      "lists) including hidden and cross-contact sources",
+            note="Trigger foods are enforced like allergens; formula "
+                 "choice and reintroduction timing stay with the "
+                 "allergy team.")),
+        (r"\b(fpiap|allergic\s+proctocolitis)",
+         _c("food protein-induced allergic proctocolitis", GATE,
+            ("a pediatric allergist", "a pediatric gastroenterologist"),
+            plan_note="an eater follows a supervised elimination for an "
+                      "infant's allergic proctocolitis — strictly exclude "
+                      "the eliminated foods (declared in the avoid list)",
+            note="Maternal-elimination and formula decisions stay with "
+                 "the allergy/GI team; the avoid list enforces them.")),
+        (r"\b(red.?s\b|relative\s+energy\s+deficiency|athletic\s+triad|"
+         r"female\s+athlete\s+triad)",
+         _c("RED-S / relative energy deficiency", GATE,
+            ("a sports-medicine clinician", "an adolescent-medicine "
+             "clinician", _RDN),
+            plan_note="an eater is restoring energy availability under "
+                      "clinical guidance — favor energy-dense, "
+                      "calcium- and iron-rich meals; never restrict",
+            note="Energy-availability targets come from the sports-"
+                 "medicine team; plans tilt energy-dense and never "
+                 "restrict.")),
+        (r"\b(dysphagia|cleft\s+palate|iddsi|texture.?modified)",
+         _c("feeding / swallowing condition", GATE,
+            ("the feeding team (SLP/OT)", "a pediatric RDN"),
+            plan_note="an eater needs texture-aware meals per their "
+                      "feeding team's current IDDSI level — favor "
+                      "recipes that adapt to soft or pureed textures",
+            note="Texture levels (IDDSI) come from the SLP assessment; "
+                 "plans favor texture-adaptable meals.")),
         # -- proceed with disclaimer -------------------------------------------
+        # Pediatric rows resolved to disclaimer by synthesis.md Tension
+        # #9 (bounded-role): obesity (AAP 2023 controversy — family
+        # meals, NO weight framing), autism food selectivity without
+        # ARFID, typical picky eating, pediatric intolerances.
+        (_PED + r".{0,40}\b(obesit|overweight|bmi)|"
+         r"\b(obesit|overweight)\w*.{0,30}" + _PED,
+         _c("pediatric weight management", DISCLAIMER,
+            ("a pediatrician", "a pediatric RDN"),
+            plan_note="a child eater's family wants supportive routines — "
+                      "plan balanced family meals everyone shares; do NOT "
+                      "frame anything around weight, calories, or "
+                      "portions for the child",
+            note="Per AAP 2023 and NutriMe's bounded role: plans are "
+                 "family-appropriate balanced meals with no weight "
+                 "framing — treatment decisions belong to the "
+                 "pediatrician.")),
+        (r"\b(autism|\basd\b|autistic).{0,50}\b(food|eat|selectiv|sensory|"
+         r"picky|feeding)|"
+         r"\b(food\s+selectivity|sensory\s+feeding)",
+         _c("autism-related food selectivity", DISCLAIMER,
+            ("a pediatrician", "a feeding team (OT/SLP)", _RDN),
+            plan_note="an eater has sensory-driven food preferences — "
+                      "favor familiar, predictable preparations and "
+                      "introduce variety gently alongside accepted foods",
+            note="Selectivity-aware framing: gentle variety, no pressure. "
+                 "If ARFID is in the picture, that needs the feeding "
+                 "team (and NutriMe steps back).")),
+        (r"\b(picky\s+eat|selective\s+eat|food\s+neophobia)",
+         _c("picky eating (typical)", DISCLAIMER,
+            ("a pediatrician",),
+            plan_note="a child eater is a picky eater — favor familiar "
+                      "components served family-style so they can choose, "
+                      "with new foods appearing low-pressure alongside",
+            note="Satter division of responsibility: parents decide "
+                 "what/when/where, the child decides whether/how much. "
+                 "Plans favor family-style meals with safe familiar "
+                 "components.")),
+        (r"\b(lactose\s+intoleran|fructose\s+intoleran|fructose\s+"
+         r"malabsorption|sucrase.?isomaltase|\bcsid\b)",
+         _c("food intolerance", DISCLAIMER,
+            ("a gastroenterologist", _RDN),
+            plan_note="an eater has a carbohydrate intolerance — go easy "
+                      "on the trigger (lactose or fructose loads) and "
+                      "favor naturally low-trigger alternatives",
+            note="Tolerance thresholds are individual — the avoid list "
+                 "can hard-exclude specific foods if needed.")),
         (r"\b(t2d|type\s*2\s*diabet)",
          _c("type 2 diabetes", DISCLAIMER,
             ("an endocrinologist or primary-care clinician", "a CDCES", _RDN),
