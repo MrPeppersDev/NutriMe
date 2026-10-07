@@ -41,12 +41,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
-from nutrime.cycles import (
-    PHASES,
-    PHASES_BY_KEY,
-    STUB_DISCLOSURE,
-    phase_prefer_terms,
-)
+from nutrime.cycles import PHASES, STUB_DISCLOSURE
 from nutrime.inventory.store import InventoryItem, add_item, list_items, remove_item
 from nutrime.recipes.jsonld import seed_recipes as jsonld_seed_recipes
 from nutrime.recipes.search import (
@@ -246,8 +241,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_search(query)
             elif route == "/api/inventory":
                 self._api_inventory_list()
-            elif route == "/api/phases":
-                self._api_phases()
+            elif route == "/api/cycle":
+                self._api_cycle()
             elif route == "/api/pinterest/status":
                 self._api_pinterest_status()
             elif route == "/api/sources":
@@ -304,6 +299,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._api_inventory_bulk_preview()
             elif parsed.path == "/api/staples/toggle":
                 self._api_staples_toggle()
+            elif parsed.path == "/api/cycle":
+                self._api_cycle_set()
             elif parsed.path == "/api/inventory/bulk":
                 self._api_inventory_bulk_commit()
             elif parsed.path == "/api/import":
@@ -533,6 +530,25 @@ class _Handler(BaseHTTPRequestHandler):
         filters, applied = plan_base_filters(
             app, max_time=int(max_time) if max_time else None
         )
+        # The generating member's tracked cycle phase boosts candidate
+        # pools (boosts only, never filters — same rule as search).
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        from dataclasses import replace as _dc_replace
+
+        from nutrime.cycles import member_phase_terms
+
+        phase_terms, phase_profile = member_phase_terms(
+            app.substrate, app.tenant_id, member_id
+        )
+        if phase_profile is not None:
+            filters = _dc_replace(
+                filters, prefer_terms=filters.prefer_terms | phase_terms
+            )
+            applied = applied + [
+                f"cycle-phase boosts ({phase_profile.label.lower()})"
+            ]
         try:
             plan_id, _, plan = generate_and_store(
                 app, client, spec, filters, applied, actor="webui"
@@ -938,18 +954,25 @@ class _Handler(BaseHTTPRequestHandler):
                 for item in list_items(app.substrate, app.tenant_id)
             }
 
+        # Cycle boosts come from the ACTIVE MEMBER's profile (opt-in,
+        # Profile → cycle tracking) — the Recipes page no longer asks.
         prefer: set[str] = set()
-        phase_key = first("phase")
         phase_note = None
-        if phase_key:
-            prefer |= set(phase_prefer_terms(phase_key))
-            profile = PHASES_BY_KEY.get(phase_key)
-            if profile is not None:
-                phase_note = {
-                    "label": profile.label,
-                    "emphasis": profile.emphasis,
-                    "evidence_note": profile.evidence_note,
-                }
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        from nutrime.cycles import member_phase_terms
+
+        terms, profile = member_phase_terms(
+            app.substrate, app.tenant_id, member_id
+        )
+        if profile is not None:
+            prefer |= set(terms)
+            phase_note = {
+                "label": profile.label,
+                "emphasis": profile.emphasis,
+                "evidence_note": profile.evidence_note,
+            }
 
         max_time = None
         if first("max_time"):
@@ -1063,11 +1086,22 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._json(recipe_detail(vault.read(recipe_id)))
 
-    # -- API: phases ---------------------------------------------------------------
+    # -- API: cycle tracking (per-member, opt-in) ----------------------------------
 
-    def _api_phases(self) -> None:
+    def _api_cycle(self) -> None:
+        """The active member's cycle settings + the phase catalog."""
+        from nutrime.cycles import cycle_settings
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        app = self.server.app
+        settings = cycle_settings(app.substrate, app.tenant_id, member_id)
         self._json(
             {
+                "member_id": member_id,
+                "enabled": settings["enabled"],
+                "phase": settings["phase"],
                 "phases": [
                     {
                         "key": p.key,
@@ -1080,6 +1114,28 @@ class _Handler(BaseHTTPRequestHandler):
                 "disclosure": STUB_DISCLOSURE,
             }
         )
+
+    def _api_cycle_set(self) -> None:
+        from nutrime.cycles import set_cycle_tracking
+
+        member_id = self._member_or_400()
+        if member_id is None:
+            return
+        payload = self._read_json_body()
+        kwargs = {}
+        if "enabled" in payload:
+            kwargs["enabled"] = bool(payload.get("enabled"))
+        if "phase" in payload:
+            kwargs["phase"] = str(payload.get("phase") or "")
+        app = self.server.app
+        try:
+            settings = set_cycle_tracking(
+                app.substrate, app.tenant_id, member_id, **kwargs
+            )
+        except ValueError as err:
+            self._json({"error": str(err)}, status=400)
+            return
+        self._json({"member_id": member_id, **settings})
 
     # -- API: inventory ---------------------------------------------------------
 
@@ -2374,11 +2430,7 @@ PAGE = """<!doctype html>
           <option value="60">1 hour</option>
         </select></label>
     </div>
-    <div class="phases">
-      <label class="lbl">Cycle phase <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional — gentle boosts, never filters)</span></label>
-      <div class="pillRow" id="phasePills"></div>
-      <div class="phaseNote" id="phaseNote"></div>
-    </div>
+    <div class="phaseNote" id="phaseNote"></div>
     <div class="phases">
       <label class="lbl">From</label>
       <div class="pillRow" id="sourcePills"></div>
@@ -2532,6 +2584,10 @@ PAGE = """<!doctype html>
     <div id="checkinSettings"><div class="hint">Loading…</div></div>
   </section>
   <section class="ask">
+    <label class="lbl">Cycle tracking</label>
+    <div id="cycleSettings"><div class="hint">Loading…</div></div>
+  </section>
+  <section class="ask">
     <label class="lbl">What the household avoids and prefers</label>
     <p class="hint">Worked out from everyone's answers. Every search and plan respects it. Only the list is shared, not anyone's answers.</p>
     <div id="derivedBody"></div>
@@ -2576,7 +2632,6 @@ PAGE = """<!doctype html>
 
 <script>
 const $ = id => document.getElementById(id);
-let PHASE = "";
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g,
@@ -2695,37 +2750,45 @@ function syncSourcePills() {
   });
 }
 
-/* -- phases -- */
-let PHASE_DATA = {};
-async function loadPhases() {
-  const data = await jget("/api/phases");
+/* -- cycle tracking (per-member profile setting; Recipes only shows a
+      passive note when the active member's phase is boosting) -- */
+async function loadCycleSettings() {
+  const box = $("cycleSettings");
+  if (!box) return;
+  const data = await jget("/api/cycle", true);
+  if (data.error) { box.innerHTML = '<div class="errorBox">' + esc(data.error) + "</div>"; return; }
   $("disclosure").textContent = data.disclosure;
-  const row = $("phasePills");
-  row.innerHTML = "";
-  const none = document.createElement("button");
-  none.className = "pill on"; none.textContent = "Not using";
-  none.onclick = () => setPhase("", none);
-  row.appendChild(none);
-  for (const p of data.phases) {
-    PHASE_DATA[p.key] = p;
-    const b = document.createElement("button");
-    b.className = "pill"; b.textContent = p.label;
-    b.onclick = () => setPhase(p.key, b);
-    row.appendChild(b);
+  if (!data.enabled) {
+    box.innerHTML = '<p class="hint">Off. If you track a menstrual cycle, turning this on ' +
+      'lets your profile carry a current phase — recipe search and meal plans gently boost ' +
+      'foods that fit it (never filters, stays on this device, per person).</p>' +
+      '<button class="btn-go" id="cycleOn">Track my cycle</button>';
+    $("cycleOn").onclick = async () => {
+      await jpost("/api/cycle", {enabled: true}, true);
+      loadCycleSettings();
+    };
+    return;
   }
-}
-function setPhase(key, btn) {
-  PHASE = key;
-  document.querySelectorAll("#phasePills .pill").forEach(x => x.classList.remove("on"));
-  btn.classList.add("on");
-  const note = $("phaseNote");
-  if (key && PHASE_DATA[key]) {
-    const p = PHASE_DATA[key];
-    note.style.display = "block";
-    note.innerHTML = "<strong>" + esc(p.label) + ":</strong> boosting " + esc(p.emphasis) +
-      ".<br>" + esc(p.evidence_note);
-  } else { note.style.display = "none"; }
-  doSearch();
+  const pills = data.phases.map(p =>
+    '<button class="pill' + (data.phase === p.key ? " on" : "") + '" data-phase="' +
+    esc(p.key) + '">' + esc(p.label) + '</button>').join(" ") +
+    ' <button class="pill' + (!data.phase ? " on" : "") + '" data-phase="">between / not sure</button>';
+  const current = data.phases.find(p => p.key === data.phase);
+  box.innerHTML = '<p class="hint">On. Set your current phase as it changes; it applies ' +
+    'to your searches and plans automatically.</p>' +
+    '<div class="pillRow">' + pills + '</div>' +
+    (current ? '<div class="phaseNote" style="display:block;margin-top:8px"><strong>' +
+      esc(current.label) + ':</strong> boosting ' + esc(current.emphasis) + '.<br>' +
+      esc(current.evidence_note) + '</div>' : "") +
+    '<div style="margin-top:10px"><button class="btn-quiet" id="cycleOff">Stop tracking</button></div>';
+  box.querySelectorAll("[data-phase]").forEach(b => b.onclick = async () => {
+    await jpost("/api/cycle", {phase: b.dataset.phase}, true);
+    loadCycleSettings();
+  });
+  $("cycleOff").onclick = async () => {
+    await jpost("/api/cycle", {enabled: false}, true);
+    loadCycleSettings();
+  };
 }
 
 /* -- kitchen chips (read-only strip on Recipes; managed in Pantry) -- */
@@ -2913,7 +2976,6 @@ function searchParams() {
   if ($("applyConstraints").checked) params.set("apply_constraints", "1");
   if ($("maxTime").value) params.set("max_time", $("maxTime").value);
   if ($("broaden").checked) params.set("broaden", "1");
-  if (PHASE) params.set("phase", PHASE);
   if (SOURCES.size) params.set("sources", [...SOURCES].join(","));
   return params;
 }
@@ -2927,6 +2989,14 @@ async function doSearch(append) {
   $("resultMeta").textContent = "showing " + shown + " of " + data.total +
     " matching \\u00b7 " + data.corpus_count + " recipes in the collection" +
     (data.on_hand_count ? " \\u00b7 matching against " + data.on_hand_count + " ingredients you have" : "");
+  // Passive banner: the active member's tracked phase, when boosting.
+  const pn = $("phaseNote");
+  if (data.phase) {
+    pn.style.display = "block";
+    pn.innerHTML = "<strong>" + esc(data.phase.label) + " phase</strong> (from your profile): " +
+      "boosting " + esc(data.phase.emphasis) + ". " + esc(data.phase.evidence_note) +
+      ' <a href="#profile">Change in Profile</a>.';
+  } else { pn.style.display = "none"; }
   if (!data.total) {
     box.innerHTML = '<div class="empty">Nothing matched those filters \\u2014 try fewer' +
       ' restrictions, or import more of your saved recipes below.</div>';
@@ -4024,6 +4094,7 @@ async function loadProfile() {
   renderMemberAdmin();
   loadDoctor();
   loadCheckinSettings();
+  loadCycleSettings();
   loadNotifySettings();
 }
 async function loadDoctor() {
@@ -4079,7 +4150,6 @@ function renderMemberAdmin() {
   $("maAdd").onclick = () => { $("memberPicker").value = "__add"; onMemberChange(); };
 }
 
-loadPhases();
 loadSources();
 loadInventory();
 loadPinterestStatus();
